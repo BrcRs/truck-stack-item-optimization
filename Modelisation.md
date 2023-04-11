@@ -1154,7 +1154,7 @@ General approach:
     min     z
     subject to
     cuts = {}
-3. Set TI to a random value.
+3. Set TI to a random value, or the optimal value if there wasn't placement constraints.
 4. Make sure (How?) that the value chosen for TI is feasible for all truck-wise sub-problems.
 5. Solve separately (How?) each subproblem consisting in placing the items of a truck into stacks and placing those stacks into the truck.
 6. Get the solution for X\{TI}
@@ -1163,3 +1163,23 @@ General approach:
 9. Solve master problem and obtain new TI
 10. Unless the optimal solution is found, return to 4.
 ```
+
+## Solving the placement subproblem
+
+Given a set of items and a truck, place each item in a stack, so that:
+1. The stacks don't overlap
+2. The stacks stay in the truck
+3. The items of a stack have the same stackability code, supplier, supplier dock, plant dock, orientation
+4. The loading orders are respected
+
+```
+Naive algorithm:
+
+1. Group items per supplier and plant loading orders.
+2. Compare each item with each other as to make stacks of similar items within each group.
+3. Place stacks into truck based on supplier and plant loading order.
+```
+
+Grouping is done in $O(n)$ where $n$ is the number of items assigned to the truck. Comparison is done in $O(n!)$. Placing stacks is done in $O(k)$ where $k$ is the number of stacks and logically $k\leq n$ so $O(n)$. The naive algorithm has thus a complexity of $O(n!)$, which is pretty bad, because of the second step.
+
+However we can assign items to stacks on the fly in $O(n)$ instead of comparing every item to each other. Which makes it an algorithm of $O(n)$.
