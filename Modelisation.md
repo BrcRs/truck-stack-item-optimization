@@ -187,13 +187,13 @@ However I feel like the placement depends too much on the items chosen in each t
 
 Which item goes into which stack? A matrix (similar to the one used for trucks/items) could be used:
 
-$S : \#stacks \times N$ binary matrix
+$S : |stacks| \times N$ binary matrix
 
 Similarly, we won't know in advance the number of stacks necessary.
 
 We also need to define a similar matrix that indicates which plant docks are concerned by stack S:
 
-$\widetilde{SG} : \#stacks \times \# docks$ binary matrix.
+$\widetilde{SG} : |stacks| \times | docks|$ binary matrix.
 
 But that stack thing might change the way we write the problem.
 
@@ -248,9 +248,9 @@ But we can't multiply variables! Which means... we can't use this...
 
 Let's linearize:
 
-$st_{i,j}\times\sum_{j'} s_{i, j'} = s_{i,1}ti_{j, 1} + s_{i,2}ti_{j, 2} + \dots + s_{i,N}ti_{j, N} \quad \forall i \in \{1, \#stacks\}$
+$st_{i,j}\times\sum_{j'} s_{i, j'} = s_{i,1}ti_{j, 1} + s_{i,2}ti_{j, 2} + \dots + s_{i,N}ti_{j, N} \quad \forall i \in \{1, |stacks|\}$
 
-$\psi_{i,j} = \omega_{i,j, 1} + \omega_{i,j, 2} + \dots + \omega_{i,j, N} \quad \forall i \in \{1, \#stacks\}$
+$\psi_{i,j} = \omega_{i,j, 1} + \omega_{i,j, 2} + \dots + \omega_{i,j, N} \quad \forall i \in \{1, |stacks|\}$
 
 $\omega_{i,j,\iota} \leq s_{i,\iota}M^\omega\quad\implies\quad s_{i,\iota}=0\implies\omega_{i,j,\iota}=0$
 
@@ -279,7 +279,7 @@ $-(1-ST)M^\Psi \leq \Psi - \left [S\cdot\left [ \begin{matrix} 1\\\vdots\\1\end{
 
 $M^\Omega = 2$
 
-$M^\Psi = \#items$
+$M^\Psi = |items|$
 
 <!-- Linearization (wrong):
 
@@ -321,13 +321,13 @@ $\iff \displaystyle \left [ \begin{matrix}3\\3\\4 \end{matrix} \right ] \neq \le
 
 Buuut this formulation is impossible because we multiply $S$ with $SS$ which are both variable matrices...
 
-$\displaystyle s_{i,1}is_1 + s_{i,2}is_2 + \dots + s_{i,N}is_N = \sum_{1\leq j \leq N} s_{i,j}ss_i \quad\quad \forall i \in \{1, \dots, \#stacks\}$
+$\displaystyle s_{i,1}is_1 + s_{i,2}is_2 + \dots + s_{i,N}is_N = \sum_{1\leq j \leq N} s_{i,j}ss_i \quad\quad \forall i \in \{1, \dots, |stacks|\}$
 
-$\displaystyle s_{i,1}is_1 + s_{i,2}is_2 + \dots + s_{i,N}is_N = s_{i,1}ss_i + s_{i,2}ss_i + \dots + s_{i,N}ss_i \quad\quad \forall i \in \{1, \dots, \#stacks\}$
+$\displaystyle s_{i,1}is_1 + s_{i,2}is_2 + \dots + s_{i,N}is_N = s_{i,1}ss_i + s_{i,2}ss_i + \dots + s_{i,N}ss_i \quad\quad \forall i \in \{1, \dots, |stacks|\}$
 
 Linearization:
 
-$\displaystyle s_{i,1}is_1 + s_{i,2}is_2 + \dots + s_{i,N}is_N = z_{i,1} + z_{i,2} + \dots + z_{i,N} \quad\quad \forall i \in \{1, \dots, \#stacks\}$
+$\displaystyle s_{i,1}is_1 + s_{i,2}is_2 + \dots + s_{i,N}is_N = z_{i,1} + z_{i,2} + \dots + z_{i,N} \quad\quad \forall i \in \{1, \dots, |stacks|\}$
 $z_{i,j} \leq s_{i,j}M^{Z}$  
 $(0 - M^{Z})(1 - s_{i,j}) \leq z_{i,j} - ss_i \leq M^{Z}(1 - s_{i,j})$  
 $s_{i,j}=0\implies-M^{Z} \leq z_{i,j} - ss_i\leq M^{Z}$  
@@ -344,7 +344,7 @@ $M^Z = \max IS + 1$
 
 Is it possible, with those constraints, that a stack doesn't have the same stackability code than the items? Answer: no. Proof:
 
-$\displaystyle s_{i,1}is_1 + s_{i,2}is_2 + s_{i,3}is_3 = s_{i,1}ss_i + s_{i,2}ss_i + s_{i,3}ss_i \quad\quad \forall i \in \{1, \dots, \#stacks\}$  
+$\displaystyle s_{i,1}is_1 + s_{i,2}is_2 + s_{i,3}is_3 = s_{i,1}ss_i + s_{i,2}ss_i + s_{i,3}ss_i \quad\quad \forall i \in \{1, \dots, |stacks|\}$  
 $\implies is_j = ss_i \quad\forall j\quad \square$
 
 All the items packed in a stack must share the same supplier, plant and supplier dock.
@@ -538,7 +538,7 @@ Things would go better if only contiguous stacks were in each truck. Maybe we co
 
 Now that there is an order between stacks, we know for which stacks we have $sx^o_{s_1} \leq sx^o_{s_2}$.
 
-There would be $$\frac{(\#stacks - 1)\times \#stacks}{2}$$
+There would be $$\frac{(|stacks| - 1)\times |stacks|}{2}$$
 
 constraints of the "no overlap" type, filtered by truck.
 
@@ -549,7 +549,7 @@ Let's note $\Xi^1$ : $\left [ \begin{matrix}1 & 0 & 0 & 0&\dots\\1 & 0& 0& 0&\do
 Let's note $\Xi^2$ : $\left [ \begin{matrix}0 & 1 & 0 & 0&\dots\\0 & 0& 1& 0&\dots\\0 & 0 & 0 & 1&\dots\\ \vdots\\ 0&0&1&0&\dots\\0&0&0&1&\dots\\etc \end{matrix} \right ]$
 
 
-$\Xi^2 SX^o - \Xi^1 SX^{e} - \beta^- + \beta^+ = (\nu - \# trucks) M^{TL} - 0.0001\quad \bold{(a)}$
+$\Xi^2 SX^o - \Xi^1 SX^{e} - \beta^- + \beta^+ = (\nu - | trucks|) M^{TL} - 0.0001\quad \bold{(a)}$
 
 $M^{TL} = \max TL + 1$
 
@@ -567,7 +567,7 @@ If $sx^o_{s_2} - sx^e_{s_1} < 0$, then it would imply $\beta^+ = sx^o_{s_2} - sx
 
 This means that $sx^o_{s_1} - sx^e_{s_2} \leq 0$ and thus $sx^e_{s_2} - sx^o_{s_1} \geq 0$. -->
 
-$\nu$ is a binary variable which would be equal to $\#trucks$ when the two considered stacks are from the same truck. $\nu \geq 0$ by definition (see further).
+$\nu$ is a binary variable which would be equal to $|trucks|$ when the two considered stacks are from the same truck. $\nu \geq 0$ by definition (see further).
 
 $(1 - \mu) \leq \beta^- M^\mu\quad\quad(\beta^- = 0)\implies (\mu=1)$
 
@@ -606,34 +606,34 @@ $\xi \in \{0, 1\}$
 
 $M^{TW} = \max TW + 1$
 
-$s_1$ and $s_2$ $\in$ same truck $\implies (\nu-\#trucks = 0)$ else $(\nu-\#trucks) \in \bold{R}$
+$s_1$ and $s_2$ $\in$ same truck $\implies (\nu-|trucks| = 0)$ else $(\nu-|trucks|) \in \bold{R}$
 
-<!-- $\tau - \phi \leq (\nu-\#trucks)M$  
+<!-- $\tau - \phi \leq (\nu-|trucks|)M$  
 $\tau \geq 0$  
 $\phi \geq 0$
 
-$(\nu-\#trucks) > 0 \implies \tau \text{ and } \phi \text{ free}$
+$(\nu-|trucks|) > 0 \implies \tau \text{ and } \phi \text{ free}$
 
-$(\nu-\#trucks) = 0 \implies \tau - \phi = 0$
+$(\nu-|trucks|) = 0 \implies \tau - \phi = 0$
 
-$(\nu-\#trucks) < 0 \implies \tau = 0\quad \land \quad \phi \geq  - (\nu-\#trucks)M$
-
-
-$\tau \leq (\nu-\#trucks)M + \phi$
+$(\nu-|trucks|) < 0 \implies \tau = 0\quad \land \quad \phi \geq  - (\nu-|trucks|)M$
 
 
-$\phi \leq (\nu-\#trucks)M + \tau$
+$\tau \leq (\nu-|trucks|)M + \phi$
 
-$\displaystyle \tau \geq \frac{(\nu-\#trucks)M}{10}$
 
-$(\nu-\#trucks) > 0 \implies \phi \geq 0,\; \tau \geq (\nu-\#trucks)M/10 > 0$
+$\phi \leq (\nu-|trucks|)M + \tau$
 
-$(\nu-\#trucks) = 0 \implies \tau - \phi = \phi - \tau = 0$
+$\displaystyle \tau \geq \frac{(\nu-|trucks|)M}{10}$
 
-$(\nu-\#trucks) < 0 \implies \phi = - (\nu-\#trucks)M\quad \land \quad \tau = - (\nu-\#trucks)M$ Doesn't work -->
+$(\nu-|trucks|) > 0 \implies \phi \geq 0,\; \tau \geq (\nu-|trucks|)M/10 > 0$
 
-$\tau - \phi \leq (\nu-\#trucks)M^\tau$  
-$\displaystyle \tau \geq \frac{(\nu-\#trucks)M^\tau}{10}$  
+$(\nu-|trucks|) = 0 \implies \tau - \phi = \phi - \tau = 0$
+
+$(\nu-|trucks|) < 0 \implies \phi = - (\nu-|trucks|)M\quad \land \quad \tau = - (\nu-|trucks|)M$ Doesn't work -->
+
+$\tau - \phi \leq (\nu-|trucks|)M^\tau$  
+$\displaystyle \tau \geq \frac{(\nu-|trucks|)M^\tau}{10}$  
 $\tau \geq 0$  
 $\phi \geq 0$  
 <!-- $\tau - \phi \leq \eta^1 M$  
@@ -643,13 +643,13 @@ $\phi \leq (1-\eta)M^\eta$
 $\eta \in \{0, 1\}$
 
 $M^\tau = 10$  
-$\displaystyle M^\eta = \#trucks\frac{M^\tau}{10}$
+$\displaystyle M^\eta = |trucks|\frac{M^\tau}{10}$
 
-$(\nu-\#trucks) > 0 \implies \phi = 0,\; \tau \geq (\nu-\#trucks)M^\tau/10 > 0$
+$(\nu-|trucks|) > 0 \implies \phi = 0,\; \tau \geq (\nu-|trucks|)M^\tau/10 > 0$
 
-$(\nu-\#trucks) = 0 \implies ((\tau = \phi)\; \land\; (\tau = 0\; \lor\; \phi = 0)) \implies \tau = \phi = 0$
+$(\nu-|trucks|) = 0 \implies ((\tau = \phi)\; \land\; (\tau = 0\; \lor\; \phi = 0)) \implies \tau = \phi = 0$
 
-$(\nu-\#trucks) < 0 \implies \tau = 0\quad \land \quad \phi \geq  - (\nu-\#trucks)M^\tau > 0$
+$(\nu-|trucks|) < 0 \implies \tau = 0\quad \land \quad \phi \geq  - (\nu-|trucks|)M^\tau > 0$
 
 $\Xi^1SY^e \leq \Xi^2SY^o +  \xi M^{TW} + (\tau + \phi)M^{TW} + (1-\mu)M^{TW}$
 
@@ -902,8 +902,8 @@ $$(1 - \mu) \leq \beta^- M^\mu$$
 $$\left ( \Xi^2 ST - \Xi^1 ST \right )\times \left [ \begin{matrix} 1 & 0 & 0 & \dots \\ 0 & 2 & 0& \dots \\ 0 & 0 & 3& \dots\\ etc \end{matrix} \right ] = \nu \quad \quad \bold{(b)}$$
 
 
-$$\tau - \phi \leq (\nu-\#trucks)M^\tau$$  
-$$\displaystyle \tau \geq \frac{(\nu-\#trucks)M^\tau}{10}$$  
+$$\tau - \phi \leq (\nu-|trucks|)M^\tau$$  
+$$\displaystyle \tau \geq \frac{(\nu-|trucks|)M^\tau}{10}$$  
 $$\tau \geq 0$$  
 $$\phi \geq 0$$  
 <!-- $$\tau - \phi \leq \eta^1 M$$  
@@ -940,87 +940,87 @@ $\zeta^E \geq 0$
 
 $\zeta^E \in \bold{R^+}$
 
-$SS \in \bold{R^+}^{\#stacks}$
+$SS \in \bold{R^+}^{|stacks|}$
 
-$SP \in \bold{R^+}^{\#stacks}$
+$SP \in \bold{R^+}^{|stacks|}$
 
-$SK \in \bold{R^+}^{\#stacks}$
+$SK \in \bold{R^+}^{|stacks|}$
 
-$SPD \in \bold{R^+}^{\#stacks}$
+$SPD \in \bold{R^+}^{|stacks|}$
 
-$SU \in \bold{R^+}^{\#stacks}$
+$SU \in \bold{R^+}^{|stacks|}$
 
-$SO\in \bold{R^+}^{\#stacks}$
+$SO\in \bold{R^+}^{|stacks|}$
 
-$SX^e \in \bold{R^+}^{\#stacks}$
+$SX^e \in \bold{R^+}^{|stacks|}$
 
-$SX^o \in \bold{R^+}^{\#stacks}$
+$SX^o \in \bold{R^+}^{|stacks|}$
 
-$SY^e \in \bold{R^+}^{\#stacks}$
+$SY^e \in \bold{R^+}^{|stacks|}$
 
-$SY^o \in \bold{R^+}^{\#stacks}$
+$SY^o \in \bold{R^+}^{|stacks|}$
 
-$SZ^e \in \bold{R^+}^{\#stacks}$
+$SZ^e \in \bold{R^+}^{|stacks|}$
 
-$\beta^- \in \bold{R^+}^{\#stacks}$
+$\beta^- \in \bold{R^+}^{|stacks|}$
 
-$\beta^+ \in \bold{R^+}^{\#stacks}$
+$\beta^+ \in \bold{R^+}^{|stacks|}$
 
-$\nu \in \bold{R^+}^{\#stacks}$
+$\nu \in \bold{R^+}^{|stacks|}$
 
-$\tau\in \bold{R^+}^{\#stacks}$
+$\tau\in \bold{R^+}^{|stacks|}$
 
-$\phi\in \bold{R^+}^{\#stacks}$
+$\phi\in \bold{R^+}^{|stacks|}$
 
-$SG \in \bold{R^+}^{\#stacks \times plants}$
+$SG \in \bold{R^+}^{|stacks| \times plants}$
 
 $TI :$ truck $-$ item matrix
 
-$TI \in \{0,1\}^{\#trucks \times N}$
+$TI \in \{0,1\}^{|trucks| \times N}$
 
-$R \in \{0,1\}^{N \times \#suppliers}$
+$R \in \{0,1\}^{N \times |suppliers|}$
 
-$\Theta \in \{0,1\}^{N \times \#suppliers}$
+$\Theta \in \{0,1\}^{N \times |suppliers|}$
 
-$S \in \{0,1\}^{\#stacks \times N}$
+$S \in \{0,1\}^{|stacks| \times N}$
 
-$Z \in \{0,1\}^{\#stacks \times N}$
+$Z \in \{0,1\}^{|stacks| \times N}$
 
-$\Omega \in \{0,1\}^{\#stacks \times \#trucks \times \#items}$
+$\Omega \in \{0,1\}^{|stacks| \times |trucks| \times |items|}$
 
-$ST\in \{0,1\}^{\#stacks \times \#trucks}$
+$ST\in \{0,1\}^{|stacks| \times |trucks|}$
 
-$IOV\in \{0, 1\}^{\#items}$
+$IOV\in \{0, 1\}^{|items|}$
 
-$\mu \in \{0, 1\}^{\#stacks}$
+$\mu \in \{0, 1\}^{|stacks|}$
 
-$\eta \in \{0, 1\}^{\#stacks}$
+$\eta \in \{0, 1\}^{|stacks|}$
 
-$\xi \in \{0, 1\}^{\#stacks}$
+$\xi \in \{0, 1\}^{|stacks|}$
 
-$\chi\in \{0, 1\}^{\#stacks}$
+$\chi\in \{0, 1\}^{|stacks|}$
 
-$r\in \{0, 1\}^{\#stacks}$
+$r\in \{0, 1\}^{|stacks|}$
 
-$\sigma^1 \in \{0, 1\}^{\#stacks}$
+$\sigma^1 \in \{0, 1\}^{|stacks|}$
 
-$\sigma^2 \in \{0, 1\}^{\#stacks}$
+$\sigma^2 \in \{0, 1\}^{|stacks|}$
 
-$\sigma^3 \in \{0, 1\}^{\#stacks}$
+$\sigma^3 \in \{0, 1\}^{|stacks|}$
 
-$\Psi \in \bold{N}^{\#stacks \times \#trucks}$
+$\Psi \in \bold{N}^{|stacks| \times |trucks|}$
 
-$Q \in \bold{N}^{\#stacks \times \#items}$
+$Q \in \bold{N}^{|stacks| \times |items|}$
 
-$H \in \bold{N}^{\#stacks \times \#items}$
+$H \in \bold{N}^{|stacks| \times |items|}$
 
-$V \in \bold{N}^{\#stacks \times \#items}$
+$V \in \bold{N}^{|stacks| \times |items|}$
 
-$W \in \bold{N}^{\#stacks \times \#items}$
+$W \in \bold{N}^{|stacks| \times |items|}$
 
-$G^l \in \bold{N}^{\#stacks \times \#items}$
+$G^l \in \bold{N}^{|stacks| \times |items|}$
 
-$G^r \in \bold{N}^{\#stacks \times \#items}$
+$G^r \in \bold{N}^{|stacks| \times |items|}$
 
 
 
@@ -1030,7 +1030,7 @@ $\displaystyle M^{I4}_{i,j} = \max_i TU_{i,j}\quad \forall j \in  \left \{1,\; C
 
 $M^Z = \max IS + 1$
 
-$IS \in \bold{N}^{\#items}$
+$IS \in \bold{N}^{|items|}$
 
 $M^Q = \max IU + 1$
 
@@ -1045,7 +1045,7 @@ $G^r = \max SO + 1$
 $G^l = \max IOV + 1$
 
 
-$\displaystyle M^\eta = \#trucks\frac{M^\tau}{10}$
+$\displaystyle M^\eta = |trucks|\frac{M^\tau}{10}$
 
 $M^{TE} = \max TE$
 
@@ -1055,29 +1055,29 @@ $M^{TGE} = \max TGE$
 
 $M^{TW} = \max TW + 1$
 
-$M^\Psi = \#items$
+$M^\Psi = |items|$
 
-$IU \in \bold{N}^{\#items}$
+$IU \in \bold{N}^{|items|}$
 
-$IP \in \bold{N}^{\#items}$
-
-
-$IK \in \bold{N}^{\#items}$
-
-$IPD  \in \bold{N}^{\#items}$
+$IP \in \bold{N}^{|items|}$
 
 
-$TL  \in \bold{R}^{\#trucks}$
+$IK \in \bold{N}^{|items|}$
 
-$TW\in \bold{R}^{\#trucks}$
+$IPD  \in \bold{N}^{|items|}$
 
-$TH\in \bold{R}^{\#trucks}$
 
-$TE \in \bold{N}^{\#trucks \times \#suppliers}$
+$TL  \in \bold{R}^{|trucks|}$
 
-$TKE \in \bold{N}^{\#trucks \times \#supplierDocks}$
+$TW\in \bold{R}^{|trucks|}$
 
-$TGE \in \bold{N}^{\#trucks \times \#plantDocks}$
+$TH\in \bold{R}^{|trucks|}$
+
+$TE \in \bold{N}^{|trucks| \times |suppliers|}$
+
+$TKE \in \bold{N}^{|trucks| \times |supplierDocks|}$
+
+$TGE \in \bold{N}^{|trucks| \times |plantDocks|}$
 
 **Constants:**
 
