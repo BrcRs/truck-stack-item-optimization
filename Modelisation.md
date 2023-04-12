@@ -1140,11 +1140,15 @@ $$K(X)X \geq K - K(TI)\overline{TI}$$
 
 We will not solve the dual problem and will avoid having to generate feasibility cuts. However, without the dual problem we can't generate optimality cuts either...
 
-The $TI$ fixed, what are the constraints that tie the subproblems consisting in placing the stacks optimally in each truck? We can already notice that the objective function is entirely determined by $TI$, which means that the remaining subproblems are not optimization problems. The stacks are globally ordered. But it is not necessarily a problem. When solving the subproblems of each trucks, we can relabel each stack as to satisfy the global order.
+The $TI$ fixed, what are the constraints that tie the subproblems consisting in placing the stacks optimally in each truck? We can already notice that the objective function is entirely determined by $TI$, which means that the remaining subproblems are not optimization problems. The stacks are globally ordered. But it is not necessarily an issue. When solving the subproblems of each truck, we can relabel each stack as to satisfy the global order.
 
 We can probably make use of the fact that the objective function depends on so few variables. The thing is, the objective value will be the same wether the placement constraints are satisfied or not, as long as the items are placed in each truck... but not for the dual objective function...
 
 Other approach: we can use the dual of the linear relaxation of the problem. We will not solve the dual anyway, we will find an integer solution, so the optimality cuts we will be able to produce will be correct.
+
+However, when solving the master problem, we will likely find a fractional solution for $TI$. Will rounding allow for convergence? There is also the question of finding a feasible solution. Typically, if the $TI$ found is unfeasible for some trucks, then it means that some items could not have been put into a stack.
+
+We could soften the constraint stating that each item should be in a stack, but heavily penalize it in the objective function. Heavily means that a single missing item should cost more that what the worst solution to the original problem costs. I guess one of the worst solutions would be to use a single truck per item. We could easily compute the value of this 'solution', and use it as the cost per missing item. This way, there always is a feasible solution for each truck: leaving it empty of stacks. That being said, there are other constraints linked with $TI$ which might be violated.
 
 ```
 General approach:
@@ -1153,13 +1157,13 @@ General approach:
 2. Setup the master problem with the following objective function:
     min     z
     subject to
-    cuts = {}
+    cuts = {z >= 0; \zeta constraints}
 3. Set TI to a random value, or the optimal value if there wasn't placement constraints.
 4. Make sure (How?) that the value chosen for TI is feasible for all truck-wise sub-problems.
 5. Solve separately (How?) each subproblem consisting in placing the items of a truck into stacks and placing those stacks into the truck.
 6. Get the solution for X\{TI}
-7. Compute the objective function of the dual of the linear relaxation of the original MILP.
-8. Generate a feasibility cut and add it to `cuts`
+7. Compute the objective function of the dual of the linear relaxation of the original MILP. Add penalities for items with no stacks.
+8. Generate an optimality cut and add it to `cuts`
 9. Solve master problem and obtain new TI
 10. Unless the optimal solution is found, return to 4.
 ```
@@ -1183,3 +1187,89 @@ Naive algorithm:
 Grouping is done in $O(n)$ where $n$ is the number of items assigned to the truck. Comparison is done in $O(n!)$. Placing stacks is done in $O(k)$ where $k$ is the number of stacks and logically $k\leq n$ so $O(n)$. The naive algorithm has thus a complexity of $O(n!)$, which is pretty bad, because of the second step.
 
 However we can assign items to stacks on the fly in $O(n)$ instead of comparing every item to each other. Which makes it an algorithm of $O(n)$.
+
+
+### Expressing the penality per no-stack item
+
+Any empty column in $S$, the stack-item matrix, indicates an item with no stack. The goal is to count those. In order to do so, we need to sum $S$ over the lines, substract 1 (at this point, we only have -1's and 0's) and multiply by -1. Finally, sum the vector. We achieve this with the following formula:
+
+$$\left [ \begin{matrix}1 & \dots & 1\end{matrix} \right ]\cdot\left (- S^\top \cdot \left [ \begin{matrix}1 \\ \vdots \\ 1\end{matrix} \right ] + 1\right )$$
+
+The cost of using one single truck per item can easily be calculated in advance. The objective function is:
+
+$$\alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^\top_{I} (IDL - TI^\top \times TDA)$$
+
+with
+
+$$-\zeta^T \geq -\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$  
+
+$$-\zeta^T \geq -TI^T\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$
+
+
+$$-\zeta^E \geq -\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$  
+
+$$-\zeta^E \geq -TI^E\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$
+
+$\zeta$ is only a mean of knowing which truck is used or not. In this case, we know which trucks are used. We have $n$ items, $m$ planned trucks. We assume $n \geq m$. The $m$ planned trucks are necessarily used, which leaves $n - m$ items to dispatch in extra trucks. In the worst case scenario, only the costliest extra trucks are used. The value of an upper bound of the objective function of the original problem is thus:
+
+$$\alpha_T c^\top_T \left [\begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] + (n-m)\alpha^E\max c_E$$
+
+## Valid $TI$
+
+We could formulate a problem in which we want to find a feasible solution for $TI$ but we want to minimize the distance from the fractional $\widehat{TI}$.
+
+**Minimize:**
+
+$$\delta$$
+
+
+**Subject to:**
+
+$$\delta \geq d_{i, j} \quad \forall i,j$$
+
+$$d \geq TI - \widehat{TI}$$
+
+$$d \geq \widehat{TI} - TI$$
+
+$$TI \leq F$$
+
+$$TI^\top\times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] \leq \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right]$$
+
+$$TI^\top \times TP = IP$$
+
+
+$$R \leq \Theta M^{I4}$$  
+$$ -M^{I4}(1-\Theta) \leq R - (TI^\top\times TU) \leq M^{I4}(1 - \Theta) $$  
+
+
+$$R\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]=IU$$  
+
+$$\Theta\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \geq \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]$$
+
+$$IDE \leq TI^\top \times TDA \leq IDL$$
+
+**Variables:**
+
+$TI :$ truck $-$ item matrix
+
+$TI \in \{0,1\}^{|trucks| \times N}$
+
+$R \in \{0,1\}^{N \times |suppliers|}$
+
+$\Theta \in \{0,1\}^{N \times |suppliers|}$
+
+$d \in \bold{R^+}^{|trucks| \times N}$
+
+$\delta \in \bold{R^+}$
+
+**Parameters:**
+
+$\displaystyle M^{I4}_{i,j} = \max_i TU_{i,j}\quad \forall j \in  \left \{1,\; Col(TI^\top)\right \}$
+
+$IU \in \bold{N}^{|items|}$
+
+$IP \in \bold{N}^{|items|}$
+
+Good news is we have very 'few' variables (arguable), but these are all integers. $\widehat{TI}$ is the fractional solution found by solving the master problem of the Benders decomposition.
+
+Actually, this might be easier than I thought. We can compute beforehand which items are compatible with which trucks, an $O(nm)$ operation (n: nb of items, m: nb of trucks). There are at most $n$ trucks, which makes it a $O(n^2)$ operation. We then filter $\widehat{TI}$ based on the result to get rid of impossible affectations in $O(n^2)$. Then, for each item, we take the truck with the maximum affectation value and replace with 1, the rest of the line becomes 0, in $O(n^2)$. In the worst case, there are some trucks with too many items. When that happens, the value of the objective function is penalized in the sub-problems and the optimality cut will guide towards a better solution.
