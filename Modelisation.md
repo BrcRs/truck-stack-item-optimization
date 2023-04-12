@@ -1157,7 +1157,7 @@ General approach:
 2. Setup the master problem with the following objective function:
     min     z
     subject to
-    cuts = {z >= 0; \zeta constraints}
+    cuts = {z >= 0}
 3. Set TI to a random value, or the optimal value if there wasn't placement constraints.
 4. Make sure (How?) that the value chosen for TI is feasible for all truck-wise sub-problems.
 5. Solve separately (How?) each subproblem consisting in placing the items of a truck into stacks and placing those stacks into the truck.
@@ -1181,13 +1181,164 @@ Naive algorithm:
 
 1. Group items per supplier and plant loading orders.
 2. Compare each item with each other as to make stacks of similar items within each group.
-3. Place stacks into truck based on supplier and plant loading order.
+3. Place stacks into truck based on supplier and plant loading order. This might need solving a linear program.
 ```
 
 Grouping is done in $O(n)$ where $n$ is the number of items assigned to the truck. Comparison is done in $O(n!)$. Placing stacks is done in $O(k)$ where $k$ is the number of stacks and logically $k\leq n$ so $O(n)$. The naive algorithm has thus a complexity of $O(n!)$, which is pretty bad, because of the second step.
 
 However we can assign items to stacks on the fly in $O(n)$ instead of comparing every item to each other. Which makes it an algorithm of $O(n)$.
 
+Placing could still require to be done via optimization. We assume placing items into stacks can be done beforehand. The following program places stacks in the truck as to minimize overflow in the X axis:
+
+**Minimize:**
+
+$$\rho$$
+
+**Subject to:**
+
+
+$$G^l\leq S\times M^G$$  
+$$G^r \leq S\times M^G$$  
+$$G^l\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = G^r\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]$$
+
+$$-M^G(1-S) \leq G^r - \left [  SO  \cdots  SO  \right ] \leq M^G(1-S)$$  
+$$-M^G(1-S) \leq G^l - \left [  IOV  \cdots  IOV  \right ] \leq M^G(1-S)$$
+
+$$SX^e - SX^o = SL + SO\cdot M^{TL}$$
+
+$$SY^e - SY^o = SW + SO\cdot M^{TW}$$
+
+$$SX^e - SX^o = SW + (1-SO)\cdot M^{TW}$$
+
+$$SY^e - SY^o = SL + (1-SO)\cdot M^{TL}$$
+
+$$SZ^o = 0$$
+
+$$SZ^e = S\cdot IH$$
+
+$$(SX^e \leq  TL)\quad (relaxed)$$  
+
+$$\rho \geq SX^e - TL$$
+
+$$SY^e \leq  TW$$  
+$$SZ^e \leq  TH$$
+
+$$\left [ \begin{matrix} 1 & 0 & \dots & 0\\ & I & &  \end{matrix} \right ]\times SX^o \leq  SX^o$$
+
+$$\Xi^2 SX^o - \Xi^1 SX^{e} - \beta^- + \beta^+ =  - 0.0001\quad \bold{(a)}$$
+
+$$(1 - \mu) \leq \beta^- M^\mu$$
+
+$$\Xi^1SY^e \leq \Xi^2SY^o +  \xi M^{TW} + (1-\mu)M^{TW}$$
+
+$$\Xi^2SY^e \leq \Xi^1SY^o + (1 - \xi)M^{TW} + (1-\mu)M^{TW}$$
+
+$$\Xi^1SU\cdot TE \leq \Xi^2 SU \cdot TE$$
+
+$$\Xi^1SU - \Xi^2SU \geq \chi\epsilon - rM^{TE} - (1 - \sigma^1)M^{TE}$$  
+$$\Xi^2SU - \Xi^1SU \geq (1 - \chi)\epsilon - rM^{TE} - (1 - \sigma^1)M^{TE}$$
+
+$$\Xi^2SK \cdot TKE \geq \Xi^1SK \cdot TKE - (1-r)M^{TKE}$$
+
+$$\Xi^1SK \cdot TKE - \Xi^2SK \cdot TKE \geq \chi\epsilon - (1 - \sigma^2)M^{TKE}$$  
+$$\Xi^2SK \cdot TKE - \Xi^1SK \cdot TKE \geq (1 - \chi)\epsilon - (1 - \sigma^2)M^{TKE}$$
+
+$$\Xi^2SG\cdot TGE \geq \Xi^1SG\cdot TGE - (1 - \sigma^3)M^{TGE}$$
+
+$$\sigma^1 + \sigma^2 + \sigma^3 \geq 1$$  
+
+
+**Variables:**
+
+$\rho \in \bold{R^+}^{|stacks|}$
+
+$SU \in \bold{R^+}^{|stacks|} \quad \text{(Entirely infered)}$
+
+$SO\in \bold{R^+}^{|stacks|}$
+
+$SX^e \in \bold{R^+}^{|stacks|}$
+
+$SX^o \in \bold{R^+}^{|stacks|}$
+
+$SY^e \in \bold{R^+}^{|stacks|}$
+
+$SY^o \in \bold{R^+}^{|stacks|}$
+
+$SZ^e \in \bold{R^+}^{|stacks|} \quad \text{(Entirely infered from \textit{S})}$
+
+$\beta^- \in \bold{R^+}^{|stacks|} \quad \text{(Entirely infered)}$
+
+$\beta^+ \in \bold{R^+}^{|stacks|} \quad \text{(Entirely infered)}$
+
+$SG \in \bold{R^+}^{|stacks| \times plants}$
+
+$G^l \in \bold{R^+}^{|stacks| \times |items|} \quad \text{(Entirely infered from \textit{S})}$
+
+$G^r \in \bold{R^+}^{|stacks| \times |items|} \quad \text{(Entirely infered from \textit{S})}$
+
+$IOV\in \{0, 1\}^{|items|} \quad \text{(Partially determined)}$
+
+$\mu \in \{0, 1\}^{|stacks|} \quad \text{(Partially infered from } \beta^-)$
+
+$\xi \in \{0, 1\}^{|stacks|}$
+
+$\chi\in \{0, 1\}^{|stacks|}$
+
+$r\in \{0, 1\}^{|stacks|}$
+
+$\sigma^1 \in \{0, 1\}^{|stacks|}$
+
+$\sigma^2 \in \{0, 1\}^{|stacks|}$
+
+$\sigma^3 \in \{0, 1\}^{|stacks|}$
+
+
+
+
+**Parameters:**
+
+$S \in \{0,1\}^{|stacks| \times N}$
+
+$M^{G^r} = \max SO + 1$
+
+$M^{G^l} = \max IOV + 1$
+
+
+$M^{TE} = \max TE$
+
+$M^{TKE} = \max TKE$
+
+$M^{TGE} = \max TGE$
+
+$M^{TW} = \max TW + 1$
+
+$TL  \in \bold{R}^{|trucks|}$
+
+$TW\in \bold{R}^{|trucks|}$
+
+$TH\in \bold{R}^{|trucks|}$
+
+$TE \in \bold{N}^{|trucks| \times |suppliers|}$
+
+$TKE \in \bold{N}^{|trucks| \times |supplierDocks|}$
+
+$TGE \in \bold{N}^{|trucks| \times |plantDocks|}$
+
+**Constants:**
+
+$SZ^o = 0$
+
+$M^\mu = 2$
+
+$\Xi^1 : \left [ \begin{matrix}1 & 0 & 0 & 0&\dots\\1 & 0& 0& 0&\dots\\1 & 0 & 0 & 0&\dots\\ \vdots\\ 0&1&0&0&\dots\\0&1&0&0&\dots\\etc \end{matrix} \right ]$
+
+$\Xi^2 : \left [ \begin{matrix}0 & 1 & 0 & 0&\dots\\0 & 0& 1& 0&\dots\\0 & 0 & 0 & 1&\dots\\ \vdots\\ 0&0&1&0&\dots\\0&0&0&1&\dots\\etc \end{matrix} \right ]$
+
+$\epsilon = 0.001$
+
+This is a Mixed Integer Linear Program. We could try to solve it with B&B, with a smart branching on the binary variables which are not determined by other variables. The use of heuristic algorithms which ignore orientation for instance could prove useful. We could even use Benders decomposition.
+
+Once  the solution is found, the stacks overflowing from the truck are deleted and we deduce the items which could not be added to stacks that way.
 
 ### Expressing the penality per no-stack item
 
@@ -1210,9 +1361,9 @@ $$-\zeta^E \geq -\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$
 
 $$-\zeta^E \geq -TI^E\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$
 
-$\zeta$ is only a mean of knowing which truck is used or not. In this case, we know which trucks are used. We have $n$ items, $m$ planned trucks. We assume $n \geq m$. The $m$ planned trucks are necessarily used, which leaves $n - m$ items to dispatch in extra trucks. In the worst case scenario, only the costliest extra trucks are used. The value of an upper bound of the objective function of the original problem is thus:
+$\zeta$ is only a mean of knowing which truck is used or not. In this case, we know which trucks are used. We have $n$ items, $m$ planned trucks. We assume $n \geq m$. The $m$ planned trucks are necessarily used, which leaves $n - m$ items to dispatch in extra trucks. In the worst case scenario, only the costliest extra trucks are used. In the worst case all items arrive late. The value of an upper bound of the objective function of the original problem is thus:
 
-$$\alpha_T c^\top_T \left [\begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] + (n-m)\alpha^E\max c_E$$
+$$\alpha_T c^\top_T \left [\begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] + (n-m)\alpha^E\max c_E + \alpha_I c_I^\top(IDL - TDE)$$
 
 ## Valid $TI$
 
@@ -1273,3 +1424,26 @@ $IP \in \bold{N}^{|items|}$
 Good news is we have very 'few' variables (arguable), but these are all integers. $\widehat{TI}$ is the fractional solution found by solving the master problem of the Benders decomposition.
 
 Actually, this might be easier than I thought. We can compute beforehand which items are compatible with which trucks, an $O(nm)$ operation (n: nb of items, m: nb of trucks). There are at most $n$ trucks, which makes it a $O(n^2)$ operation. We then filter $\widehat{TI}$ based on the result to get rid of impossible affectations in $O(n^2)$. Then, for each item, we take the truck with the maximum affectation value and replace with 1, the rest of the line becomes 0, in $O(n^2)$. In the worst case, there are some trucks with too many items. When that happens, the value of the objective function is penalized in the sub-problems and the optimality cut will guide towards a better solution.
+
+## In Summary
+
+```
+Detailed general approach:
+
+1. Setup a linear relaxation of the original MILP for the given instance
+2. Compute the value of the worst case.
+3. Setup the master problem with the following objective function:
+    min     z
+    subject to
+    cuts = {z >= 0}
+4. Set TI to a random value.
+5. Use an algorithm to determine an integer solution close to the one found.
+6. Solve separately each subproblem consisting in placing the items of a truck into stacks and placing those stacks into the truck, first by forming stacks logically and then solving via B&B the placing problem.
+7. Get the solution for X\{TI}
+8. Compute the number of missing items.
+9. Re-label the stacks so as to satisfy the global order in the X axis.
+10. Compute the objective function of the dual of the linear relaxation of the original MILP. Add penalities for items with no stacks.
+11. Generate an optimality cut and add it to `cuts`
+12. Solve master problem and obtain new potentially fractional TI
+13. Unless the optimal solution is found, return to 4.
+```
