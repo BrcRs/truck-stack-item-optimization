@@ -934,11 +934,11 @@ $$\sigma^1 + \sigma^2 + \sigma^3 \geq 1$$
 
 $\zeta^T \geq 0$
 
-$\zeta^T \in \bold{R^+}$
+$\zeta^T \in \bold{R^+}^{|PlannedTrucks|}$
 
 $\zeta^E \geq 0$
 
-$\zeta^E \in \bold{R^+}$
+$\zeta^E \in \bold{R^+}^{|ExtraTrucks|}$
 
 $SS \in \bold{R^+}^{|stacks|}$
 
@@ -1042,7 +1042,7 @@ $M^W = \max{IPD} + 1$
 
 $G^r = \max SO + 1$
 
-$G^l = \max IOV + 1$
+$G^l = \max IO + 1$
 
 
 $\displaystyle M^\eta = |trucks|\frac{M^\tau}{10}$
@@ -1339,6 +1339,12 @@ $\epsilon = 0.001$
 This is a Mixed Integer Linear Program. We could try to solve it with B&B, with a smart branching on the binary variables which are not determined by other variables. The use of heuristic algorithms which ignore orientation for instance could prove useful. We could even use Benders decomposition.
 
 Once  the solution is found, the stacks overflowing from the truck are deleted and we deduce the items which could not be added to stacks that way.
+
+Problem: $\Xi$ constraints are in an exponential number. TODO
+Ideas:
+
+- Using branch and cut to solve subproblems? How to detect a violated constraint? Would it even be useful?
+- Discarding those constraints in the dual relaxation hoping it doesn't affect the approximation?
 
 ### Expressing the penality per no-stack item
 
