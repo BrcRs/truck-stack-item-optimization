@@ -897,6 +897,9 @@ $$\left [ \begin{matrix} 1 & 0 & \dots & 0\\ & I & &  \end{matrix} \right ]\time
 
 $$\Xi^2 SX^o - \Xi^1 SX^{e} - \beta^- + \beta^+ =  - 0.0001\quad \bold{(a)}$$
 
+$$\beta^- \leq \lambda M^\lambda$$  
+$$\beta^+ \leq (1-\lambda)M^\lambda$$  
+
 $$(1 - \mu) \leq \beta^- M^\mu$$
 
 $$\left ( \Xi^2 ST - \Xi^1 ST \right )\times \left [ \begin{matrix} 1 & 0 & 0 & \dots \\ 0 & 2 & 0& \dots \\ 0 & 0 & 3& \dots\\ etc \end{matrix} \right ] = \nu \quad \quad \bold{(b)}$$
@@ -1008,6 +1011,8 @@ $\sigma^2 \in \{0, 1\}^{|stacks|}$
 
 $\sigma^3 \in \{0, 1\}^{|stacks|}$
 
+$\lambda \in  \{0, 1\}^{|stacks|!}$
+
 $\Psi \in \bold{N}^{|stacks| \times |trucks|}$
 
 $Q \in \bold{N}^{|stacks| \times |items|}$
@@ -1078,6 +1083,8 @@ $TE \in \bold{N}^{|trucks| \times |suppliers|}$
 $TKE \in \bold{N}^{|trucks| \times |supplierDocks|}$
 
 $TGE \in \bold{N}^{|trucks| \times |plantDocks|}$
+
+$M^\lambda = 2TL + 1$
 
 **Constants:**
 
@@ -1225,25 +1232,28 @@ $$SZ^e \leq  TH$$
 
 $$\left [ \begin{matrix} 1 & 0 & \dots & 0\\ & I & &  \end{matrix} \right ]\times SX^o \leq  SX^o$$
 
-$$\Xi^2 SX^o - \Xi^1 SX^{e} - \beta^- + \beta^+ =  - 0.0001\quad \bold{(a)}$$
+$$\Xi^2 SX^o - \Xi^1 SX^{e} - \beta^- + \beta^+ =  - 0.0001\quad \bold{(\Xi_a)}$$
+
+$$\beta^- \leq \lambda M^\lambda$$  
+$$\beta^+ \leq (1-\lambda)M^\lambda$$  
 
 $$(1 - \mu) \leq \beta^- M^\mu$$
 
-$$\Xi^1SY^e \leq \Xi^2SY^o +  \xi M^{TW} + (1-\mu)M^{TW}$$
+$$\Xi^1SY^e \leq \Xi^2SY^o +  \xi M^{TW} + (1-\mu)M^{TW}\quad \bold{(\Xi_b)}$$
 
-$$\Xi^2SY^e \leq \Xi^1SY^o + (1 - \xi)M^{TW} + (1-\mu)M^{TW}$$
+$$\Xi^2SY^e \leq \Xi^1SY^o + (1 - \xi)M^{TW} + (1-\mu)M^{TW}\quad \bold{(\Xi_c)}$$
 
-$$\Xi^1SU\cdot TE \leq \Xi^2 SU \cdot TE$$
+$$\Xi^1SU\cdot TE \leq \Xi^2 SU \cdot TE\quad \bold{(\Xi_d)}$$
 
-$$\Xi^1SU - \Xi^2SU \geq \chi\epsilon - rM^{TE} - (1 - \sigma^1)M^{TE}$$  
-$$\Xi^2SU - \Xi^1SU \geq (1 - \chi)\epsilon - rM^{TE} - (1 - \sigma^1)M^{TE}$$
+$$\Xi^1SU - \Xi^2SU \geq \chi\epsilon - rM^{TE} - (1 - \sigma^1)M^{TE}\quad \bold{(\Xi_e)}$$  
+$$\Xi^2SU - \Xi^1SU \geq (1 - \chi)\epsilon - rM^{TE} - (1 - \sigma^1)M^{TE}\quad \bold{(\Xi_f)}$$
 
-$$\Xi^2SK \cdot TKE \geq \Xi^1SK \cdot TKE - (1-r)M^{TKE}$$
+$$\Xi^2SK \cdot TKE \geq \Xi^1SK \cdot TKE - (1-r)M^{TKE}\quad \bold{(\Xi_g)}$$
 
-$$\Xi^1SK \cdot TKE - \Xi^2SK \cdot TKE \geq \chi\epsilon - (1 - \sigma^2)M^{TKE}$$  
-$$\Xi^2SK \cdot TKE - \Xi^1SK \cdot TKE \geq (1 - \chi)\epsilon - (1 - \sigma^2)M^{TKE}$$
+$$\Xi^1SK \cdot TKE - \Xi^2SK \cdot TKE \geq \chi\epsilon - (1 - \sigma^2)M^{TKE}\quad \bold{(\Xi_h)}$$  
+$$\Xi^2SK \cdot TKE - \Xi^1SK \cdot TKE \geq (1 - \chi)\epsilon - (1 - \sigma^2)M^{TKE}\quad \bold{(\Xi_i)}$$
 
-$$\Xi^2SG\cdot TGE \geq \Xi^1SG\cdot TGE - (1 - \sigma^3)M^{TGE}$$
+$$\Xi^2SG\cdot TGE \geq \Xi^1SG\cdot TGE - (1 - \sigma^3)M^{TGE}\quad \bold{(\Xi_j)}$$
 
 $$\sigma^1 + \sigma^2 + \sigma^3 \geq 1$$  
 
@@ -1292,6 +1302,7 @@ $\sigma^2 \in \{0, 1\}^{|stacks|}$
 
 $\sigma^3 \in \{0, 1\}^{|stacks|}$
 
+$\lambda \in  \{0, 1\}^{|stacks|!}$
 
 
 
@@ -1324,6 +1335,8 @@ $TKE \in \bold{N}^{|trucks| \times |supplierDocks|}$
 
 $TGE \in \bold{N}^{|trucks| \times |plantDocks|}$
 
+$M^\lambda = 2TL + 1$
+
 **Constants:**
 
 $SZ^o = 0$
@@ -1343,7 +1356,70 @@ Once  the solution is found, the stacks overflowing from the truck are deleted a
 Problem: $\Xi$ constraints are in an exponential number. TODO
 Ideas:
 
-- Using branch and cut to solve subproblems? How to detect a violated constraint? Would it even be useful?
+- Using branch and cut to solve subproblems? How to detect a violated constraint? Would it even be useful? In the subproblems, maybe some constraints can be logically satisfied. For instance, let's say we have $s_1, s_2, s_3, s_4$, four stacks which are ordered by $SX^o$. Let's consider the following $\bold{(\Xi_a)}$ constraint:
+
+$$\Xi^2 SX^o - \Xi^1 SX^{e} - \beta^- + \beta^+ =  - 0.0001$$
+
+There are two cases:  
+Case 1: $SX^o_{s_j} \geq SX^e_{s_i}\quad \forall i<j$
+
+In this case, $\beta^- = 0$, and thus $\bold{(\Xi_b)}$ and $\bold{(\Xi_c)}$ are unecessary because relaxed.
+
+Case 2: $SX^o_{s_j} < SX^e_{s_i}\quad \forall i<j$ in which case the contrary happens.
+
+Now, what can the relationship between $s_1$ and $s_2$ can teach us about the one between $s_1$ and $s_3$?
+
+If $SX^o_{s_2} \geq SX^e_{s_1}$, it just means that $s_1$ and $s_2$ aren't overlapping on the X axis. Since we know that $SX^o_{s_3} \geq SX^o_{s_2}$, then it is logical that $SX^o_{s_3} \geq SX^e_{s_1}$. It means that the satisfaction of some constraints is implied by the satisfaction of some other constraints. A Branch & Cut algorithm would thus prove useful.
+
+The same concept applies to $\bold{(\Xi_b)}$.
+
+$\bold{(\Xi_d)}$ can be replaced by a transitive constraint.
+
+How to find a violated constraint? It will depend on the type of each constraint.
+
+$\bold{(\Xi_a)}$: if both $\beta^-$ and $\beta^+$ are positive, we know for sure that $\bold{(\Xi_a)}$ is violated.
+
+$\left [ \begin{matrix} 1 & 0 & \dots & 0\\ & I & &  \end{matrix} \right ]\times SX^o -  SX^e - \beta^- + \beta^+ =  - 0.0001\quad \bold{\Xi_a^{trans}}$
+
+Let's prove that if all $\bold{\Xi_a^{trans}}$ are satisfied then all $\bold{\Xi_a}$ are aswell.
+Suppose we have:
+
+$\forall j,i\quad j=i+1,\; SX^o_j - SX^e_i-\beta^-_{i,j}+\beta^+_{i,j}=-0.0001$
+
+Let's prove that $\forall h > j$
+
+$SX^o_h - SX^e_i-\beta^-_{i,h}+\beta^+_{i,h}=-0.0001$
+
+$\forall j,i\quad j=i+1,\; SX^o_j - SX^e_i-\beta^-_{i,j}+\beta^+_{i,j}=-0.0001$
+
+$\iff \forall i\quad SX^o_{i+1} - (SX^o_i+\alpha_i)-\beta^-_{i,i+1}+\beta^+_{i,i+1}=-0.0001$
+
+Thus
+
+$\sum_{k=i}^{h-1}(SX^o_{k+1} - SX^o_k-\alpha_k-\beta^-_{k,k+1}+\beta^+_{k,k+1}) = -0.0001(h-i)$
+
+$\overset{rec.}{\iff}SX^o_{h} - SX^o_{i}-\alpha_i-\sum_{k=i+1}^{h-1}(\alpha_k)-\sum_{k=i}^{h-1}(\beta^-_{k,k+1})+\sum_{k=i}^{h-1}\beta^+_{k,k+1} = -0.0001(h-i)$
+
+$\iff SX^o_{h} - SX^e_{i}-\sum_{k=i+1}^{h-1}(\alpha_k)-\sum_{k=i}^{h-1}(\beta^-_{k,k+1})+\sum_{k=i}^{h-1}\beta^+_{k,k+1} = -0.0001(h-i)$
+
+$\iff SX^o_{h} - SX^e_{i}-\sum_{k=i+1}^{h-1}(\alpha_k)-\sum_{k=i}^{h-1}(\beta^-_{k,k+1})+\sum_{k=i}^{h-1}\beta^+_{k,k+1}+0.0001(h-i-1) = -0.0001$
+
+If we take 
+
+$\beta^-_{i,h} = \sum_{k=i}^{h-1}(\beta^-_{k,k+1})-0.0001(h-i-1)$ 
+
+and 
+
+$\beta^+_{i,h} = \sum_{k=i}^{h-1}\beta^+_{k,k+1} - \sum_{k=i+1}^{h-1}(\alpha_k)$
+
+Then we have
+
+$SX^o_h - SX^e_i-\beta^-_{i,h}+\beta^+_{i,h}=-0.0001\quad \square$
+
+However, there is no guarantee that at least one between $\beta^+_{i,h}$ and $\beta^-_{i,h}$ is equal to zero. So now the question is: does-it matter? Let's suppose that these are both positive. We thus have $\mu$ which is free in $\{0, 1\}$. Which means that $\bold{\Xi_b}$ and $\bold{\Xi_c}$ can be either relaxed or strict. We saw earlier that if $SX^o_h \geq SX^e_i$ then $\bold{(\Xi_b)}$ and $\bold{(\Xi_c)}$ should be relaxed. If we replace  those two constraints with their transitive counterparts, then this means these are automatically relaxed since they won't appear for the couple $(s_i,s_h)$. Now, if $SX^o_h < SX^e_i$...
+
+I have found something interesting: if a truck can only have $n$ stacks side to side (overlapping on the $X$ axis) then it means that every stack $s_i$ only have to satisfy placement constraints in regards to their $n$ predecessors on the $SX^o$ order. This finding will be of no help when the stacks will be extremely tiny in $Y$.
+
 - Discarding those constraints in the dual relaxation hoping it doesn't affect the approximation?
 
 ### Expressing the penality per no-stack item
