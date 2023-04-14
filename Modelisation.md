@@ -1011,7 +1011,7 @@ $\sigma^2 \in \{0, 1\}^{|stacks|}$
 
 $\sigma^3 \in \{0, 1\}^{|stacks|}$
 
-$\lambda \in  \{0, 1\}^{|stacks|!}$
+$\lambda \in  \{0, 1\}^{|stacks|\times (|stacks|+1)}$
 
 $\Psi \in \bold{N}^{|stacks| \times |trucks|}$
 
@@ -1302,7 +1302,7 @@ $\sigma^2 \in \{0, 1\}^{|stacks|}$
 
 $\sigma^3 \in \{0, 1\}^{|stacks|}$
 
-$\lambda \in  \{0, 1\}^{|stacks|!}$
+$\lambda \in  \{0, 1\}^{|stacks|\times (|stacks|+1)}$
 
 
 
@@ -1353,10 +1353,11 @@ This is a Mixed Integer Linear Program. We could try to solve it with B&B, with 
 
 Once  the solution is found, the stacks overflowing from the truck are deleted and we deduce the items which could not be added to stacks that way.
 
-Problem: $\Xi$ constraints are in an exponential number. TODO
-Ideas:
+Problem: $\Xi$ constraints are in an exponential number. ERRATUM: $\Xi$ constraints are actually as many as $\frac{|stacks|(|stacks| + 1)}{2}$, which means $O(n^2)$. Following next are thoughts on how to tackle the 'high' number of $\Xi$ constraints before I corrected myself.
 
-- Using branch and cut to solve subproblems? How to detect a violated constraint? Would it even be useful? In the subproblems, maybe some constraints can be logically satisfied. For instance, let's say we have $s_1, s_2, s_3, s_4$, four stacks which are ordered by $SX^o$. Let's consider the following $\bold{(\Xi_a)}$ constraint:
+### Using branch and cut to solve subproblems? 
+
+How to detect a violated $\Xi$ constraint? Would it even be useful? In the subproblems, maybe some constraints can be logically satisfied. For instance, let's say we have $s_1, s_2, s_3, s_4$, four stacks which are ordered by $SX^o$. Let's consider the following $\bold{(\Xi_a)}$ constraint:
 
 $$\Xi^2 SX^o - \Xi^1 SX^{e} - \beta^- + \beta^+ =  - 0.0001$$
 
@@ -1418,9 +1419,52 @@ $SX^o_h - SX^e_i-\beta^-_{i,h}+\beta^+_{i,h}=-0.0001\quad \square$
 
 However, there is no guarantee that at least one between $\beta^+_{i,h}$ and $\beta^-_{i,h}$ is equal to zero. So now the question is: does-it matter? Let's suppose that these are both positive. We thus have $\mu$ which is free in $\{0, 1\}$. Which means that $\bold{\Xi_b}$ and $\bold{\Xi_c}$ can be either relaxed or strict. We saw earlier that if $SX^o_h \geq SX^e_i$ then $\bold{(\Xi_b)}$ and $\bold{(\Xi_c)}$ should be relaxed. If we replace  those two constraints with their transitive counterparts, then this means these are automatically relaxed since they won't appear for the couple $(s_i,s_h)$. Now, if $SX^o_h < SX^e_i$...
 
-I have found something interesting: if a truck can only have $n$ stacks side to side (overlapping on the $X$ axis) then it means that every stack $s_i$ only have to satisfy placement constraints in regards to their $n$ predecessors on the $SX^o$ order. This finding will be of no help when the stacks will be extremely tiny in $Y$.
+I have found something interesting: if a truck can only have $n$ stacks side to side (overlapping on the $X$ axis) then it means that every stack $s_i$ only have to satisfy placement constraints in regards to their $n$ predecessors on the $SX^o$ order. This finding will be of no help when the stacks will be extremely tiny in $Y$. But it can help determine separating algorithms, or even placing algorithms. It is a rectangle packing problem, which is NP-hard in the general case. But here we can't rotate the rectangles freely. These are either rotated length-wise of width-wise.
 
-- Discarding those constraints in the dual relaxation hoping it doesn't affect the approximation?
+```
+separate_i
+A separating algorithm to determine if stack i violates constraints with its adjacent predecessors:
+
+1. Consider s[i-1]. Determine the range of s[i-1] in the X axis.
+2. Make a list L of s[i-1] and the predecessors of s[i-1] which overlap with s[s-1]. The list should be ordered by decreasing order of Xo position.
+3. For each predecessor p in L:
+    4. For every \Xi constraint between p and s[i]:
+        5. Check if it is satisfied:
+            6. If not satisfied, terminate and return it.
+7. Leaving the loop, no unsatisfied constraint has been found, return None.
+```
+
+Complexity:
+- Step 1. is done in $O(1)$.
+- Step 2. is done in $n$, with $n$ being the total number of stacks.
+- Step 3. : There are at most $\displaystyle \left \lfloor \frac{TW}{\underset{\{s_j\in S-\{s_i\}|j < i\}}{\min}(SL_s, SW_s)} \right \rfloor \leq n-1$ predecessors in L, which means that in worst case we do go through every $\Xi$ constraints which gives $O(n)$.
+
+Although in the general case the complexity of this separating algorithm seems mediocre, we can show that in practice, it can be very efficient:
+
+```
+separate_Xi
+A separating algorithm to determine if stack i violates constraints with its adjacent predecessors, for all i:
+
+1. Get an list of the stacks S order by increasing Xo.
+2. For each stack s:
+    3. If separate_i(s) returns a constraint c:
+        4. return c
+    5. else:
+        6. continue
+7. No violated constraint found: return None.
+```
+
+Complexity of ``separate_Xi``:
+- Step 1. is done in worst case in $O(n\cdot log(n))$
+- The separation of $s_1$ is done in $O(1)$ because no predecessors.
+- For $s_i$:
+    * Making a list of overlapping predecessors only consists in checking if $s_{i-1}$ overlaps with $s_{i-2}$. If it does, the list of predecessors becomes $L_i = L_{i-1} + \{s_{i-1}\}$. It is done in $O(1)$.
+    * There are at most $(i-1)$ predecessors.
+
+
+### Discarding those constraints in the dual relaxation hoping it doesn't affect the approximation?
+
+We can keep those constraints because these are as many as $O(n^2)$ in contrary to what I previously thought.
 
 ### Expressing the penality per no-stack item
 
@@ -1513,7 +1557,7 @@ Actually, this might be easier than I thought. We can compute beforehand which i
 Detailed general approach:
 
 1. Setup a linear relaxation of the original MILP for the given instance
-2. Compute the value of the worst case.
+2. Compute the value of the worst case of the not relaxed original MILP.
 3. Setup the master problem with the following objective function:
     min     z
     subject to
@@ -1523,9 +1567,9 @@ Detailed general approach:
 6. Solve separately each subproblem consisting in placing the items of a truck into stacks and placing those stacks into the truck, first by forming stacks logically and then solving via B&B the placing problem.
 7. Get the solution for X\{TI}
 8. Compute the number of missing items.
-9. Re-label the stacks so as to satisfy the global order in the X axis.
+9. Re-label the stacks so as to satisfy the global order in the X axis for the relaxation of the original MILP.
 10. Compute the objective function of the dual of the linear relaxation of the original MILP. Add penalities for items with no stacks.
 11. Generate an optimality cut and add it to `cuts`
 12. Solve master problem and obtain new potentially fractional TI
-13. Unless the optimal solution is found, return to 4.
+13. Unless the optimal solution is found, return to 5.
 ```
