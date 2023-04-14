@@ -50,6 +50,8 @@ model = Model(Cbc.Optimizer)
 @variable(model, Gl[1:nbStacks, 1:nbItems], lower_bound = 0)
 @variable(model, Gr[1:nbStacks, 1:nbItems], lower_bound = 0)
 
+@variable(model, lambda[[1:nbStacks, 1:nbStacks+1]], lower_bound = 0)
+
 # MI4 = [[max(TU[:, j]...) for j in 1:first(size(TU[1, :]))] for j in 1:first(size(TI[:, 1]))]
 MI4 = map(Int, (max(TU[:, i]...) for i = 1:first(size(TU[1, :])), j = 1:first(size(TI[:, 1]))))
 
@@ -79,6 +81,8 @@ MTW = max(TW...) + 1
 
 MPsi = nbItems
 
+Mlambda = 2 * TL .+ 1 # TODO check if Mlambda big enough
+
 SZo = 0
 
 MST = 2
@@ -89,6 +93,49 @@ Mmu = 2
 
 Mtau = 10
 
+Xi1 = falses(convert(Int, nbStacks*(nbStacks+1)/2), nbStacks)
+Xi2 = falses(convert(Int, nbStacks*(nbStacks+1)/2), nbStacks)
 
+epsilon = 0.001
+
+function fillXi1!(Xi::BitArray)
+    n = size(Xi)[2]
+    m = 1
+    i = 1
+    while n > 0
+        Xi[m:m+n-1, i] .= 1
+        m = m + n
+        n = n - 1
+        i = i + 1
+    end
+end
+
+function identityMat(n)
+    mat = falses(n, n)
+    for i in 1:n
+        mat[i,i] = 1
+    end
+
+    return mat
+end
+
+function fillXi2!(Xi::BitArray)
+    n = size(Xi)[2]
+    m = 1
+    i = 1
+    while n > 0
+        print(m, ":")
+        println(n)
+        # Xi[m:m+n-1, i] .= 1
+        Xi[m:m+n-1, i:size(Xi)[2]] = identityMat(n)
+        m = m + n
+        n = n - 1
+        i = i + 1
+        println()
+    end
+end
+
+fillXi1!(Xi1)
+fillXi2!(Xi2)
 
 print(model)
