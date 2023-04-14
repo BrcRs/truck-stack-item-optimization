@@ -1011,7 +1011,7 @@ $\sigma^2 \in \{0, 1\}^{|stacks|}$
 
 $\sigma^3 \in \{0, 1\}^{|stacks|}$
 
-$\lambda \in  \{0, 1\}^{|stacks|\times (|stacks|+1)}$
+$\lambda \in  \{0, 1\}^{|stacks|\times (|stacks|+1)/2}$
 
 $\Psi \in \bold{N}^{|stacks| \times |trucks|}$
 
@@ -1302,7 +1302,7 @@ $\sigma^2 \in \{0, 1\}^{|stacks|}$
 
 $\sigma^3 \in \{0, 1\}^{|stacks|}$
 
-$\lambda \in  \{0, 1\}^{|stacks|\times (|stacks|+1)}$
+$\lambda \in  \{0, 1\}^{|stacks|\times (|stacks|+1)/2}$
 
 
 
