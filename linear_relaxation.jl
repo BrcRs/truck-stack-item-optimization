@@ -169,7 +169,7 @@ fillXi2!(Xi2)
 
 @constraint(model, cZ_S_MZ, Z <= S * MZ)
 
-@constraint(model, cPsi_Omega, Psi = transpose(vcat([transpose(Omega[:,i,:]*ones(size(Omega)[1])) for i in 1:size(Omega)[2]]...)))
+@constraint(model, cPsi_Omega, Psi = hcat([Omega[:,i,:]*ones(size(Omega)[1]) for i in 1:size(Omega)[2]]...))
 
 for j in 1:size(Omega)[2]
     @constraint(model, cOmega_S_MOmega, Omega[:, j, :] <= S * MOmega)
@@ -180,6 +180,98 @@ end
 
 @constraint(model, cPsi_ST_MPsi, Psi <= St * MPsi)
 
-# @constraint(model, )
+@constraint(model, cPsi_S_ST, -(1-ST)*MPsi <= Psi - hcat([S * ones(size(S)[1]) for i in 1:size(Psi)[2]]) <= (1-ST)*MPsi)
+
+@constraint(model, cS_IS_Z, S * IS = Z * ones(size(Z)[1]))
+
+@constraint(model, cZ_SS_S, -MZ * (1-S) <= Z - hcat([SS for i in 1:size(Z)[2]]) <= MZ * (1-S))
+
+@constraint(model, cQ_S, Q <= S * MQ)
+
+@constraint(model, cS_IU_Q, S * IU = Q * ones(size(Q)[1]))
+
+@constraint(model, cQ_SU_S, -MQ * (1-S) <= Q - hcat([SU for i in 1:size(Q)[2]]) <= MQ * (1-S))
+
+
+@constraint(model, cH_S, H <= S * MH)
+
+@constraint(model, cS_IP_H, S * IP = H * ones(size(H)[1]))
+
+@constraint(model, cQ_SP_S, -MH * (1-S) <= H - hcat([SP for i in 1:size(H)[2]]) <= MH * (1-S))
+
+
+@constraint(model, cV_S, V <= S * MV)
+
+@constraint(model, cS_IK_V, S * IK = V * ones(size(V)[1]))
+
+@constraint(model, cV_SK_S, -MV * (1-S) <= V - hcat([SK for i in 1:size(V)[2]]) <= MV * (1-S))
+
+
+@constraint(model, cW_S, W <= S * MW)
+
+@constraint(model, cS_IPD_W, S * IPD = W * ones(size(W)[1]))
+
+@constraint(model, cW_SPD_S, -MW * (1-S) <= W - hcat([SPD for i in 1:size(W)[2]]) <= MW * (1-S))
+
+
+@constraint(model, cGl_S, Gl <= S * MG)
+@constraint(model, cGr_S, Gr <= S * MG)
+
+@constraint(model, Gl * ones(size(Gl)[1]) == Gr * ones(size(Gr)[1]))
+
+@constraint(model, cGr_SO_S, -MG * (1-S) <= Gr - hcat([SO for i in 1:size(Gr)[2]]) <= MG * (1-S))
+@constraint(model, cGl_IOV_S, -MG * (1-S) <= Gl - hcat([IOV for i in 1:size(Gl)[2]]) <= MG * (1-S))
+
+@constraint(model, cSXe_SXo_SL_SO, SXe - SXo = SL + SO * MTL)
+@constraint(model, cSYe_SYo_SW_SO, SYe - SYo = SW + SO * MTW)
+
+@constraint(model, cSXe_SXo_SW_SO, SXe - SXo = SW + (1 - SO) * MTW)
+@constraint(model, cSYe_SYo_SL_SO, SYe - SYo = SL + (1 - SO) * MTL)
+
+@constraint(model, cSZe_S_IH, SZe = S* IH)
+
+@constraint(model, cSXe_ST_TL, SXe <= ST * TL)
+@constraint(model, cSYe_ST_TW, SYe <= ST * TW)
+@constraint(model, cSZe_ST_TH, SZe <= ST * TH)
+
+@constraint(model, cSXo_SXo, vcat(hcat([1], falses(1, size(SXo)[1]-1)), I(size(SXo)[1])) * SXo <= SXo)
+
+@constraint(model, cXi2SXo_Xi1SXe_betaM_betaP, Xi2 * SXo - Xi1 * SXe - betaM + betaP == -epsilon)
+
+@constraint(model, cbetaM_lambda, betaM <= lambda * Mlambda)
+
+@constraint(model, betaP <= (1-lambda)*Mlambda)
+
+@constraint(model, cmu_betaM, (1-mu) <= betaM * Mmu)
+
+@constraint(model, cXi2ST_Xi1ST_nu, (Xi2 * ST - Xi1 * ST) * diagm([i for i in 1:size(nu)[2]]) == nu)
+
+@constraint(model, ctau_phi_nu, tau - phi <= (nu - nbTrucks) * Mtau)
+
+@constraint(model, ctau_nu, tau >= (nu-nbTrucks)*Mtau/10)
+
+@constraint(model, ctau_eta, tau <= eta * Meta)
+
+@constraint(model, cphi_eta, phi <= (1 - eta)*Meta)
+
+@constraint(model, cXi1SYe_Xi2SYo, Xi1 * SYe <= Xi2 * SYo + xi * MTW + (tau + phi) * MTW + (1 - mu) * MTW)
+@constraint(model, cXi2SYe_Xi1SYo, Xi2 * SYe <= Xi1 * SYo + (1-xi) * MTW + (tau + phi) * MTW + (1 - mu) * MTW)
+
+@constraint(model, cXi1SU_Xi2SU, Xi1 * SU * TE <= Xi2 * SU * TE + (tau + phi) * MTE)
+
+@constraint(model, cXi1SU_Xi2SU_chi, Xi1SU - Xi2SU >= chi * epsilon - r*MTE - (tau + phi) * MTE - (1 - sigma1) * MTE)
+
+@constraint(model, cXi2SU_Xi1SU_chi, Xi2SU - Xi1SU >= (1-chi) * epsilon - r*MTE - (tau + phi) * MTE - (1 - sigma1) * MTE)
+
+@constraint(model, cXi2SK_Xi1SK, Xi2*SK*TKE >= Xi1*SK*TKE - (1 - r) * MTKE - (tau + phi) * MTKE)
+
+@constraint(model, cXi1SK_Xi2SK_chi, Xi1*SK*TKE - Xi2*SK*TKE >= chi*epsilon - (tau + phi)*MTKE - (1 - sigma2)*MTKE)
+@constraint(model, cXi2SK_Xi1SK_chi, Xi2*SK*TKE - Xi1*SK*TKE >= (1-chi)*epsilon - (tau + phi)*MTKE - (1 - sigma2)*MTKE)
+
+@constraint(model, cXi2SG_Xi1SG, Xi2*SG*TGE >= Xi1*SG*TGE - (tau + phi)*MTGE - (1 - sigma3) * MTGE)
+
+@constraint(model, csigma1_sigma2_sigma3, sigma1 + sigma2 + sigma3 >= 1)
+
+
 
 print(model)
