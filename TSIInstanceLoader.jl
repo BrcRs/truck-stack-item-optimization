@@ -105,6 +105,7 @@ function main()
 
     IPD = normalizeValues(input_itemsCSV[:Plant_dock])
 
+    Iproduct_code = input_itemsCSV[:Product_code]
     
     """
     The truck order will be the one of the appearance of each truck in input_trucks
@@ -135,17 +136,18 @@ function main()
             nbSuppliers = nbSuppliers + 1
             supplierDict[row[:Supplier_code]] = nbSuppliers
         end
-        if !haskey(supplierDockDict, row[:Supplier_dock])
+        # Longer names for docks because dock names can be the same between 2 suppliers or plants
+        if !haskey(supplierDockDict, row[:Supplier_code]*"__"*row[:Supplier_dock])
             nbSupplierDocks = nbSupplierDocks + 1
-            supplierDockDict[row[:Supplier_dock]] = nbSupplierDocks
+            supplierDockDict[row[:Supplier_code]*"__"*row[:Supplier_dock]] = nbSupplierDocks
         end
         if !haskey(plantDict, row[:Plant_code])
             nbPlants = nbPlants + 1
             plantDict[row[:Plant_code]] = nbPlants
         end
-        if !haskey(plantDockDict, row[:Plant_dock])
+        if !haskey(plantDockDict, row[:Plant_code]*"__"*row[:Plant_dock])
             nbPlantDocks = nbPlantDocks + 1
-            plantDockDict[row[:Plant_dock]] = nbPlantDocks
+            plantDockDict[row[:Plant_code]*"__"*row[:Plant_dock]] = nbPlantDocks
         end
 
 
@@ -158,30 +160,55 @@ function main()
     TH = Vector{Float64}(nbTrucks)
 
     TKE = Matrix{Float64}(nbTrucks, nbSupplierDocks)
+    fill!(TKE, nbSupplierDocks)
+
     TGE = Matrix{Float64}(nbTrucks, nbPlantDocks)
+    fill!(TKE, nbPlantDocks)
 
     TDA = Vector{Float64}(nbTrucks)
 
     TU = falses(nbTrucks, nbSuppliers)
     TP = falses(nbTrucks, nbPlants)
+    TK = #TODO
 
+    TR = falses(nbTrucks, nbItems) # TR is expanded, it will contain also only items which docks are stopped by by the truck
+
+    
     # For each line of input_trucks:
     for row in CSV.Rows(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
         
         
         # Fill relevant truck information
-    
+        
         TE[truckDict[row[:Id_truck]]][supplierDict[row[:Supplier_code]]] = row[:Supplier_loading_order]
         TL[truckDict[row[:Id_truck]]] = row[:Length]
         TW[truckDict[row[:Id_truck]]] = row[:Width]
         TH[truckDict[row[:Id_truck]]] = row[:Height]
-        TKE[truckDict[row[:Id_truck]]][supplierDockDict[row[:Supplier_dock]]] = row[:Supplier_dock_loading_order]
-        TGE[truckDict[row[:Id_truck]]][plantDockDict[row[:Plant_dock]]] = row[:Plant_dock_loading_order]
+        TKE[truckDict[row[:Id_truck]]][supplierDockDict[row[:Supplier_code]*"__"*row[:Supplier_dock]]] = row[:Supplier_dock_loading_order]
+        TGE[truckDict[row[:Id_truck]]][plantDockDict[row[:Plant_code]*"__"*row[:Plant_dock]]] = row[:Plant_dock_loading_order]
         TDA[truckDict[row[:Id_truck]]] = row[:Arrival_time]
-        TU[truckDict[row[:Id_truck]]][supplierDockDict[row[:Supplier_dock]]] = 1
+        TU[truckDict[row[:Id_truck]]][supplierDockDict[row[:Supplier_code]*"__"*row[:Supplier_dock]]] = 1
         TP[truckDict[row[:Id_truck]]] = row[:Plant_code]
+        
+        # For each line of input trucks, retrieve Product code. For all items, get 
+        # indices of item of same product code, and use it to fill TR
+        product_code = row[:Product_code]
+        TR[truckDict[row[:Id_truck]]] .= [Iproduct_code[i] == product_code ? 1 : 0 for i in 1:nbItems]
 
     end
+
+    # Expand TR with information about docks TODO
+    # For each truck, for each item, if the truck doesn't stop at the supplier & supplier dock of the item or 
+    # it doesn't stop by the plant & plant dock of the item: replace with 0
+
+    for t in 1:nbTrucks
+        for i in 1:nbItems
+            if !(IU[i] in ) # TODO
+        end
+    end
+
+
+
     model = Model(Cbc.Optimizer)
 
     @variable(model, zetaT[1:nbPlannedTrucks] >= 0)
@@ -289,7 +316,7 @@ function main()
     @constraint(model, cZetaE1, -zetaT >= -ones(size(zetaT)[1]))
     @constraint(model, cZetaE2, -zetaT >= -TIE * ones(size(zetaT)[1]))
 
-    @constraint(model, cTI_F, TI <= F)
+    @constraint(model, cTI_TR, TI <= TR)
 
     @constraint(model, cTI_1_1, transpose(TI) * ones(size(transpose(TI))[1]) <= ones(size(transpose(TI))[1]))
 
