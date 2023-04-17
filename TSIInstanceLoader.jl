@@ -89,23 +89,15 @@ function main()
     input_parametersfile = open(*(instancePath, "input_parameters.csv"))    
     input_trucksfile = open(*(instancePath, "input_trucks.csv"))    
 
-    input_itemsCSV = CSV.File(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
+    # input_itemsCSV = CSV.File(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
     input_parametersCSV = CSV.File(input_parametersfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
-    input_trucksCSV = CSV.File(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
+    # input_trucksCSV = CSV.File(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
     # input_parametersCSV = CSV.read(open(Path(instancePath, "input_parameters.csv")), normalizenames=true, delim=";", decimal=",", stripwhitespace=true)
     # input_trucksCSV = CSV.read(open(Path(instancePath, "input_trucks.csv")), normalizenames=true, delim=";", decimal=",", stripwhitespace=true)
-
-    IS = normalizeValues(input_itemsCSV[:Stackability_code])
-    
-    IU = normalizeValues(input_itemsCSV[:Supplier_code])
-    
-    IP = normalizeValues(input_itemsCSV[:Plant_code])
-    
-    IK = normalizeValues(input_itemsCSV[:Supplier_dock])
-
-    IPD = normalizeValues(input_itemsCSV[:Plant_dock])
-
-    Iproduct_code = input_itemsCSV[:Product_code]
+    Iproduct_code = Matrix{Float64}(undef, nbItems, 1)
+    for (i, row) in enumerate(CSV.Rows(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true))
+        Iproduct_code[i] = row[:Product_code]
+    end
     
     """
     The truck order will be the one of the appearance of each truck in input_trucks
@@ -121,7 +113,7 @@ function main()
     plantDict = Dict{String, Float64}()
     # Make list of plant docks with corresponding dictionary
     plantDockDict = Dict{String, Float64}()
-
+    
     nbTrucks = 0
     nbSuppliers = 0
     nbSupplierDocks = 0
@@ -149,30 +141,33 @@ function main()
             nbPlantDocks = nbPlantDocks + 1
             plantDockDict[row[:Plant_code]*"__"*row[:Plant_dock]] = nbPlantDocks
         end
-
-
+        
+        
     end
     
     TE = Matrix{Float64}(nbTrucks, nbSuppliers)
-
+    
     TL = Vector{Float64}(nbTrucks)
     TW = Vector{Float64}(nbTrucks)
     TH = Vector{Float64}(nbTrucks)
-
+    
     TKE = Matrix{Float64}(nbTrucks, nbSupplierDocks)
     fill!(TKE, nbSupplierDocks)
-
+    
     TGE = Matrix{Float64}(nbTrucks, nbPlantDocks)
     fill!(TKE, nbPlantDocks)
-
+    
     TDA = Vector{Float64}(nbTrucks)
-
+    
     TU = falses(nbTrucks, nbSuppliers)
     TP = falses(nbTrucks, nbPlants)
-    TK = #TODO
+    TK = falses(nbTrucks, nbSupplierDocks)
+    
+    # TG is missing TODO
+
 
     TR = falses(nbTrucks, nbItems) # TR is expanded, it will contain also only items which docks are stopped by by the truck
-
+    
     
     # For each line of input_trucks:
     for row in CSV.Rows(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
@@ -187,28 +182,57 @@ function main()
         TKE[truckDict[row[:Id_truck]]][supplierDockDict[row[:Supplier_code]*"__"*row[:Supplier_dock]]] = row[:Supplier_dock_loading_order]
         TGE[truckDict[row[:Id_truck]]][plantDockDict[row[:Plant_code]*"__"*row[:Plant_dock]]] = row[:Plant_dock_loading_order]
         TDA[truckDict[row[:Id_truck]]] = row[:Arrival_time]
-        TU[truckDict[row[:Id_truck]]][supplierDockDict[row[:Supplier_code]*"__"*row[:Supplier_dock]]] = 1
+        TU[truckDict[row[:Id_truck]]][supplierDict[row[:Supplier_code]]] = 1.0
         TP[truckDict[row[:Id_truck]]] = row[:Plant_code]
+        TK[truckDict[row[:Id_truck]]][supplierDockDict[row[:Supplier_code]*"__"*row[:Supplier_dock]]] = 1.0
+        
         
         # For each line of input trucks, retrieve Product code. For all items, get 
         # indices of item of same product code, and use it to fill TR
         product_code = row[:Product_code]
-        TR[truckDict[row[:Id_truck]]] .= [Iproduct_code[i] == product_code ? 1 : 0 for i in 1:nbItems]
-
+        TR[truckDict[row[:Id_truck]], :] .= [Iproduct_code[i] == product_code ? 1.0 : 0.0 for i in 1:nbItems]
+        
     end
+    
+    # IU = normalizeValues(input_itemsCSV[:Supplier_code])
+    IU = falses(nbItems, nbSuppliers)
+    # IP = normalizeValues(input_itemsCSV[:Plant_code])
+    IP = falses(nbItems, nbPlant)
+    # IK = normalizeValues(input_itemsCSV[:Supplier_dock])
+    IK = falses(nbItems, nbSupplierDocks)
+    # IPD = normalizeValues(input_itemsCSV[:Plant_dock])
+    IPD = falses(nbItems, nbPlantDocks)
+    # IS = normalizeValues(input_itemsCSV[:Stackability_code])
+    IS = Matrix{Float64}(undef, nbItems, 1)
 
+    # TODO IDL missing
+
+    stackabilitycodeDict = Dict{String, Float64}()
+    nbstackabilitycodes = 0
+    for (i, row) in enumerate(CSV.Rows(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true))
+        IU[i][supplierDict[row[:Supplier_code]]] = 1.0
+        IP[i][plantDict[row[:Plant_code]]] = 1.0
+        IK[i][supplierDockDict[row[:Supplier_dock]]] = 1.0
+        IPD[i][plantDockDict[row[:Plant_dock]]] = 1.0
+        if !haskey(stackabilitycodeDict, row[:Stackability_code])
+            nbstackabilitycodes = nstackabilitycodes + 1.0
+            stackabilitycodeDict[row[:Stackability_code]] = nbstackabilitycodes
+        end
+        IS[i] = stackabilitycodeDict[row[:Stackability_code]]
+    end
+    
     # Expand TR with information about docks TODO
     # For each truck, for each item, if the truck doesn't stop at the supplier & supplier dock of the item or 
     # it doesn't stop by the plant & plant dock of the item: replace with 0
-
+    
     for t in 1:nbTrucks
         for i in 1:nbItems
-            if !(IU[i] in ) # TODO
+            if !*((IK[i,:] .<= TK[t,:])...) or !*((IPD[i,:] .<= TG[t,:])...) or TDA[t] > IDL[i]
+                TR[t,i] = 0
+            end
         end
-    end
-
-
-
+        
+        
     model = Model(Cbc.Optimizer)
 
     @variable(model, zetaT[1:nbPlannedTrucks] >= 0)
