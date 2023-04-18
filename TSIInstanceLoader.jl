@@ -235,12 +235,12 @@ function main()
         for (i, row) in enumerate(CSV.Rows(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true))
             IU[i, supplierDict[row[:Supplier_code]]] = 1.0
             IP[i, plantDict[row[:Plant_code]]] = 1.0
-            IK[i, supplierDockDict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = 1.0
+            IK[i, supplierDockDict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])]] = 1.0
             IPD[i, plantDockDict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = 1.0
             IDL[i] = parse(Float64, row[:Latest_arrival_time])
             IDE[i] = parse(Float64, row[:Earliest_arrival_time])
             if !haskey(stackabilitycodeDict, row[:Stackability_code])
-                nbstackabilitycodes = nstackabilitycodes + 1.0
+                nbstackabilitycodes = nbstackabilitycodes + 1.0
                 stackabilitycodeDict[row[:Stackability_code]] = nbstackabilitycodes
             end
             IS[i] = stackabilitycodeDict[row[:Stackability_code]]
@@ -264,12 +264,14 @@ function main()
     
     # The total number of trucks could be nbPlannedTrucks * nbItems, but a 
     # smarter way would be to have
-    # nbTrucks = nbPlannedTrucks * sum(TR)
+    # nbTrucks = sum(TR) # sum of number of candidate items for each truck
     # nbTrucks = nbPlannedTrucks * nbItems # Very bad idea (millions of trucks)
-    nbTrucks = nbPlannedTrucks * sum(TR_P)
+    nbTrucks = sum(TR_P)
     @debug nbPlannedTrucks nbPlannedTrucks
     @debug sum(TR_P) sum(TR_P)
-    @debug nbTrucks
+    @debug nbItems nbItems
+    @debug "" nbTrucks
+    @debug "nbPlannedTrucks * nbItems" nbPlannedTrucks * nbItems
     
 
     TE = Matrix{Union{Float64, Missing}}(missing, nbTrucks, nbSuppliers)
@@ -318,7 +320,7 @@ function main()
         for e in 1:sum(TR_P[p,:])
             j = nbPlannedTrucks +e +sum(TR_P[1:p-1, :])
             # Fill relevant truck information
-            tail = "_E" * e
+            tail = "_E" * convert(String, e)
             if !haskey(truckDict, row[:Id_truck] * tail)
                 truckDict[row[:Id_truck] * tail] = truckDict[row[:Id_truck]] + e
             end
