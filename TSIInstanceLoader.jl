@@ -4,7 +4,12 @@ using LinearAlgebra
 using JuMP
 using Cbc
 using CSV
-using FilePath
+using FilePaths
+using Logging
+
+logger = ConsoleLogger(stdout, Logging.Debug)
+
+global_logger(logger)
 
 function fillXi1!(Xi::BitArray)
     n = size(Xi)[2]
@@ -56,7 +61,7 @@ normalizeValues([1, 8, 15, 8]) -> [1, 2, 3, 2]
 function normalizeValues(dataraw)
 
     datadict = Dict{T, Float64}()
-    data = Array{Float64}(undef, size(dataraw)[1], 1)
+    data = Array{Union{Float64, Missing}}(missing, size(dataraw)[1], 1)
 
     n = 1
     for (i, v) in enumerate(dataraw)
@@ -74,7 +79,7 @@ function normalizeValues(dataraw)
 end
 
 function main()
-    instancePath = "Instances/AS"
+    instancePath = "Instances/AS/"
 
     # input_itemsCSV
     # input_parametersCSV
@@ -94,9 +99,13 @@ function main()
     # input_trucksCSV = CSV.File(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
     # input_parametersCSV = CSV.read(open(Path(instancePath, "input_parameters.csv")), normalizenames=true, delim=";", decimal=",", stripwhitespace=true)
     # input_trucksCSV = CSV.read(open(Path(instancePath, "input_trucks.csv")), normalizenames=true, delim=";", decimal=",", stripwhitespace=true)
-    Iproduct_code = Matrix{Float64}(undef, nbItems, 1)
-    for (i, row) in enumerate(CSV.Rows(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true))
-        Iproduct_code[i] = row[:Product_code]
+    nbItems = 0
+    Iproduct_code = Vector{String}()
+    for row in CSV.Rows(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
+        nbItems = nbItems + 1
+        # @debug "row[:Product_code]" row[:Product_code]
+        # @debug "row[:Product_code] type" typeof(row[:Product_code])
+        push!(Iproduct_code, String(row[:Product_code]))
     end
     
     """
@@ -129,41 +138,48 @@ function main()
             supplierDict[row[:Supplier_code]] = nbSuppliers
         end
         # Longer names for docks because dock names can be the same between 2 suppliers or plants
-        if !haskey(supplierDockDict, row[:Supplier_code]*"__"*row[:Supplier_dock])
+        if !haskey(supplierDockDict, row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock]))
             nbSupplierDocks = nbSupplierDocks + 1
-            supplierDockDict[row[:Supplier_code]*"__"*row[:Supplier_dock]] = nbSupplierDocks
+            try
+            supplierDockDict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])] = nbSupplierDocks
+            catch e
+                @debug "row[:Supplier_code]" row[:Supplier_code]
+                @debug "row[:Supplier_dock]" row[:Supplier_dock]
+                throw(e)
+            end
         end
         if !haskey(plantDict, row[:Plant_code])
             nbPlants = nbPlants + 1
             plantDict[row[:Plant_code]] = nbPlants
         end
-        if !haskey(plantDockDict, row[:Plant_code]*"__"*row[:Plant_dock])
+        if !haskey(plantDockDict, row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock]))
             nbPlantDocks = nbPlantDocks + 1
-            plantDockDict[row[:Plant_code]*"__"*row[:Plant_dock]] = nbPlantDocks
+            plantDockDict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])] = nbPlantDocks
         end
         
         
     end
     
-    TE = Matrix{Float64}(nbTrucks, nbSuppliers)
+
+    TE = Matrix{Union{Float64, Missing}}(missing, nbTrucks, nbSuppliers)
     
-    TL = Vector{Float64}(nbTrucks)
-    TW = Vector{Float64}(nbTrucks)
-    TH = Vector{Float64}(nbTrucks)
+    TL = Vector{Union{Float64, Missing}}(missing, nbTrucks)
+    TW = Vector{Union{Float64, Missing}}(missing, nbTrucks)
+    TH = Vector{Union{Float64, Missing}}(missing, nbTrucks)
     
-    TKE = Matrix{Float64}(nbTrucks, nbSupplierDocks)
+    TKE = Matrix{Union{Float64, Missing}}(missing, nbTrucks, nbSupplierDocks)
     fill!(TKE, nbSupplierDocks)
     
-    TGE = Matrix{Float64}(nbTrucks, nbPlantDocks)
-    fill!(TKE, nbPlantDocks)
+    TGE = Matrix{Union{Float64, Missing}}(missing, nbTrucks, nbPlantDocks)
+    fill!(TGE, nbPlantDocks)
     
-    TDA = Vector{Float64}(nbTrucks)
+    TDA = Vector{Union{Float64, Missing}}(missing, nbTrucks)
     
     TU = falses(nbTrucks, nbSuppliers)
     TP = falses(nbTrucks, nbPlants)
     TK = falses(nbTrucks, nbSupplierDocks)
     
-    # TG is missing TODO
+    TG = falses(nbTrucks, nbPlantDocks)
 
 
     TR = falses(nbTrucks, nbItems) # TR is expanded, it will contain also only items which docks are stopped by by the truck
@@ -175,15 +191,16 @@ function main()
         
         # Fill relevant truck information
         
-        TE[truckDict[row[:Id_truck]]][supplierDict[row[:Supplier_code]]] = row[:Supplier_loading_order]
-        TL[truckDict[row[:Id_truck]]] = row[:Length]
-        TW[truckDict[row[:Id_truck]]] = row[:Width]
-        TH[truckDict[row[:Id_truck]]] = row[:Height]
-        TKE[truckDict[row[:Id_truck]]][supplierDockDict[row[:Supplier_code]*"__"*row[:Supplier_dock]]] = row[:Supplier_dock_loading_order]
-        TGE[truckDict[row[:Id_truck]]][plantDockDict[row[:Plant_code]*"__"*row[:Plant_dock]]] = row[:Plant_dock_loading_order]
-        TDA[truckDict[row[:Id_truck]]] = row[:Arrival_time]
+        TE[truckDict[row[:Id_truck]]][supplierDict[row[:Supplier_code]]] = parse(Float64, row[:Supplier_loading_order])
+        TL[truckDict[row[:Id_truck]]] = parse(Float64, row[:Length])
+        TW[truckDict[row[:Id_truck]]] = parse(Float64, row[:Width])
+        TH[truckDict[row[:Id_truck]]] = parse(Float64, row[:Height])
+        TKE[truckDict[row[:Id_truck]]][supplierDockDict[row[:Supplier_code]*"__"*row[:Supplier_dock]]] = parse(Float64, row[:Supplier_dock_loading_order])
+        TGE[truckDict[row[:Id_truck]]][plantDockDict[row[:Plant_code]*"__"*row[:Plant_dock]]] = parse(Float64, row[:Plant_dock_loading_order])
+        TDA[truckDict[row[:Id_truck]]] = parse(Float64, row[:Arrival_time])
         TU[truckDict[row[:Id_truck]]][supplierDict[row[:Supplier_code]]] = 1.0
-        TP[truckDict[row[:Id_truck]]] = row[:Plant_code]
+        TP[truckDict[row[:Id_truck]]][plantDict[row[:Plant_code]]] = 1.0
+        TG[truckDict[row[:Id_truck]]][plantDockDict[row[:Plant_dock]]] = 1.0
         TK[truckDict[row[:Id_truck]]][supplierDockDict[row[:Supplier_code]*"__"*row[:Supplier_dock]]] = 1.0
         
         
@@ -197,15 +214,17 @@ function main()
     # IU = normalizeValues(input_itemsCSV[:Supplier_code])
     IU = falses(nbItems, nbSuppliers)
     # IP = normalizeValues(input_itemsCSV[:Plant_code])
-    IP = falses(nbItems, nbPlant)
+    IP = falses(nbItems, nbPlants)
     # IK = normalizeValues(input_itemsCSV[:Supplier_dock])
     IK = falses(nbItems, nbSupplierDocks)
     # IPD = normalizeValues(input_itemsCSV[:Plant_dock])
     IPD = falses(nbItems, nbPlantDocks)
     # IS = normalizeValues(input_itemsCSV[:Stackability_code])
-    IS = Matrix{Float64}(undef, nbItems, 1)
+    IS = Vector{Union{Float64, Missing}}(missing, nbItems)
 
-    # TODO IDL missing
+    IDL = Vector{Union{Float64, Missing}}(missing, nbItems)
+
+    IDE = Vector{Union{Float64, Missing}}(missing, nbItems)
 
     stackabilitycodeDict = Dict{String, Float64}()
     nbstackabilitycodes = 0
@@ -214,6 +233,8 @@ function main()
         IP[i][plantDict[row[:Plant_code]]] = 1.0
         IK[i][supplierDockDict[row[:Supplier_dock]]] = 1.0
         IPD[i][plantDockDict[row[:Plant_dock]]] = 1.0
+        IDL[i] = parse(Float64, row[:Latest_arrival_time])
+        IDE[i] = parse(Float64, row[:Earliest_arrival_time])
         if !haskey(stackabilitycodeDict, row[:Stackability_code])
             nbstackabilitycodes = nstackabilitycodes + 1.0
             stackabilitycodeDict[row[:Stackability_code]] = nbstackabilitycodes
@@ -221,17 +242,19 @@ function main()
         IS[i] = stackabilitycodeDict[row[:Stackability_code]]
     end
     
-    # Expand TR with information about docks TODO
+    # Expand TR with information about docks
     # For each truck, for each item, if the truck doesn't stop at the supplier & supplier dock of the item or 
     # it doesn't stop by the plant & plant dock of the item: replace with 0
     
     for t in 1:nbTrucks
         for i in 1:nbItems
-            if !*((IK[i,:] .<= TK[t,:])...) or !*((IPD[i,:] .<= TG[t,:])...) or TDA[t] > IDL[i]
-                TR[t,i] = 0
+            if TR[t,i] == 1
+                if !*((IK[i,:] .<= TK[t,:])...) || !*((IPD[i,:] .<= TG[t,:])...) || TDA[t] > IDL[i]
+                    TR[t,i] = 0.0
+                end
             end
         end
-        
+    end
         
     model = Model(Cbc.Optimizer)
 
@@ -358,7 +381,7 @@ function main()
 
     @constraint(model, cZ_S_MZ, Z <= S * MZ)
 
-    @constraint(model, cPsi_Omega, Psi = hcat([Omega[:,i,:]*ones(size(Omega)[1]) for i in 1:size(Omega)[2]]...))
+    @constraint(model, cPsi_Omega, Psi == hcat([Omega[:,i,:]*ones(size(Omega)[1]) for i in 1:size(Omega)[2]]...))
 
     for j in 1:size(Omega)[2]
         @constraint(model, cOmega_S_MOmega, Omega[:, j, :] <= S * MOmega)
@@ -371,34 +394,34 @@ function main()
 
     @constraint(model, cPsi_S_ST, -(1-ST)*MPsi <= Psi - hcat([S * ones(size(S)[1]) for i in 1:size(Psi)[2]]) <= (1-ST)*MPsi)
 
-    @constraint(model, cS_IS_Z, S * IS = Z * ones(size(Z)[1]))
+    @constraint(model, cS_IS_Z, S * IS == Z * ones(size(Z)[1]))
 
     @constraint(model, cZ_SS_S, -MZ * (1-S) <= Z - hcat([SS for i in 1:size(Z)[2]]) <= MZ * (1-S))
 
     @constraint(model, cQ_S, Q <= S * MQ)
 
-    @constraint(model, cS_IU_Q, S * IU = Q * ones(size(Q)[1]))
+    @constraint(model, cS_IU_Q, S * IU == Q * ones(size(Q)[1]))
 
     @constraint(model, cQ_SU_S, -MQ * (1-S) <= Q - hcat([SU for i in 1:size(Q)[2]]) <= MQ * (1-S))
 
 
     @constraint(model, cH_S, H <= S * MH)
 
-    @constraint(model, cS_IP_H, S * IP = H * ones(size(H)[1]))
+    @constraint(model, cS_IP_H, S * IP == H * ones(size(H)[1]))
 
     @constraint(model, cQ_SP_S, -MH * (1-S) <= H - hcat([SP for i in 1:size(H)[2]]) <= MH * (1-S))
 
 
     @constraint(model, cV_S, V <= S * MV)
 
-    @constraint(model, cS_IK_V, S * IK = V * ones(size(V)[1]))
+    @constraint(model, cS_IK_V, S * IK == V * ones(size(V)[1]))
 
     @constraint(model, cV_SK_S, -MV * (1-S) <= V - hcat([SK for i in 1:size(V)[2]]) <= MV * (1-S))
 
 
     @constraint(model, cW_S, W <= S * MW)
 
-    @constraint(model, cS_IPD_W, S * IPD = W * ones(size(W)[1]))
+    @constraint(model, cS_IPD_W, S * IPD == W * ones(size(W)[1]))
 
     @constraint(model, cW_SPD_S, -MW * (1-S) <= W - hcat([SPD for i in 1:size(W)[2]]) <= MW * (1-S))
 
@@ -411,13 +434,13 @@ function main()
     @constraint(model, cGr_SO_S, -MG * (1-S) <= Gr - hcat([SO for i in 1:size(Gr)[2]]) <= MG * (1-S))
     @constraint(model, cGl_IOV_S, -MG * (1-S) <= Gl - hcat([IOV for i in 1:size(Gl)[2]]) <= MG * (1-S))
 
-    @constraint(model, cSXe_SXo_SL_SO, SXe - SXo = SL + SO * MTL)
-    @constraint(model, cSYe_SYo_SW_SO, SYe - SYo = SW + SO * MTW)
+    @constraint(model, cSXe_SXo_SL_SO, SXe - SXo == SL + SO * MTL)
+    @constraint(model, cSYe_SYo_SW_SO, SYe - SYo == SW + SO * MTW)
 
-    @constraint(model, cSXe_SXo_SW_SO, SXe - SXo = SW + (1 - SO) * MTW)
-    @constraint(model, cSYe_SYo_SL_SO, SYe - SYo = SL + (1 - SO) * MTL)
+    @constraint(model, cSXe_SXo_SW_SO, SXe - SXo == SW + (1 - SO) * MTW)
+    @constraint(model, cSYe_SYo_SL_SO, SYe - SYo == SL + (1 - SO) * MTL)
 
-    @constraint(model, cSZe_S_IH, SZe = S* IH)
+    @constraint(model, cSZe_S_IH, SZe == S* IH)
 
     @constraint(model, cSXe_ST_TL, SXe <= ST * TL)
     @constraint(model, cSYe_ST_TW, SYe <= ST * TW)
@@ -465,8 +488,7 @@ function main()
 
     display(model)
 
-    end
+end
+    main()
 
 end
-
-main()
