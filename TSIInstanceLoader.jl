@@ -4,12 +4,14 @@ using LinearAlgebra
 using JuMP
 using Cbc
 using CSV
+
 using FilePaths
 using Logging
 
 logger = ConsoleLogger(stdout, Logging.Debug)
 
 global_logger(logger)
+
 
 function fillXi1!(Xi::BitArray)
     n = size(Xi)[2]
@@ -79,6 +81,7 @@ function normalizeValues(dataraw)
 end
 
 function main()
+
     instancePath = "Instances/AS/"
 
     # input_itemsCSV
@@ -94,22 +97,24 @@ function main()
     # input_parametersfile = open(*(instancePath, "input_parameters.csv"))    
     # input_trucksfile = open(*(instancePath, "input_trucks.csv"))    
 
-    # input_itemsCSV = CSV.File(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
-    # input_parametersCSV = CSV.File(input_parametersfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
-    # input_trucksCSV = CSV.File(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
-    # input_parametersCSV = CSV.read(open(Path(instancePath, "input_parameters.csv")), normalizenames=true, delim=";", decimal=",", stripwhitespace=true)
-    # input_trucksCSV = CSV.read(open(Path(instancePath, "input_trucks.csv")), normalizenames=true, delim=";", decimal=",", stripwhitespace=true)
+    # input_itemsCSV = CSV.File(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String)
+    # input_parametersCSV = CSV.File(input_parametersfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String)
+    # input_trucksCSV = CSV.File(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String)
+    # input_parametersCSV = CSV.read(open(Path(instancePath, "input_parameters.csv")), normalizenames=true, delim=";", decimal=",", stripwhitespace=true, types=String)
+    # input_trucksCSV = CSV.read(open(Path(instancePath, "input_trucks.csv")), normalizenames=true, delim=";", decimal=",", stripwhitespace=true, types=String)
+
+
     nbItems = 0
     Iproduct_code = Vector{String}()
     open(*(instancePath, "input_items.csv")) do input_itemsfile
-        for row in CSV.Rows(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
+        for row in CSV.File(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String)
             nbItems = nbItems + 1
             # @debug "row[:Product_code]" row[:Product_code]
             # @debug "row[:Product_code] type" typeof(row[:Product_code])
             push!(Iproduct_code, String(row[:Product_code]))
         end
     end
-    
+
     """
     The truck order will be the one of the appearance of each truck in input_trucks
     """
@@ -131,13 +136,14 @@ function main()
     nbPlants = 0
     nbPlantDocks = 0
     open(*(instancePath, "input_trucks.csv")) do input_trucksfile
-        for row in CSV.Rows(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
+        for row in CSV.File(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String)
             if !haskey(truckDict, row[:Id_truck])
                 nbPlannedTrucks = nbPlannedTrucks + 1
                 truckDict[row[:Id_truck]] = nbPlannedTrucks
             end
             if !haskey(supplierDict, row[:Supplier_code])
                 nbSuppliers = nbSuppliers + 1
+                # @debug "" typeof(row[:Supplier_code])
                 supplierDict[row[:Supplier_code]] = nbSuppliers
             end
             # Longer names for docks because dock names can be the same between 2 suppliers or plants
@@ -188,7 +194,7 @@ function main()
     
     # For each line of input_trucks:
     open(*(instancePath, "input_trucks.csv")) do input_trucksfile
-        for row in CSV.Rows(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
+        for row in CSV.File(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String)
             
             # Fill relevant truck information
             TE_P[truckDict[row[:Id_truck]], supplierDict[row[:Supplier_code]]] = parse(Float64, row[:Supplier_loading_order])
@@ -232,7 +238,7 @@ function main()
     nbstackabilitycodes = 0
     open(*(instancePath, "input_items.csv")) do input_itemsfile
 
-        for (i, row) in enumerate(CSV.Rows(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true))
+        for (i, row) in enumerate(CSV.File(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String))
             IU[i, supplierDict[row[:Supplier_code]]] = 1.0
             IP[i, plantDict[row[:Plant_code]]] = 1.0
             IK[i, supplierDockDict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])]] = 1.0
@@ -296,8 +302,8 @@ function main()
     
     
     TR = falses(nbTrucks, nbItems) # TR is expanded, it will contain also only items which docks are stopped by by the truck
-    
-
+    TID = Vector{Union{String, Missing}}(missing, nbTrucks)
+    reverse_truckDict = Dict(value => key for (key, value) in truckDict)
     # For each planned truck
     for p in 1:nbPlannedTrucks
 
@@ -313,17 +319,20 @@ function main()
         TP[p, :] .= TP_P[p, :]
         TG[p, :] .= TG_P[p, :]
         TK[p, :] .= TK_P[p, :]
-        
+        TID[p] = reverse_truckDict[p]
+
         TR[p, :] .= TR_P[p, :]
         
         # for each candidate items, add an extra truck
-        for e in 1:sum(TR_P[p,:])
-            j = nbPlannedTrucks +e +sum(TR_P[1:p-1, :])
+        for e in 1:sum(TR_P[p,:])-1
+            j = nbPlannedTrucks +e +sum(TR_P[1:p-1, :])-p
             # Fill relevant truck information
-            tail = "_E" * convert(String, e)
-            if !haskey(truckDict, row[:Id_truck] * tail)
-                truckDict[row[:Id_truck] * tail] = truckDict[row[:Id_truck]] + e
+            tail = "_E" * string(e)
+            if !haskey(truckDict, reverse_truckDict[p] * tail)
+                truckDict[reverse_truckDict[p] * tail] = j
+                reverse_truckDict[j] = reverse_truckDict[p] * tail
             end
+            TID[j] = reverse_truckDict[p] * tail
             TE[j, :] .= TE_P[p, :]
             TL[j] = TL_P[p]
             TW[j] = TW_P[p]
@@ -339,8 +348,18 @@ function main()
             TR[j, :] .= TR_P[p, :]
         end
     end
+
+    open("tmp2.txt", "w") do io
+        show(io, "text/plain", [sum(TR_P[i,:]) for i in 1:size(TR_P)[1]])
+    end
+
     
-        
+    open("tmp.txt", "w") do io
+        show(io, "text/plain", TID)
+    end
+    error("Finally") # TODO finish this, there is a problem in the way extra trucks are added to the matrix, compare tmp and tmp2
+    nbStacks = nbItems
+
     model = Model(Cbc.Optimizer)
 
     @variable(model, zetaT[1:nbPlannedTrucks] >= 0)
@@ -572,7 +591,6 @@ function main()
 
 
     display(model)
-
 end
     main()
 
