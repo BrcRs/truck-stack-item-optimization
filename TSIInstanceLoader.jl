@@ -90,22 +90,24 @@ function main()
     
     The order of items is the one if input_items.
     """
-    input_itemsfile = open(*(instancePath, "input_items.csv"))    
-    input_parametersfile = open(*(instancePath, "input_parameters.csv"))    
-    input_trucksfile = open(*(instancePath, "input_trucks.csv"))    
+    # input_itemsfile = open(*(instancePath, "input_items.csv"))    
+    # input_parametersfile = open(*(instancePath, "input_parameters.csv"))    
+    # input_trucksfile = open(*(instancePath, "input_trucks.csv"))    
 
     # input_itemsCSV = CSV.File(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
-    input_parametersCSV = CSV.File(input_parametersfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
+    # input_parametersCSV = CSV.File(input_parametersfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
     # input_trucksCSV = CSV.File(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
     # input_parametersCSV = CSV.read(open(Path(instancePath, "input_parameters.csv")), normalizenames=true, delim=";", decimal=",", stripwhitespace=true)
     # input_trucksCSV = CSV.read(open(Path(instancePath, "input_trucks.csv")), normalizenames=true, delim=";", decimal=",", stripwhitespace=true)
     nbItems = 0
     Iproduct_code = Vector{String}()
-    for row in CSV.Rows(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
-        nbItems = nbItems + 1
-        # @debug "row[:Product_code]" row[:Product_code]
-        # @debug "row[:Product_code] type" typeof(row[:Product_code])
-        push!(Iproduct_code, String(row[:Product_code]))
+    open(*(instancePath, "input_items.csv")) do input_itemsfile
+        for row in CSV.Rows(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
+            nbItems = nbItems + 1
+            # @debug "row[:Product_code]" row[:Product_code]
+            # @debug "row[:Product_code] type" typeof(row[:Product_code])
+            push!(Iproduct_code, String(row[:Product_code]))
+        end
     end
     
     """
@@ -113,52 +115,161 @@ function main()
     """
     
     # Make list of trucks with corresponding dictionary
-    truckDict = Dict{String, Float64}()
+    truckDict = Dict{String, Int64}()
     # Make list of suppliers with corresponding dictionary
-    supplierDict = Dict{String, Float64}()
+    supplierDict = Dict{String, Int64}()
     # Make list of supplier docks with corresponding dictionary
-    supplierDockDict = Dict{String, Float64}()
+    supplierDockDict = Dict{String, Int64}()
     # Make list of plants with corresponding dictionary
-    plantDict = Dict{String, Float64}()
+    plantDict = Dict{String, Int64}()
     # Make list of plant docks with corresponding dictionary
-    plantDockDict = Dict{String, Float64}()
+    plantDockDict = Dict{String, Int64}()
     
-    nbTrucks = 0
+    nbPlannedTrucks = 0
     nbSuppliers = 0
     nbSupplierDocks = 0
     nbPlants = 0
     nbPlantDocks = 0
-    for row in CSV.Rows(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
-        if !haskey(truckDict, row[:Id_truck])
-            nbTrucks = nbTrucks + 1
-            truckDict[row[:Id_truck]] = nbTrucks
+    open(*(instancePath, "input_trucks.csv")) do input_trucksfile
+        for row in CSV.Rows(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
+            if !haskey(truckDict, row[:Id_truck])
+                nbPlannedTrucks = nbPlannedTrucks + 1
+                truckDict[row[:Id_truck]] = nbPlannedTrucks
+            end
+            if !haskey(supplierDict, row[:Supplier_code])
+                nbSuppliers = nbSuppliers + 1
+                supplierDict[row[:Supplier_code]] = nbSuppliers
+            end
+            # Longer names for docks because dock names can be the same between 2 suppliers or plants
+            if !haskey(supplierDockDict, row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock]))
+                nbSupplierDocks = nbSupplierDocks + 1
+
+                supplierDockDict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])] = nbSupplierDocks
+
+            end
+            if !haskey(plantDict, row[:Plant_code])
+                nbPlants = nbPlants + 1
+                plantDict[row[:Plant_code]] = nbPlants
+            end
+            if !haskey(plantDockDict, row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock]))
+                nbPlantDocks = nbPlantDocks + 1
+                plantDockDict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])] = nbPlantDocks
+            end
+            
+            
         end
-        if !haskey(supplierDict, row[:Supplier_code])
-            nbSuppliers = nbSuppliers + 1
-            supplierDict[row[:Supplier_code]] = nbSuppliers
+    end
+    
+
+    
+    TE_P = Matrix{Union{Float64, Missing}}(missing, nbPlannedTrucks, nbSuppliers)
+    
+    TL_P = Vector{Union{Float64, Missing}}(missing, nbPlannedTrucks)
+    TW_P = Vector{Union{Float64, Missing}}(missing, nbPlannedTrucks)
+    TH_P = Vector{Union{Float64, Missing}}(missing, nbPlannedTrucks)
+    
+    TKE_P = Matrix{Union{Float64, Missing}}(missing, nbPlannedTrucks, nbSupplierDocks)
+    fill!(TKE_P, nbSupplierDocks)
+    
+    TGE_P = Matrix{Union{Float64, Missing}}(missing, nbPlannedTrucks, nbPlantDocks)
+    fill!(TGE_P, nbPlantDocks)
+    
+    TDA_P = Vector{Union{Float64, Missing}}(missing, nbPlannedTrucks)
+    
+    TU_P = falses(nbPlannedTrucks, nbSuppliers)
+    TP_P = falses(nbPlannedTrucks, nbPlants)
+    TK_P = falses(nbPlannedTrucks, nbSupplierDocks)
+    
+    TG_P = falses(nbPlannedTrucks, nbPlantDocks)
+    
+    
+    TR_P = falses(nbPlannedTrucks, nbItems) # TR is expanded, it will contain also only items which docks are stopped by by the truck
+    
+    
+    # For each line of input_trucks:
+    open(*(instancePath, "input_trucks.csv")) do input_trucksfile
+        for row in CSV.Rows(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
+            
+            # Fill relevant truck information
+            TE_P[truckDict[row[:Id_truck]], supplierDict[row[:Supplier_code]]] = parse(Float64, row[:Supplier_loading_order])
+            TL_P[truckDict[row[:Id_truck]]] = parse(Float64, row[:Length])
+            TW_P[truckDict[row[:Id_truck]]] = parse(Float64, row[:Width])
+            TH_P[truckDict[row[:Id_truck]]] = parse(Float64, row[:Height])
+            TKE_P[truckDict[row[:Id_truck]], supplierDockDict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])]] = parse(Float64, row[:Supplier_dock_loading_order])
+            TGE_P[truckDict[row[:Id_truck]], plantDockDict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = parse(Float64, row[:Plant_dock_loading_order])
+            TDA_P[truckDict[row[:Id_truck]]] = parse(Float64, row[:Arrival_time])
+            TU_P[truckDict[row[:Id_truck]], supplierDict[row[:Supplier_code]]] = 1.0
+            TP_P[truckDict[row[:Id_truck]], plantDict[row[:Plant_code]]] = 1.0
+
+
+            TG_P[truckDict[row[:Id_truck]], plantDockDict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = 1.0
+            TK_P[truckDict[row[:Id_truck]], supplierDockDict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])]] = 1.0
+            
+            
+            # For each line of input trucks, retrieve Product code. For all items, get 
+            # indices of item of same product code, and use it to fill TR
+            product_code = row[:Product_code]
+            TR_P[truckDict[row[:Id_truck]], :] .= [Iproduct_code[i] == product_code ? 1.0 : 0.0 for i in 1:nbItems]
         end
-        # Longer names for docks because dock names can be the same between 2 suppliers or plants
-        if !haskey(supplierDockDict, row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock]))
-            nbSupplierDocks = nbSupplierDocks + 1
-            try
-            supplierDockDict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])] = nbSupplierDocks
-            catch e
-                @debug "row[:Supplier_code]" row[:Supplier_code]
-                @debug "row[:Supplier_dock]" row[:Supplier_dock]
-                throw(e)
+    end
+    
+    # IU = normalizeValues(input_itemsCSV[:Supplier_code])
+    IU = falses(nbItems, nbSuppliers)
+    # IP = normalizeValues(input_itemsCSV[:Plant_code])
+    IP = falses(nbItems, nbPlants)
+    # IK = normalizeValues(input_itemsCSV[:Supplier_dock])
+    IK = falses(nbItems, nbSupplierDocks)
+    # IPD = normalizeValues(input_itemsCSV[:Plant_dock])
+    IPD = falses(nbItems, nbPlantDocks)
+    # IS = normalizeValues(input_itemsCSV[:Stackability_code])
+    IS = Vector{Union{Float64, Missing}}(missing, nbItems)
+    
+    IDL = Vector{Union{Float64, Missing}}(missing, nbItems)
+    
+    IDE = Vector{Union{Float64, Missing}}(missing, nbItems)
+    
+    stackabilitycodeDict = Dict{String, Float64}()
+    nbstackabilitycodes = 0
+    open(*(instancePath, "input_items.csv")) do input_itemsfile
+
+        for (i, row) in enumerate(CSV.Rows(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true))
+            IU[i, supplierDict[row[:Supplier_code]]] = 1.0
+            IP[i, plantDict[row[:Plant_code]]] = 1.0
+            IK[i, supplierDockDict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = 1.0
+            IPD[i, plantDockDict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = 1.0
+            IDL[i] = parse(Float64, row[:Latest_arrival_time])
+            IDE[i] = parse(Float64, row[:Earliest_arrival_time])
+            if !haskey(stackabilitycodeDict, row[:Stackability_code])
+                nbstackabilitycodes = nstackabilitycodes + 1.0
+                stackabilitycodeDict[row[:Stackability_code]] = nbstackabilitycodes
+            end
+            IS[i] = stackabilitycodeDict[row[:Stackability_code]]
+        end
+    end
+    # Expand TR with information about docks
+    # For each truck, for each item, if the truck doesn't stop at the supplier & supplier dock of the item or 
+    # it doesn't stop by the plant & plant dock of the item: replace with 0
+    @debug sum(TR_P) sum(TR_P)
+
+    for t in 1:nbPlannedTrucks
+        for i in 1:nbItems
+            if TR_P[t,i] == 1
+                if !*((IK[i,:] .<= TK_P[t,:])...) || !*((IPD[i,:] .<= TG_P[t,:])...) || TDA_P[t] > IDL[i]
+                    TR_P[t,i] = 0.0
+                end
             end
         end
-        if !haskey(plantDict, row[:Plant_code])
-            nbPlants = nbPlants + 1
-            plantDict[row[:Plant_code]] = nbPlants
-        end
-        if !haskey(plantDockDict, row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock]))
-            nbPlantDocks = nbPlantDocks + 1
-            plantDockDict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])] = nbPlantDocks
-        end
-        
-        
     end
+    
+    
+    # The total number of trucks could be nbPlannedTrucks * nbItems, but a 
+    # smarter way would be to have
+    # nbTrucks = nbPlannedTrucks * sum(TR)
+    # nbTrucks = nbPlannedTrucks * nbItems # Very bad idea (millions of trucks)
+    nbTrucks = nbPlannedTrucks * sum(TR_P)
+    @debug nbPlannedTrucks nbPlannedTrucks
+    @debug sum(TR_P) sum(TR_P)
+    @debug nbTrucks
     
 
     TE = Matrix{Union{Float64, Missing}}(missing, nbTrucks, nbSuppliers)
@@ -180,86 +291,58 @@ function main()
     TK = falses(nbTrucks, nbSupplierDocks)
     
     TG = falses(nbTrucks, nbPlantDocks)
-
-
+    
+    
     TR = falses(nbTrucks, nbItems) # TR is expanded, it will contain also only items which docks are stopped by by the truck
     
-    
-    # For each line of input_trucks:
-    for row in CSV.Rows(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true)
-        
-        
-        # Fill relevant truck information
-        
-        TE[truckDict[row[:Id_truck]]][supplierDict[row[:Supplier_code]]] = parse(Float64, row[:Supplier_loading_order])
-        TL[truckDict[row[:Id_truck]]] = parse(Float64, row[:Length])
-        TW[truckDict[row[:Id_truck]]] = parse(Float64, row[:Width])
-        TH[truckDict[row[:Id_truck]]] = parse(Float64, row[:Height])
-        TKE[truckDict[row[:Id_truck]]][supplierDockDict[row[:Supplier_code]*"__"*row[:Supplier_dock]]] = parse(Float64, row[:Supplier_dock_loading_order])
-        TGE[truckDict[row[:Id_truck]]][plantDockDict[row[:Plant_code]*"__"*row[:Plant_dock]]] = parse(Float64, row[:Plant_dock_loading_order])
-        TDA[truckDict[row[:Id_truck]]] = parse(Float64, row[:Arrival_time])
-        TU[truckDict[row[:Id_truck]]][supplierDict[row[:Supplier_code]]] = 1.0
-        TP[truckDict[row[:Id_truck]]][plantDict[row[:Plant_code]]] = 1.0
-        TG[truckDict[row[:Id_truck]]][plantDockDict[row[:Plant_dock]]] = 1.0
-        TK[truckDict[row[:Id_truck]]][supplierDockDict[row[:Supplier_code]*"__"*row[:Supplier_dock]]] = 1.0
-        
-        
-        # For each line of input trucks, retrieve Product code. For all items, get 
-        # indices of item of same product code, and use it to fill TR
-        product_code = row[:Product_code]
-        TR[truckDict[row[:Id_truck]], :] .= [Iproduct_code[i] == product_code ? 1.0 : 0.0 for i in 1:nbItems]
-        
-    end
-    
-    # IU = normalizeValues(input_itemsCSV[:Supplier_code])
-    IU = falses(nbItems, nbSuppliers)
-    # IP = normalizeValues(input_itemsCSV[:Plant_code])
-    IP = falses(nbItems, nbPlants)
-    # IK = normalizeValues(input_itemsCSV[:Supplier_dock])
-    IK = falses(nbItems, nbSupplierDocks)
-    # IPD = normalizeValues(input_itemsCSV[:Plant_dock])
-    IPD = falses(nbItems, nbPlantDocks)
-    # IS = normalizeValues(input_itemsCSV[:Stackability_code])
-    IS = Vector{Union{Float64, Missing}}(missing, nbItems)
 
-    IDL = Vector{Union{Float64, Missing}}(missing, nbItems)
+    # For each planned truck
+    for p in 1:nbPlannedTrucks
 
-    IDE = Vector{Union{Float64, Missing}}(missing, nbItems)
-
-    stackabilitycodeDict = Dict{String, Float64}()
-    nbstackabilitycodes = 0
-    for (i, row) in enumerate(CSV.Rows(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true))
-        IU[i][supplierDict[row[:Supplier_code]]] = 1.0
-        IP[i][plantDict[row[:Plant_code]]] = 1.0
-        IK[i][supplierDockDict[row[:Supplier_dock]]] = 1.0
-        IPD[i][plantDockDict[row[:Plant_dock]]] = 1.0
-        IDL[i] = parse(Float64, row[:Latest_arrival_time])
-        IDE[i] = parse(Float64, row[:Earliest_arrival_time])
-        if !haskey(stackabilitycodeDict, row[:Stackability_code])
-            nbstackabilitycodes = nstackabilitycodes + 1.0
-            stackabilitycodeDict[row[:Stackability_code]] = nbstackabilitycodes
-        end
-        IS[i] = stackabilitycodeDict[row[:Stackability_code]]
-    end
-    
-    # Expand TR with information about docks
-    # For each truck, for each item, if the truck doesn't stop at the supplier & supplier dock of the item or 
-    # it doesn't stop by the plant & plant dock of the item: replace with 0
-    
-    for t in 1:nbTrucks
-        for i in 1:nbItems
-            if TR[t,i] == 1
-                if !*((IK[i,:] .<= TK[t,:])...) || !*((IPD[i,:] .<= TG[t,:])...) || TDA[t] > IDL[i]
-                    TR[t,i] = 0.0
-                end
+        # Get planned truck as first lines of the bunch
+        TE[p, :] .= TE_P[p, :]
+        TL[p] = TL_P[p]
+        TW[p] = TW_P[p]
+        TH[p] = TH_P[p]
+        TKE[p, :] .= TKE_P[p, :]
+        TGE[p, :] .= TGE_P[p, :]
+        TDA[p] = TDA_P[p]
+        TU[p, :] .= TU_P[p, :]
+        TP[p, :] .= TP_P[p, :]
+        TG[p, :] .= TG_P[p, :]
+        TK[p, :] .= TK_P[p, :]
+        
+        TR[p, :] .= TR_P[p, :]
+        
+        # for each candidate items, add an extra truck
+        for e in 1:sum(TR_P[p,:])
+            j = nbPlannedTrucks +e +sum(TR_P[1:p-1, :])
+            # Fill relevant truck information
+            tail = "_E" * e
+            if !haskey(truckDict, row[:Id_truck] * tail)
+                truckDict[row[:Id_truck] * tail] = truckDict[row[:Id_truck]] + e
             end
+            TE[j, :] .= TE_P[p, :]
+            TL[j] = TL_P[p]
+            TW[j] = TW_P[p]
+            TH[j] = TH_P[p]
+            TKE[j, :] .= TKE_P[p, :]
+            TGE[j, :] .= TGE_P[p, :]
+            TDA[j] = TDA_P[p]
+            TU[j, :] .= TU_P[p, :]
+            TP[j, :] .= TP_P[p, :]
+            TG[j, :] .= TG_P[p, :]
+            TK[j, :] .= TK_P[p, :]
+            
+            TR[j, :] .= TR_P[p, :]
         end
     end
+    
         
     model = Model(Cbc.Optimizer)
 
     @variable(model, zetaT[1:nbPlannedTrucks] >= 0)
-    @variable(model, zetaE[1:nbExtraTrucks] >= 0)
+    @variable(model, zetaE[1:nbTrucks - nbPlannedTrucks] >= 0)
 
     @variable(model, SS[1:nbStacks] >= 0)
     @variable(model, SP[1:nbStacks] >= 0)
@@ -279,7 +362,7 @@ function main()
     @variable(model, phi[1:nbStacks] >= 0)
     @variable(model, SG[1:nbStacks, 1:nbPlants] >= 0)
 
-    @variable(model, TI[1:nbTrucks, 1:nbItems], lower_bound = 0, upper_bound = 1)
+    @variable(model, TI[1:nbTrucks, 1:sum(TR_P)], lower_bound = 0, upper_bound = 1)
     @variable(model, R[1:nbItems, 1:nbSuppliers], lower_bound = 0, upper_bound = 1)
     @variable(model, Theta[1:nbItems, 1:nbSuppliers], lower_bound = 0, upper_bound = 1)
     @variable(model, S[1:nbStacks, 1:nbItems], lower_bound = 0, upper_bound = 1)
