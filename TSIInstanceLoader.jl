@@ -8,7 +8,7 @@ using CSV
 using FilePaths
 using Logging
 
-logger = ConsoleLogger(stdout, Logging.Debug)
+logger = ConsoleLogger(stdout, Logging.Debug, show_limited=false)
 
 global_logger(logger)
 
@@ -215,7 +215,17 @@ function main()
             # For each line of input trucks, retrieve Product code. For all items, get 
             # indices of item of same product code, and use it to fill TR
             product_code = row[:Product_code]
-            TR_P[truckDict[row[:Id_truck]], :] .= [Iproduct_code[i] == product_code ? 1.0 : 0.0 for i in 1:nbItems]
+            for i in 1:nbItems
+                TR_P[truckDict[row[:Id_truck]], i] = Iproduct_code[i] == product_code ? 1.0 : TR_P[truckDict[row[:Id_truck]], i]
+            end
+            # @debug begin
+            #     if sum([Iproduct_code[i] == product_code ? 1.0 : 0.0 for i in 1:nbItems]) >= 1
+            #         @debug product_code product_code
+            #         @debug "[Iproduct_code[i] == product_code ? 1.0 : 0.0 for i in 1:nbItems]" [Iproduct_code[i] == product_code ? 1.0 : 0.0 for i in 1:10]
+            #         @debug "TR_P[truckDict[row[:Id_truck]], :]" TR_P[truckDict[row[:Id_truck]], 1:10]
+            #         sleep(20)
+            #     end
+            # end
         end
     end
     
@@ -234,6 +244,8 @@ function main()
     
     IDE = Vector{Union{Float64, Missing}}(missing, nbItems)
     
+    itemDict = Dict{Int64, String}()
+
     stackabilitycodeDict = Dict{String, Float64}()
     nbstackabilitycodes = 0
     open(*(instancePath, "input_items.csv")) do input_itemsfile
@@ -250,6 +262,7 @@ function main()
                 stackabilitycodeDict[row[:Stackability_code]] = nbstackabilitycodes
             end
             IS[i] = stackabilitycodeDict[row[:Stackability_code]]
+            itemDict[i] = row[:Item_ident]
         end
     end
     # Expand TR with information about docks
@@ -257,27 +270,40 @@ function main()
     # it doesn't stop by the plant & plant dock of the item: replace with 0
     @debug sum(TR_P) sum(TR_P)
 
+    # This loop might be useless or too restrictive, because it seems that the candidate list of 
+    # each truck already includes this type of info 
     for t in 1:nbPlannedTrucks
         for i in 1:nbItems
+            # if item `i` is compatible with truck `t` according to the candidate list
             if TR_P[t,i] == 1
+                # if the supplier dock of i is not in the supplier docks of t
+                # or the same but with plant docks
+                # or the truck arrives after the latest arrival date allowed for i 
                 if !*((IK[i,:] .<= TK_P[t,:])...) || !*((IPD[i,:] .<= TG_P[t,:])...) || TDA_P[t] > IDL[i]
+                    # Remove i from compatible items for t
                     TR_P[t,i] = 0.0
                 end
             end
         end
     end
     
-    
+    # @debug "" !*((IK[5,:] .<= TK_P[truckDict["P192711301"],:])...) || !*((IPD[5,:] .<= TG_P[truckDict["P192711301"],:])...) || TDA_P[truckDict["P192711301"]] > IDL[5]
+    # @debug begin
+    #     println(!*((IK[5,:] .<= TK_P[truckDict["P192711301"],:])...))
+    #     println(!*((IPD[5,:] .<= TG_P[truckDict["P192711301"],:])...))
+    #     println(TDA_P[truckDict["P192711301"]] > IDL[5])
+    #     println("Item ident of 5", itemDict[5])
+    # end
     # The total number of trucks could be nbPlannedTrucks * nbItems, but a 
     # smarter way would be to have
     # nbTrucks = sum(TR) # sum of number of candidate items for each truck
     # nbTrucks = nbPlannedTrucks * nbItems # Very bad idea (millions of trucks)
-    nbTrucks = sum(TR_P)
-    @debug nbPlannedTrucks nbPlannedTrucks
-    @debug sum(TR_P) sum(TR_P)
-    @debug nbItems nbItems
-    @debug "" nbTrucks
-    @debug "nbPlannedTrucks * nbItems" nbPlannedTrucks * nbItems
+    nbTrucks = nbPlannedTrucks + sum([sum(TR_P[t, :]) > 0 ? sum(TR_P[t, :])-1 : 0 for t in 1:nbPlannedTrucks] )
+    # @debug nbPlannedTrucks nbPlannedTrucks
+    # @debug sum(TR_P) sum(TR_P)
+    # @debug nbItems nbItems
+    # @debug "" nbTrucks
+    # @debug "nbPlannedTrucks * nbItems" nbPlannedTrucks * nbItems
     
 
     TE = Matrix{Union{Float64, Missing}}(missing, nbTrucks, nbSuppliers)
@@ -305,59 +331,87 @@ function main()
     TID = Vector{Union{String, Missing}}(missing, nbTrucks)
     reverse_truckDict = Dict(value => key for (key, value) in truckDict)
     # For each planned truck
-    for p in 1:nbPlannedTrucks
+    let j = nbPlannedTrucks
+        for p in 1:nbPlannedTrucks
 
-        # Get planned truck as first lines of the bunch
-        TE[p, :] .= TE_P[p, :]
-        TL[p] = TL_P[p]
-        TW[p] = TW_P[p]
-        TH[p] = TH_P[p]
-        TKE[p, :] .= TKE_P[p, :]
-        TGE[p, :] .= TGE_P[p, :]
-        TDA[p] = TDA_P[p]
-        TU[p, :] .= TU_P[p, :]
-        TP[p, :] .= TP_P[p, :]
-        TG[p, :] .= TG_P[p, :]
-        TK[p, :] .= TK_P[p, :]
-        TID[p] = reverse_truckDict[p]
+            # Get planned truck as first lines of the bunch
+            TE[p, :] .= TE_P[p, :]
+            TL[p] = TL_P[p]
+            TW[p] = TW_P[p]
+            TH[p] = TH_P[p]
+            TKE[p, :] .= TKE_P[p, :]
+            TGE[p, :] .= TGE_P[p, :]
+            TDA[p] = TDA_P[p]
+            TU[p, :] .= TU_P[p, :]
+            TP[p, :] .= TP_P[p, :]
+            TG[p, :] .= TG_P[p, :]
+            TK[p, :] .= TK_P[p, :]
+            TID[p] = reverse_truckDict[p]
 
-        TR[p, :] .= TR_P[p, :]
-        
-        # for each candidate items, add an extra truck
-        for e in 1:sum(TR_P[p,:])-1
-            j = nbPlannedTrucks +e +sum(TR_P[1:p-1, :])-p
-            # Fill relevant truck information
-            tail = "_E" * string(e)
-            if !haskey(truckDict, reverse_truckDict[p] * tail)
-                truckDict[reverse_truckDict[p] * tail] = j
-                reverse_truckDict[j] = reverse_truckDict[p] * tail
-            end
-            TID[j] = reverse_truckDict[p] * tail
-            TE[j, :] .= TE_P[p, :]
-            TL[j] = TL_P[p]
-            TW[j] = TW_P[p]
-            TH[j] = TH_P[p]
-            TKE[j, :] .= TKE_P[p, :]
-            TGE[j, :] .= TGE_P[p, :]
-            TDA[j] = TDA_P[p]
-            TU[j, :] .= TU_P[p, :]
-            TP[j, :] .= TP_P[p, :]
-            TG[j, :] .= TG_P[p, :]
-            TK[j, :] .= TK_P[p, :]
+            TR[p, :] .= TR_P[p, :]
             
-            TR[j, :] .= TR_P[p, :]
+            # @debug p p
+            # @debug "sum(TR_P[p,:])" sum(TR_P[p,:])
+            # j = nbPlannedTrucks +sum(TR_P[1:p-1, :])-p
+            # j = nbPlannedTrucks +sum(TR_P[1:p-1, :])-sum([sum(TR_P[k, :]) != 0 ? 1 : 0 for k in 1:p])
+
+            # for each candidate items, add an extra truck
+            for e in 1:sum(TR_P[p,:])-1
+                j = j + 1
+                # @debug begin
+                #     if p in [3 8]
+                #         println(e)
+                #         println(j)
+                #         sleep(1)
+                #     end
+                # end
+                # Fill relevant truck information
+                tail = "_E" * string(e)
+                # if !haskey(truckDict, reverse_truckDict[p] * tail)
+                #     truckDict[reverse_truckDict[p] * tail] = j
+                #     reverse_truckDict[j] = reverse_truckDict[p] * tail
+                # end
+                TID[j] = reverse_truckDict[p] * tail
+                TE[j, :] .= TE_P[p, :]
+                TL[j] = TL_P[p]
+                TW[j] = TW_P[p]
+                TH[j] = TH_P[p]
+                TKE[j, :] .= TKE_P[p, :]
+                TGE[j, :] .= TGE_P[p, :]
+                TDA[j] = TDA_P[p]
+                TU[j, :] .= TU_P[p, :]
+                TP[j, :] .= TP_P[p, :]
+                TG[j, :] .= TG_P[p, :]
+                TK[j, :] .= TK_P[p, :]
+                
+                TR[j, :] .= TR_P[p, :]
+            end
+            # @debug begin
+            #     sleep(10)
+            # end
+
         end
+        @debug j j 
     end
 
+
+
     open("tmp2.txt", "w") do io
-        show(io, "text/plain", [sum(TR_P[i,:]) for i in 1:size(TR_P)[1]])
+        show(io, "text/plain", [string(reverse_truckDict[i], " : ", sum(TR_P[i,:])) for i in 1:size(TR_P)[1]])
     end
 
     
     open("tmp.txt", "w") do io
         show(io, "text/plain", TID)
     end
-    error("Finally") # TODO finish this, there is a problem in the way extra trucks are added to the matrix, compare tmp and tmp2
+
+    @info begin 
+        println(string("Nb of items with no truck available according to TR", sum(sum(TR_P[:, j]) == 0 ? 1 : 0 for j in 1:size(TR_P)[2])))
+    end
+    # @debug begin
+    #     println([sum(TR_P[:, j]) == 0 ? string(j, "\n") : "" for j in 1:size(TR_P)[2]]...)
+    # end
+    
     nbStacks = nbItems
 
     model = Model(Cbc.Optimizer)
