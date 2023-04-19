@@ -7,6 +7,9 @@ using CSV
 
 using FilePaths
 using Logging
+using Profile
+
+using ArgParse
 
 logger = ConsoleLogger(stdout, Logging.Debug, show_limited=false)
 
@@ -80,9 +83,37 @@ function normalizeValues(dataraw)
     return data
 end
 
-function main()
+function parse_commandline()
+    s = ArgParseSettings()
 
-    instancePath = "Instances/AS/"
+    @add_arg_table s begin
+        ## Arg Parse examples
+        # "--opt1"
+        #     help = "an option with an argument"
+        # "--opt2", "-o"
+        #     help = "another option with an argument"
+        #     arg_type = Int
+        #     default = 0
+        # "--flag1"
+        #     help = "an option without argument, i.e. a flag"
+        #     action = :store_true
+        "instancePath"
+            help = "Path to the folder of the instance to solve."
+            required = true
+    end
+
+    return parse_args(s)
+end
+
+function main()
+    parsed_args = parse_commandline()
+    for (arg,val) in parsed_args
+        println("  $arg  =>  $val")
+    end
+    
+    # instancePath = "Instances/AS/"
+    instancePath = parsed_args["instancePath"]
+
 
     # input_itemsCSV
     # input_parametersCSV
@@ -391,7 +422,7 @@ function main()
             # end
 
         end
-        @debug j j 
+        # @debug j j 
     end
 
 
@@ -405,66 +436,118 @@ function main()
         show(io, "text/plain", TID)
     end
 
-    @info begin 
-        println(string("Nb of items with no truck available according to TR", sum(sum(TR_P[:, j]) == 0 ? 1 : 0 for j in 1:size(TR_P)[2])))
+    # @info string("Nb of items with no truck available according to TR: ", sum(sum(TR_P[:, j]) == 0 ? 1 : 0 for j in 1:size(TR_P)[2]))
+    if sum(sum(TR_P[:, j]) == 0 ? 1 : 0 for j in 1:size(TR_P)[2]) > 0
+        @warn string("Nb of items with no truck available according to TR: ", sum(sum(TR_P[:, j]) == 0 ? 1 : 0 for j in 1:size(TR_P)[2]))
     end
     # @debug begin
     #     println([sum(TR_P[:, j]) == 0 ? string(j, "\n") : "" for j in 1:size(TR_P)[2]]...)
     # end
-    
+
     nbStacks = nbItems
 
     model = Model(Cbc.Optimizer)
-
+    @info "Creating variables..."
+    @info "Adding zetaT..."
     @variable(model, zetaT[1:nbPlannedTrucks] >= 0)
+    @info "Adding zetaE..."
     @variable(model, zetaE[1:nbTrucks - nbPlannedTrucks] >= 0)
 
+    @info "Adding SS..."
     @variable(model, SS[1:nbStacks] >= 0)
+    @info "Adding SP..."
     @variable(model, SP[1:nbStacks] >= 0)
+    @info "Adding SK..."
     @variable(model, SK[1:nbStacks] >= 0)
+    @info "Adding SPD..."
     @variable(model, SPD[1:nbStacks] >= 0)
+    @info "Adding SU..."
     @variable(model, SU[1:nbStacks] >= 0)
+    @info "Adding SO..."
     @variable(model, SO[1:nbStacks] >= 0)
+    @info "Adding SXe..."
     @variable(model, SXe[1:nbStacks] >= 0)
+    @info "Adding SXo..."
     @variable(model, SXo[1:nbStacks] >= 0)
+    @info "Adding SYe..."
     @variable(model, SYe[1:nbStacks] >= 0)
+    @info "Adding SYo..."
     @variable(model, SYo[1:nbStacks] >= 0)
+    @info "Adding SZe..."
     @variable(model, SZe[1:nbStacks] >= 0)
+    @info "Adding betaM..."
     @variable(model, betaM[1:nbStacks] >= 0)
+    @info "Adding betaP..."
     @variable(model, betaP[1:nbStacks] >= 0)
+    @info "Adding nu..."
     @variable(model, nu[1:nbStacks] >= 0)
+    @info "Adding tau..."
     @variable(model, tau[1:nbStacks] >= 0)
+    @info "Adding phi..."
     @variable(model, phi[1:nbStacks] >= 0)
+    @info "Adding SG..."
     @variable(model, SG[1:nbStacks, 1:nbPlants] >= 0)
 
-    @variable(model, TI[1:nbTrucks, 1:sum(TR_P)], lower_bound = 0, upper_bound = 1)
+    @info "Adding TI..."
+    @variable(model, TI[1:nbTrucks, 1:nbItems], lower_bound = 0, upper_bound = 1)
+    @info "Adding R..."
     @variable(model, R[1:nbItems, 1:nbSuppliers], lower_bound = 0, upper_bound = 1)
+    @info "Adding Theta..."
     @variable(model, Theta[1:nbItems, 1:nbSuppliers], lower_bound = 0, upper_bound = 1)
+    @info "Adding S..."
     @variable(model, S[1:nbStacks, 1:nbItems], lower_bound = 0, upper_bound = 1)
+    @info "Adding Z..."
     @variable(model, Z[1:nbStacks, 1:nbItems], lower_bound = 0, upper_bound = 1)
-    @variable(model, Omega[1:nbStacks, 1:nbTrucks, 1:nbItems], lower_bound = 0, upper_bound = 1)
+
+    # Omega is too big to handle, even in small instances TODO
+    @debug nbStacks nbStacks
+    @debug nbTrucks nbTrucks
+    @debug nbItems nbItems
+    @debug "nbStacks * nbTrucks * nbItems" nbStacks * nbTrucks * nbItems
+    @info "Adding Omega..."
+    @variable(model, Omega[1:nbStacks, 1:nbTrucks, 1:nbItems], lower_bound = 0, upper_bound = 1, container=Array)
+
+    @info "Adding ST..."
     @variable(model, ST[1:nbStacks, 1:nbTrucks], lower_bound = 0, upper_bound = 1)
+    @info "Adding IOV..."
     @variable(model, IOV[1:nbItems], lower_bound = 0, upper_bound = 1)
+    @info "Adding mu..."
     @variable(model, mu[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @info "Adding eta..."
     @variable(model, eta[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @info "Adding xi..."
     @variable(model, xi[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @info "Adding chi..."
     @variable(model, chi[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @info "Adding r..."
     @variable(model, r[1:nbStacks], lower_bound = 0, upper_bound = 1)
 
+    @info "Adding sigma1..."
     @variable(model, sigma1[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @info "Adding sigma2..."
     @variable(model, sigma2[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @info "Adding sigma3..."
     @variable(model, sigma3[1:nbStacks], lower_bound = 0, upper_bound = 1)
 
+    @info "Adding Psi..."
     @variable(model, Psi[1:nbStacks, 1:nbTrucks], lower_bound = 0)
+    @info "Adding Q..."
     @variable(model, Q[1:nbStacks, 1:nbItems], lower_bound = 0)
+    @info "Adding H..."
     @variable(model, H[1:nbStacks, 1:nbItems], lower_bound = 0)
+    @info "Adding V..."
     @variable(model, V[1:nbStacks, 1:nbItems], lower_bound = 0)
+    @info "Adding W..."
     @variable(model, W[1:nbStacks, 1:nbItems], lower_bound = 0)
+    @info "Adding Gl..."
     @variable(model, Gl[1:nbStacks, 1:nbItems], lower_bound = 0)
+    @info "Adding Gr..."
     @variable(model, Gr[1:nbStacks, 1:nbItems], lower_bound = 0)
 
+    @info "Adding lambda..."
     @variable(model, lambda[[1:nbStacks * (nbStacks+1)/2]], lower_bound = 0)
-
+    
+    @info "Computing parameters..."
     # MI4 = [[max(TU[:, j]...) for j in 1:first(size(TU[1, :]))] for j in 1:first(size(TI[:, 1]))]
     MI4 = map(Int, (max(TU[:, i]...) for i = 1:first(size(TU[1, :])), j = 1:first(size(TI[:, 1]))))
 
@@ -515,135 +598,202 @@ function main()
     fillXi1!(Xi1)
     fillXi2!(Xi2)
 
+    @info "Adding constraints..."
+    @info "Adding cZetaT1..."
     @constraint(model, cZetaT1, -zetaT >= -ones(size(zetaT)[1]))
+    
+    @info "Adding cZetaT2..."
     @constraint(model, cZetaT2, -zetaT >= -TIT * ones(size(zetaT)[1]))
 
+    @info "Adding cZetaE1..."
     @constraint(model, cZetaE1, -zetaT >= -ones(size(zetaT)[1]))
+    @info "Adding cZetaE2..."
     @constraint(model, cZetaE2, -zetaT >= -TIE * ones(size(zetaT)[1]))
 
+    @info "Adding cTI_TR..."
     @constraint(model, cTI_TR, TI <= TR)
 
+    @info "Adding cTI_1_1..."
     @constraint(model, cTI_1_1, transpose(TI) * ones(size(transpose(TI))[1]) <= ones(size(transpose(TI))[1]))
 
+    @info "Adding cTI_TP_IP..."
     @constraint(model, cTI_TP_IP, transpose(TI) * TP == IP)
 
+    @info "Adding cR_Theta_MI4..."
     @constraint(model, cR_Theta_MI4, R <= Theta * MI4)
 
+    @info "Adding cR_TI_TU..."
     @constraint(model, cR_TI_TU, -MI4*(1-Theta) <= R - (transpose(TI) * TU) <= MI4* (1-Theta))
 
+    @info "Adding cR_1_IU..."
     @constraint(model, cR_1_IU, R * ones(size(R)[1]) == IU)
 
+    @info "Adding cTheta_1_1..."
     @constraint(model, cTheta_1_1, Theta * ones(size(Theta)[1]) >= ones(size(Theta)[1]))
 
+    @info "Adding cIDE_TI_TDA_IDL..."
     @constraint(model, cIDE_TI_TDA_IDL, IDE <= transpose(TI) * TDA <= IDL)
 
+    @info "Adding cZ_S_MZ..."
     @constraint(model, cZ_S_MZ, Z <= S * MZ)
 
+    @info "Adding cPsi_Omega..."
     @constraint(model, cPsi_Omega, Psi == hcat([Omega[:,i,:]*ones(size(Omega)[1]) for i in 1:size(Omega)[2]]...))
 
     for j in 1:size(Omega)[2]
+        @info "Adding cOmega_S_MOmega..."
         @constraint(model, cOmega_S_MOmega, Omega[:, j, :] <= S * MOmega)
     end
     for i in 1:size(Omega)[1]
+        @info "Adding cOmega_TI_S..."
         @constraint(model, cOmega_TI_S, -(1-S)*MOmega <= Omega[i,:,:] - transpose(TI) <= (1 - S)*MOmega)
     end
 
+    @info "Adding cPsi_ST_MPsi..."
     @constraint(model, cPsi_ST_MPsi, Psi <= St * MPsi)
 
+    @info "Adding cPsi_S_ST..."
     @constraint(model, cPsi_S_ST, -(1-ST)*MPsi <= Psi - hcat([S * ones(size(S)[1]) for i in 1:size(Psi)[2]]) <= (1-ST)*MPsi)
 
+    @info "Adding cS_IS_Z..."
     @constraint(model, cS_IS_Z, S * IS == Z * ones(size(Z)[1]))
 
+    @info "Adding cZ_SS_S..."
     @constraint(model, cZ_SS_S, -MZ * (1-S) <= Z - hcat([SS for i in 1:size(Z)[2]]) <= MZ * (1-S))
 
+    @info "Adding cQ_S..."
     @constraint(model, cQ_S, Q <= S * MQ)
 
+    @info "Adding cS_IU_Q..."
     @constraint(model, cS_IU_Q, S * IU == Q * ones(size(Q)[1]))
 
+    @info "Adding cQ_SU_S..."
     @constraint(model, cQ_SU_S, -MQ * (1-S) <= Q - hcat([SU for i in 1:size(Q)[2]]) <= MQ * (1-S))
 
 
+    @info "Adding cH_S..."
     @constraint(model, cH_S, H <= S * MH)
 
+    @info "Adding cS_IP_H..."
     @constraint(model, cS_IP_H, S * IP == H * ones(size(H)[1]))
 
+    @info "Adding cQ_SP_S..."
     @constraint(model, cQ_SP_S, -MH * (1-S) <= H - hcat([SP for i in 1:size(H)[2]]) <= MH * (1-S))
 
 
+    @info "Adding cV_S..."
     @constraint(model, cV_S, V <= S * MV)
 
+    @info "Adding cS_IK_V..."
     @constraint(model, cS_IK_V, S * IK == V * ones(size(V)[1]))
 
+    @info "Adding cV_SK_S..."
     @constraint(model, cV_SK_S, -MV * (1-S) <= V - hcat([SK for i in 1:size(V)[2]]) <= MV * (1-S))
 
 
+    @info "Adding cW_S..."
     @constraint(model, cW_S, W <= S * MW)
 
+    @info "Adding cS_IPD_W..."
     @constraint(model, cS_IPD_W, S * IPD == W * ones(size(W)[1]))
 
+    @info "Adding cW_SPD_S..."
     @constraint(model, cW_SPD_S, -MW * (1-S) <= W - hcat([SPD for i in 1:size(W)[2]]) <= MW * (1-S))
 
 
+    @info "Adding cGl_S..."
     @constraint(model, cGl_S, Gl <= S * MG)
+    @info "Adding cGr_S..."
     @constraint(model, cGr_S, Gr <= S * MG)
 
+    @info "Adding Gl..."
     @constraint(model, Gl * ones(size(Gl)[1]) == Gr * ones(size(Gr)[1]))
 
+    @info "Adding cGr_SO_S..."
     @constraint(model, cGr_SO_S, -MG * (1-S) <= Gr - hcat([SO for i in 1:size(Gr)[2]]) <= MG * (1-S))
+    @info "Adding cGl_IOV_S..."
     @constraint(model, cGl_IOV_S, -MG * (1-S) <= Gl - hcat([IOV for i in 1:size(Gl)[2]]) <= MG * (1-S))
 
+    @info "Adding cSXe_SXo_SL_SO..."
     @constraint(model, cSXe_SXo_SL_SO, SXe - SXo == SL + SO * MTL)
+    @info "Adding cSYe_SYo_SW_SO..."
     @constraint(model, cSYe_SYo_SW_SO, SYe - SYo == SW + SO * MTW)
 
+    @info "Adding cSXe_SXo_SW_SO..."
     @constraint(model, cSXe_SXo_SW_SO, SXe - SXo == SW + (1 - SO) * MTW)
+    @info "Adding cSYe_SYo_SL_SO..."
     @constraint(model, cSYe_SYo_SL_SO, SYe - SYo == SL + (1 - SO) * MTL)
 
+    @info "Adding cSZe_S_IH..."
     @constraint(model, cSZe_S_IH, SZe == S* IH)
 
+    @info "Adding cSXe_ST_TL..."
     @constraint(model, cSXe_ST_TL, SXe <= ST * TL)
+    @info "Adding cSYe_ST_TW..."
     @constraint(model, cSYe_ST_TW, SYe <= ST * TW)
+    @info "Adding cSZe_ST_TH..."
     @constraint(model, cSZe_ST_TH, SZe <= ST * TH)
 
+    @info "Adding cSXo_SXo..."
     @constraint(model, cSXo_SXo, vcat(hcat([1], falses(1, size(SXo)[1]-1)), I(size(SXo)[1])) * SXo <= SXo)
 
+    @info "Adding cXi2SXo_Xi1SXe_betaM_betaP..."
     @constraint(model, cXi2SXo_Xi1SXe_betaM_betaP, Xi2 * SXo - Xi1 * SXe - betaM + betaP == -epsilon)
 
+    @info "Adding cbetaM_lambda..."
     @constraint(model, cbetaM_lambda, betaM <= lambda * Mlambda)
 
+    @info "Adding betaP..."
     @constraint(model, betaP <= (1-lambda)*Mlambda)
 
+    @info "Adding cmu_betaM..."
     @constraint(model, cmu_betaM, (1-mu) <= betaM * Mmu)
 
+    @info "Adding cXi2ST_Xi1ST_nu..."
     @constraint(model, cXi2ST_Xi1ST_nu, (Xi2 * ST - Xi1 * ST) * diagm([i for i in 1:size(nu)[2]]) == nu)
 
+    @info "Adding ctau_phi_nu..."
     @constraint(model, ctau_phi_nu, tau - phi <= (nu - nbTrucks) * Mtau)
 
+    @info "Adding ctau_nu..."
     @constraint(model, ctau_nu, tau >= (nu-nbTrucks)*Mtau/10)
 
+    @info "Adding ctau_eta..."
     @constraint(model, ctau_eta, tau <= eta * Meta)
 
+    @info "Adding cphi_eta..."
     @constraint(model, cphi_eta, phi <= (1 - eta)*Meta)
 
+    @info "Adding cXi1SYe_Xi2SYo..."
     @constraint(model, cXi1SYe_Xi2SYo, Xi1 * SYe <= Xi2 * SYo + xi * MTW + (tau + phi) * MTW + (1 - mu) * MTW)
+    @info "Adding cXi2SYe_Xi1SYo..."
     @constraint(model, cXi2SYe_Xi1SYo, Xi2 * SYe <= Xi1 * SYo + (1-xi) * MTW + (tau + phi) * MTW + (1 - mu) * MTW)
 
+    @info "Adding cXi1SU_Xi2SU..."
     @constraint(model, cXi1SU_Xi2SU, Xi1 * SU * TE <= Xi2 * SU * TE + (tau + phi) * MTE)
 
+    @info "Adding cXi1SU_Xi2SU_chi..."
     @constraint(model, cXi1SU_Xi2SU_chi, Xi1SU - Xi2SU >= chi * epsilon - r*MTE - (tau + phi) * MTE - (1 - sigma1) * MTE)
 
+    @info "Adding cXi2SU_Xi1SU_chi..."
     @constraint(model, cXi2SU_Xi1SU_chi, Xi2SU - Xi1SU >= (1-chi) * epsilon - r*MTE - (tau + phi) * MTE - (1 - sigma1) * MTE)
 
+    @info "Adding cXi2SK_Xi1SK..."
     @constraint(model, cXi2SK_Xi1SK, Xi2*SK*TKE >= Xi1*SK*TKE - (1 - r) * MTKE - (tau + phi) * MTKE)
 
+    @info "Adding cXi1SK_Xi2SK_chi..."
     @constraint(model, cXi1SK_Xi2SK_chi, Xi1*SK*TKE - Xi2*SK*TKE >= chi*epsilon - (tau + phi)*MTKE - (1 - sigma2)*MTKE)
+    @info "Adding cXi2SK_Xi1SK_chi..."
     @constraint(model, cXi2SK_Xi1SK_chi, Xi2*SK*TKE - Xi1*SK*TKE >= (1-chi)*epsilon - (tau + phi)*MTKE - (1 - sigma2)*MTKE)
 
+    @info "Adding cXi2SG_Xi1SG..."
     @constraint(model, cXi2SG_Xi1SG, Xi2*SG*TGE >= Xi1*SG*TGE - (tau + phi)*MTGE - (1 - sigma3) * MTGE)
 
+    @info "Adding csigma1_sigma2_sigma3..."
     @constraint(model, csigma1_sigma2_sigma3, sigma1 + sigma2 + sigma3 >= 1)
 
 
-
+    @info "Displaying model..."
     display(model)
 end
     main()
