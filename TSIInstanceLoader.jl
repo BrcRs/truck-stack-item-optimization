@@ -489,15 +489,15 @@ function main()
     @variable(model, SG[1:nbStacks, 1:nbPlants] >= 0)
 
     @info "Adding TI..."
-    @variable(model, TI[1:nbTrucks, 1:nbItems], lower_bound = 0, upper_bound = 1)
+    @variable(model, TI[1:nbTrucks, 1:nbItems], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding R..."
-    @variable(model, R[1:nbItems, 1:nbSuppliers], lower_bound = 0, upper_bound = 1)
+    @variable(model, R[1:nbItems, 1:nbSuppliers], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding Theta..."
-    @variable(model, Theta[1:nbItems, 1:nbSuppliers], lower_bound = 0, upper_bound = 1)
+    @variable(model, Theta[1:nbItems, 1:nbSuppliers], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding S..."
-    @variable(model, S[1:nbStacks, 1:nbItems], lower_bound = 0, upper_bound = 1)
+    @variable(model, S[1:nbStacks, 1:nbItems], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding Z..."
-    @variable(model, Z[1:nbStacks, 1:nbItems], lower_bound = 0, upper_bound = 1)
+    @variable(model, Z[1:nbStacks, 1:nbItems], lower_bound = 0, upper_bound = 1, Bin)
 
     # Omega is too big to handle, even in small instances TODO
     @debug nbStacks nbStacks
@@ -505,47 +505,53 @@ function main()
     @debug nbItems nbItems
     @debug "nbStacks * nbTrucks * nbItems" nbStacks * nbTrucks * nbItems
     @info "Adding Omega..."
-    @variable(model, Omega[1:nbStacks, 1:nbTrucks, 1:nbItems], lower_bound = 0, upper_bound = 1, container=Array)
+    # @variable(model, Omega[1:nbStacks, 1:nbTrucks, 1:nbItems], lower_bound = 0, upper_bound = 1, container=Array, Bin)
+
+    # TODO this is taking way too long
+    for t in 1:nbTrucks
+        @info string("Adding Omega[", t, "]...")
+        model[Symbol("Omega[", t, "]")] = @variable(model, [1:nbStacks, 1:nbItems], lower_bound = 0, upper_bound = 1, container=Array, Bin)
+    end
 
     @info "Adding ST..."
-    @variable(model, ST[1:nbStacks, 1:nbTrucks], lower_bound = 0, upper_bound = 1)
+    @variable(model, ST[1:nbStacks, 1:nbTrucks], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding IOV..."
-    @variable(model, IOV[1:nbItems], lower_bound = 0, upper_bound = 1)
+    @variable(model, IOV[1:nbItems], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding mu..."
-    @variable(model, mu[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @variable(model, mu[1:nbStacks], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding eta..."
-    @variable(model, eta[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @variable(model, eta[1:nbStacks], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding xi..."
-    @variable(model, xi[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @variable(model, xi[1:nbStacks], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding chi..."
-    @variable(model, chi[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @variable(model, chi[1:nbStacks], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding r..."
-    @variable(model, r[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @variable(model, r[1:nbStacks], lower_bound = 0, upper_bound = 1, Bin)
 
     @info "Adding sigma1..."
-    @variable(model, sigma1[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @variable(model, sigma1[1:nbStacks], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding sigma2..."
-    @variable(model, sigma2[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @variable(model, sigma2[1:nbStacks], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding sigma3..."
-    @variable(model, sigma3[1:nbStacks], lower_bound = 0, upper_bound = 1)
+    @variable(model, sigma3[1:nbStacks], lower_bound = 0, upper_bound = 1, Bin)
 
     @info "Adding Psi..."
-    @variable(model, Psi[1:nbStacks, 1:nbTrucks], lower_bound = 0)
+    @variable(model, Psi[1:nbStacks, 1:nbTrucks], lower_bound = 0, Int)
     @info "Adding Q..."
-    @variable(model, Q[1:nbStacks, 1:nbItems], lower_bound = 0)
+    @variable(model, Q[1:nbStacks, 1:nbItems], lower_bound = 0, Int)
     @info "Adding H..."
-    @variable(model, H[1:nbStacks, 1:nbItems], lower_bound = 0)
+    @variable(model, H[1:nbStacks, 1:nbItems], lower_bound = 0, Int)
     @info "Adding V..."
-    @variable(model, V[1:nbStacks, 1:nbItems], lower_bound = 0)
+    @variable(model, V[1:nbStacks, 1:nbItems], lower_bound = 0, Int)
     @info "Adding W..."
-    @variable(model, W[1:nbStacks, 1:nbItems], lower_bound = 0)
+    @variable(model, W[1:nbStacks, 1:nbItems], lower_bound = 0, Int)
     @info "Adding Gl..."
-    @variable(model, Gl[1:nbStacks, 1:nbItems], lower_bound = 0)
+    @variable(model, Gl[1:nbStacks, 1:nbItems], lower_bound = 0, Int)
     @info "Adding Gr..."
-    @variable(model, Gr[1:nbStacks, 1:nbItems], lower_bound = 0)
+    @variable(model, Gr[1:nbStacks, 1:nbItems], lower_bound = 0, Int)
 
     @info "Adding lambda..."
-    @variable(model, lambda[[1:nbStacks * (nbStacks+1)/2]], lower_bound = 0)
+    @variable(model, lambda[[1:nbStacks * (nbStacks+1)/2]], lower_bound = 0, Bin)
     
     @info "Computing parameters..."
     # MI4 = [[max(TU[:, j]...) for j in 1:first(size(TU[1, :]))] for j in 1:first(size(TI[:, 1]))]
@@ -642,12 +648,13 @@ function main()
 
     for j in 1:size(Omega)[2]
         @info "Adding cOmega_S_MOmega..."
-        @constraint(model, cOmega_S_MOmega, Omega[:, j, :] <= S * MOmega)
+        # @constraint(model, cOmega_S_MOmega, Omega[:, j, :] <= S * MOmega)
+        @constraint(model, cOmega_S_MOmega, model(Symbol("Omega[", j, "]")) <= S * MOmega)
     end
-    for i in 1:size(Omega)[1]
-        @info "Adding cOmega_TI_S..."
-        @constraint(model, cOmega_TI_S, -(1-S)*MOmega <= Omega[i,:,:] - transpose(TI) <= (1 - S)*MOmega)
-    end
+    # for i in 1:size(Omega)[1]
+    #     @info "Adding cOmega_TI_S..."
+    #     @constraint(model, cOmega_TI_S, -(1-S)*MOmega <= Omega[i,:,:] - transpose(TI) <= (1 - S)*MOmega)
+    # end
 
     @info "Adding cPsi_ST_MPsi..."
     @constraint(model, cPsi_ST_MPsi, Psi <= St * MPsi)
@@ -796,6 +803,6 @@ function main()
     @info "Displaying model..."
     display(model)
 end
-    main()
+    @allocated main()
 
 end
