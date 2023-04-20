@@ -804,133 +804,131 @@ $$\alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^
 **Subject to:**
 
 
-$$-\zeta^T \geq -\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$  
+$$-\zeta^T \geq -\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^T_1)}$$  
 
-$$-\zeta^T \geq -TI^T\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$
-
-
-$$-\zeta^E \geq -\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$  
-
-$$-\zeta^E \geq -TI^E\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$
+$$-\zeta^T \geq -TI^T\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^T_2)}$$
 
 
-$$TI \leq F$$
+$$-\zeta^E \geq -\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^E_1)}$$  
 
-$$TI^\top\times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] \leq \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right]$$
-
-$$TI^\top \times TP = IP$$
+$$-\zeta^E \geq -TI^E\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^E_2)}$$
 
 
-$$R \leq \Theta M^{I4}$$  
-$$ -M^{I4}(1-\Theta) \leq R - (TI^\top\times TU) \leq M^{I4}(1 - \Theta) $$  
+$$TI \leq F\quad \bold{(TI_1)}$$
+
+$$TI^\top\times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] \leq \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right]\quad \bold{(TI_2)}$$
+
+$$TI^\top \times TP = IP\quad \bold{(TI_3)}$$
 
 
-$$R\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]=IU$$  
-
-$$\Theta\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \geq \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]$$
-
-$$IDE \leq TI^\top \times TDA \leq IDL$$
-
-$$Z\leq S\times M^{Z}$$  
+$$R \leq \Theta M^{I4}\quad \bold{(R_1)}$$  
+$$ -M^{I4}(1-\Theta) \leq R - (TI^\top\times TU) \leq M^{I4}(1 - \Theta) \quad \bold{(R_2)}$$  
 
 
-$$\Psi = \left [ \Omega[\dots, 1, \dots]\cdot \left [ \begin{matrix} 1\\\vdots\\1\end{matrix} \right ] \Omega[\dots, 2, \dots]\cdot \left [ \begin{matrix} 1\\\vdots\\1\end{matrix} \right ]\dots  \right ]$$
+$$R\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]=IU\quad \bold{(R_3)}$$  
 
-$$\Omega[\dots, j, \dots]\leq S\cdot M^\Omega\quad \forall j$$
+$$\Theta\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \geq \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(\Theta_1)}$$
 
-$$-(1-S)M^\Omega \leq \Omega[i,\dots,\dots] - TI^\top \leq (1-S)M^\Omega\quad \forall i$$
+$$IDE \leq TI^\top \times TDA \leq IDL\quad \bold{(TI_4)}$$
 
-$$\Psi \leq ST \cdot M^\Psi$$
-
-$$-(1-ST)M^\Psi \leq \Psi - \left [S\cdot\left [ \begin{matrix} 1\\\vdots\\1\end{matrix} \right ]\dots\right ] \leq (1-ST)M^\Psi$$
+$$Z\leq S\times M^{Z}\quad \bold{(Z_1)}$$  
 
 
+$$\Psi = \left [ \Omega[\dots, 1, \dots]\cdot \left [ \begin{matrix} 1\\\vdots\\1\end{matrix} \right ] \Omega[\dots, 2, \dots]\cdot \left [ \begin{matrix} 1\\\vdots\\1\end{matrix} \right ]\dots  \right ]\quad \bold{(\Psi_1)}$$
 
-$$S\times IS = Z\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]$$
+$$\Omega[\dots, j, \dots]\leq S\cdot M^\Omega\quad \forall j\quad \bold{(\Omega_1)}$$
 
-$$-M^{Z}(1-S) \leq Z - \left [  SS  \cdots  SS  \right ] \leq M^{Z}(1-S)$$
+$$-(1-S)M^\Omega \leq \Omega[i,\dots,\dots] - TI^\top \leq (1-S)M^\Omega\quad \forall i\quad \bold{(\Omega_2)}$$
 
-$$Q\leq S\times M^Q$$  
-$$S\times IU = Q\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]$$
+$$\Psi \leq ST \cdot M^\Psi\quad \bold{(\Psi_2)}$$
 
-$$-M^Q(1-S) \leq Q - \left [  SU  \cdots  SU  \right ] \leq M^Q(1-S)$$
-
-$$H\leq S\times M^H$$  
-$$S\times IP = H\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]$$
-
-$$-M^H(1-S) \leq H - \left [  SP  \cdots  SP  \right ] \leq M^H(1-S)$$
-
-$$V\leq S\times M^V$$  
-$$S\times IK = V\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]$$
-
-$$-M^V(1-S) \leq V - \left [  SK  \cdots  SK  \right ] \leq M^V(1-S)$$
-
-$$W\leq S\times M^{W}$$  
-$$\displaystyle S\times IPD = W\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]$$
-
-$$-M^{W}(1-S) \leq W - \left [  SPD  \cdots  SPD  \right ] \leq M^{W}(1-S)$$
-
-$$G^l\leq S\times M^G$$  
-$$G^r \leq S\times M^G$$  
-$$G^l\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = G^r\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]$$
-
-$$-M^G(1-S) \leq G^r - \left [  SO  \cdots  SO  \right ] \leq M^G(1-S)$$  
-$$-M^G(1-S) \leq G^l - \left [  IOV  \cdots  IOV  \right ] \leq M^G(1-S)$$
-
-$$SX^e - SX^o = SL + SO\cdot M^{TL}$$
-
-$$SY^e - SY^o = SW + SO\cdot M^{TW}$$
-
-$$SX^e - SX^o = SW + (1-SO)\cdot M^{TW}$$
-
-$$SY^e - SY^o = SL + (1-SO)\cdot M^{TL}$$
-
-$$SZ^o = 0$$
-
-$$SZ^e = S\cdot IH$$
-
-$$SX^e \leq  ST \times TL$$  
-$$SY^e \leq  ST \times TW$$  
-$$SZ^e \leq  ST \times TH$$
-
-$$\left [ \begin{matrix} 1 & 0 & \dots & 0\\ & I & &  \end{matrix} \right ]\times SX^o \leq  SX^o$$
-
-$$\Xi^2 SX^o - \Xi^1 SX^{e} - \beta^- + \beta^+ =  - 0.0001\quad \bold{(a)}$$
-
-$$\beta^- \leq \lambda M^\lambda$$  
-$$\beta^+ \leq (1-\lambda)M^\lambda$$  
-
-$$(1 - \mu) \leq \beta^- M^\mu$$
-
-$$\left ( \Xi^2 ST - \Xi^1 ST \right )\times \left [ \begin{matrix} 1 & 0 & 0 & \dots \\ 0 & 2 & 0& \dots \\ 0 & 0 & 3& \dots\\ etc \end{matrix} \right ] = \nu \quad \quad \bold{(b)}$$
+$$-(1-ST)M^\Psi \leq \Psi - \left [S\cdot\left [ \begin{matrix} 1\\\vdots\\1\end{matrix} \right ]\dots\right ] \leq (1-ST)M^\Psi\quad \bold{(\Psi_3)}$$
 
 
-$$\tau - \phi \leq (\nu-|trucks|)M^\tau$$  
-$$\displaystyle \tau \geq \frac{(\nu-|trucks|)M^\tau}{10}$$  
-$$\tau \geq 0$$  
-$$\phi \geq 0$$  
+
+$$S\times IS = Z\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(S_1)}$$
+
+$$-M^{Z}(1-S) \leq Z - \left [  SS  \cdots  SS  \right ] \leq M^{Z}(1-S)\quad \bold{(Z_2)}$$
+
+$$Q\leq S\times M^Q\quad \bold{(Q_1)}$$  
+$$S\times IU = Q\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(Q_2)}$$
+
+$$-M^Q(1-S) \leq Q - \left [  SU  \cdots  SU  \right ] \leq M^Q(1-S)\quad \bold{(Q_3)}$$
+
+$$H\leq S\times M^H\quad \bold{(H_1)}$$  
+$$S\times IP = H\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(H_2)}$$
+
+$$-M^H(1-S) \leq H - \left [  SP  \cdots  SP  \right ] \leq M^H(1-S)\quad \bold{(H_3)}$$
+
+$$V\leq S\times M^V\quad \bold{(V_1)}$$  
+$$S\times IK = V\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(V_2)}$$
+
+$$-M^V(1-S) \leq V - \left [  SK  \cdots  SK  \right ] \leq M^V(1-S)\quad \bold{(V_3)}$$
+
+$$W\leq S\times M^{W}\quad \bold{(W_1)}$$  
+$$\displaystyle S\times IPD = W\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(W_2)}$$
+
+$$-M^{W}(1-S) \leq W - \left [  SPD  \cdots  SPD  \right ] \leq M^{W}(1-S)\quad \bold{(W_3)}$$
+
+$$G^l\leq S\times M^G\quad \bold{(G^l_1)}$$  
+$$G^r \leq S\times M^G\quad \bold{(G^r_1)}$$  
+$$G^l\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = G^r\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(G^lG^r)}$$
+
+$$-M^G(1-S) \leq G^r - \left [  SO  \cdots  SO  \right ] \leq M^G(1-S)\quad \bold{(G^r_2)}$$  
+$$-M^G(1-S) \leq G^l - \left [  IOV  \cdots  IOV  \right ] \leq M^G(1-S)\quad \bold{(G^l_2)}$$
+
+$$SX^e - SX^o = SL + SO\cdot M^{TL}\quad \bold{(SX_1)}$$
+
+$$SY^e - SY^o = SW + SO\cdot M^{TW}\quad \bold{(SY_1)}$$
+
+$$SX^e - SX^o = SW + (1-SO)\cdot M^{TW}\quad \bold{(SX_2)}$$
+
+$$SY^e - SY^o = SL + (1-SO)\cdot M^{TL}\quad \bold{(SY_2)}$$
+
+$$SZ^o = 0\quad \bold{(\zeta^T_1)}$$
+
+$$SZ^e = S\cdot IH\quad \bold{(SZ_1)}$$
+
+$$SX^e \leq  ST \times TL\quad \bold{(SX_3)}$$  
+$$SY^e \leq  ST \times TW\quad \bold{(SY_3)}$$  
+$$SZ^e \leq  ST \times TH\quad \bold{(SZ_2)}$$
+
+$$\left [ \begin{matrix} 1 & 0 & \dots & 0\\ & I & &  \end{matrix} \right ]\times SX^o \leq  SX^o\quad \bold{(SX_4)}$$
+
+$$\Xi^2 SX^o - \Xi^1 SX^{e} - \beta^- + \beta^+ =  - 0.0001\quad \bold{(a)}\quad \bold{(SX_5)}$$
+
+$$\beta^- \leq \lambda M^\lambda\quad \bold{(\beta^-_1)}$$  
+$$\beta^+ \leq (1-\lambda)M^\lambda\quad \bold{(\beta^+_1)}$$  
+
+$$(1 - \mu) \leq \beta^- M^\mu\quad \bold{(\mu_1)}$$
+
+$$\left ( \Xi^2 ST - \Xi^1 ST \right )\times \left [ \begin{matrix} 1 & 0 & 0 & \dots \\ 0 & 2 & 0& \dots \\ 0 & 0 & 3& \dots\\ etc \end{matrix} \right ] = \nu \quad \quad \bold{(b)}\quad \bold{(\nu_1)}$$
+
+
+$$\tau - \phi \leq (\nu-|trucks|)M^\tau\quad \bold{(\tau_1)}$$  
+$$\displaystyle \tau \geq \frac{(\nu-|trucks|)M^\tau}{10}\quad \bold{(\tau_2)}$$  
 <!-- $$\tau - \phi \leq \eta^1 M$$  
 $$\phi - \tau \leq (1-\eta^1)M$$   -->
-$$\tau \leq \eta M^\eta$$  
-$$\phi \leq (1-\eta)M^\eta$$  
+$$\tau \leq \eta M^\eta\quad \bold{(\tau_3)}$$  
+$$\phi \leq (1-\eta)M^\eta\quad \bold{(\phi_1)}$$  
 
-$$\Xi^1SY^e \leq \Xi^2SY^o +  \xi M^{TW} + (\tau + \phi)M^{TW} + (1-\mu)M^{TW}$$
+$$\Xi^1SY^e \leq \Xi^2SY^o +  \xi M^{TW} + (\tau + \phi)M^{TW} + (1-\mu)M^{TW}\quad \bold{(SY_4)}$$
 
-$$\Xi^2SY^e \leq \Xi^1SY^o + (1 - \xi)M^{TW} +  (\tau + \phi)M^{TW} + (1-\mu)M^{TW}$$
+$$\Xi^2SY^e \leq \Xi^1SY^o + (1 - \xi)M^{TW} +  (\tau + \phi)M^{TW} + (1-\mu)M^{TW}\quad \bold{(SY_5)}$$
 
-$$\Xi^1SU\cdot TE \leq \Xi^2 SU \cdot TE + (\tau + \phi)M^{TE}$$
+$$\Xi^1SU\cdot TE \leq \Xi^2 SU \cdot TE + (\tau + \phi)M^{TE}\quad \bold{(SU_1)}$$
 
-$$\Xi^1SU - \Xi^2SU \geq \chi\epsilon - rM^{TE} - (\tau + \phi)M^{TE} - (1 - \sigma^1)M^{TE}$$  
-$$\Xi^2SU - \Xi^1SU \geq (1 - \chi)\epsilon - rM^{TE} - (\tau + \phi)M^{TE} - (1 - \sigma^1)M^{TE}$$
+$$\Xi^1SU - \Xi^2SU \geq \chi\epsilon - rM^{TE} - (\tau + \phi)M^{TE} - (1 - \sigma^1)M^{TE}\quad \bold{(SU_2)}$$  
+$$\Xi^2SU - \Xi^1SU \geq (1 - \chi)\epsilon - rM^{TE} - (\tau + \phi)M^{TE} - (1 - \sigma^1)M^{TE}\quad \bold{(SU_2)}$$
 
-$$\Xi^2SK \cdot TKE \geq \Xi^1SK \cdot TKE - (1-r)M^{TKE} - (\tau + \phi)M^{TKE}$$
+$$\Xi^2SK \cdot TKE \geq \Xi^1SK \cdot TKE - (1-r)M^{TKE} - (\tau + \phi)M^{TKE}\quad \bold{(SK_1)}$$
 
-$$\Xi^1SK \cdot TKE - \Xi^2SK \cdot TKE \geq \chi\epsilon - (\tau + \phi)M^{TKE} - (1 - \sigma^2)M^{TKE}$$  
-$$\Xi^2SK \cdot TKE - \Xi^1SK \cdot TKE \geq (1 - \chi)\epsilon - (\tau + \phi)M^{TKE} - (1 - \sigma^2)M^{TKE}$$
+$$\Xi^1SK \cdot TKE - \Xi^2SK \cdot TKE \geq \chi\epsilon - (\tau + \phi)M^{TKE} - (1 - \sigma^2)M^{TKE}\quad \bold{(SK_2)}$$  
+$$\Xi^2SK \cdot TKE - \Xi^1SK \cdot TKE \geq (1 - \chi)\epsilon - (\tau + \phi)M^{TKE} - (1 - \sigma^2)M^{TKE}\quad \bold{(SK_3)}$$
 
-$$\Xi^2SG\cdot TGE \geq \Xi^1SG\cdot TGE - (\tau + \phi)M^{TGE} - (1 - \sigma^3)M^{TGE}$$
+$$\Xi^2SG\cdot TGE \geq \Xi^1SG\cdot TGE - (\tau + \phi)M^{TGE} - (1 - \sigma^3)M^{TGE}\quad \bold{(SG_1)}$$
 
-$$\sigma^1 + \sigma^2 + \sigma^3 \geq 1$$  
+$$\sigma^1 + \sigma^2 + \sigma^3 \geq 1\quad \bold{(\sigma_1)}$$  
 
 
 **Variables:**
@@ -1573,3 +1571,171 @@ Detailed general approach:
 12. Solve master problem and obtain new potentially fractional TI
 13. Unless the optimal solution is found, return to 5.
 ```
+
+## Dual objective function
+
+**Maximize:**
+$$\begin{align*} 
+-\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{\zeta^T_1}   \\
+-\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{\zeta^E_1}  \\
+-\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{TI_2} \\
++ IP^\top u_{TI_3}  \\
+- M^{I4\top} u_{R^\leq_2}  \\
+- M^{I4\top} u_{R_2^\geq}   \\
++ IU^\top u_{R_3}  \\
++ \left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{\Theta_1} \\
+- IDL^{\top} u_{TI^\leq_4}  \\
++ IDE^{\top} u_{TI_4^\geq} \\
+- M^{\Omega\top} u_{\Omega^\leq_2}  \\
+- M^{\Omega\top} u_{\Omega^\geq_2} \\
+- M^{\Psi\top} u_{\Psi^\leq_3}  \\
+- M^{\Psi\top} u_{\Psi^\geq_3} \\
+- M^{Z\top} u_{Z^\leq_2} \\
+% - [SS\dots SS]^\top u_{Z^\leq_2}  \\
+- M^{Z\top} u_{Z^\geq_2} \\
+% + [SS\dots SS]^\top u_{Z^\geq_2} \\
+- M^{Q\top} u_{Q^\leq_3} \\
+% - [SU\dots SU]^\top u_{Q^\leq_3}  \\
+- M^{Q\top} u_{Q^\geq_3} \\
+% + [SU\dots SU]^\top u_{Q^\geq_3} \\
+
+- M^{H\top} u_{H^\leq_3} \\
+% - [SP\dots SP]^\top u_{H^\leq_3}  \\
+- M^{H\top} u_{H^\geq_3} \\
+% + [SP\dots SP]^\top u_{H^\geq_3} \\
+
+- M^{V\top} u_{V^\leq_3} \\
+% - [SK\dots SK]^\top u_{V^\leq_3}  \\
+- M^{V\top} u_{V^\geq_3} \\
+% + [SK\dots SK]^\top u_{V^\geq_3} \\
+
+- M^{W\top} u_{W^\leq_3} \\
+- M^{W\top} u_{W^\geq_3} \\
+
+- M^{G\top} u_{G^{r\leq}_2} \\
+- M^{G\top} u_{G^{r\geq}_2} \\
+
+- M^{G\top} u_{G^{l\leq}_2} \\
+- M^{G\top} u_{G^{l\geq}_2} \\
+
++ M^{TW\top} u_{SX_2} \\
++ M^{TL\top} u_{SY_2} \\
+
+- \epsilon^\top u_{SX_5} \\
+
+- M^\lambda u_{\beta^+_1} \\
+
++ u_{\mu_1} \\
+
++ |trucks|M^{r\top} u_{\tau_1} \\
+
+-0.1 |trucks|M^{r\top} u_{\tau_2} \\
+
+-M^{\eta\top} u_{\phi_1} \\
+
+-M^{TW\top} u_{SY_4}\\
+
+-2M^{TW\top} u_{SY_5}\\
+
+-M^{TE\top} u_{SU_2}\\
+
+-M^{TKE\top} u_{SK_1}\\
+
+-M^{TKE\top} u_{SK_2}\\
+
++(\epsilon^\top - M^{TKE\top}) u_{SK_3}\\
+
+-M^{TGE\top} u_{SG_1}\\
+
++ u_{\sigma_1}
+\end{align*}
+$$
+
+All variables are $\geq 0$ except:
+$$u_{TI_3} \in \bold{R}$$
+$$u_{R_3} \in \bold{R}$$
+$$u_{SX_2} \in \bold{R}$$
+$$u_{SY_2} \in \bold{R}$$
+$$u_{SX_5} \in \bold{R}$$
+
+
+## Dual objective function with fixed TI
+
+% TODO
+
+**Maximize:**
+$$\begin{align*} 
+-\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{\zeta^T_1}   \\
+-\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{\zeta^E_1}  \\
+-\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{TI_2} \\
++ IP^\top u_{TI_3}  \\
+- M^{I4\top} u_{R^\leq_2}  \\
+- M^{I4\top} u_{R_2^\geq}   \\
++ IU^\top u_{R_3}  \\
++ \left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{\Theta_1} \\
+- IDL^{\top} u_{TI^\leq_4}  \\
++ IDE^{\top} u_{TI_4^\geq} \\
+- M^{\Omega\top} u_{\Omega^\leq_2}  \\
+- M^{\Omega\top} u_{\Omega^\geq_2} \\
+- M^{\Psi\top} u_{\Psi^\leq_3}  \\
+- M^{\Psi\top} u_{\Psi^\geq_3} \\
+- M^{Z\top} u_{Z^\leq_2} \\
+% - [SS\dots SS]^\top u_{Z^\leq_2}  \\
+- M^{Z\top} u_{Z^\geq_2} \\
+% + [SS\dots SS]^\top u_{Z^\geq_2} \\
+- M^{Q\top} u_{Q^\leq_3} \\
+% - [SU\dots SU]^\top u_{Q^\leq_3}  \\
+- M^{Q\top} u_{Q^\geq_3} \\
+% + [SU\dots SU]^\top u_{Q^\geq_3} \\
+
+- M^{H\top} u_{H^\leq_3} \\
+% - [SP\dots SP]^\top u_{H^\leq_3}  \\
+- M^{H\top} u_{H^\geq_3} \\
+% + [SP\dots SP]^\top u_{H^\geq_3} \\
+
+- M^{V\top} u_{V^\leq_3} \\
+% - [SK\dots SK]^\top u_{V^\leq_3}  \\
+- M^{V\top} u_{V^\geq_3} \\
+% + [SK\dots SK]^\top u_{V^\geq_3} \\
+
+- M^{W\top} u_{W^\leq_3} \\
+- M^{W\top} u_{W^\geq_3} \\
+
+- M^{G\top} u_{G^{r\leq}_2} \\
+- M^{G\top} u_{G^{r\geq}_2} \\
+
+- M^{G\top} u_{G^{l\leq}_2} \\
+- M^{G\top} u_{G^{l\geq}_2} \\
+
++ M^{TW\top} u_{SX_2} \\
++ M^{TL\top} u_{SY_2} \\
+
+- \epsilon^\top u_{SX_5} \\
+
+- M^\lambda u_{\beta^+_1} \\
+
++ u_{\mu_1} \\
+
++ |trucks|M^{r\top} u_{\tau_1} \\
+
+-0.1 |trucks|M^{r\top} u_{\tau_2} \\
+
+-M^{\eta\top} u_{\phi_1} \\
+
+-M^{TW\top} u_{SY_4}\\
+
+-2M^{TW\top} u_{SY_5}\\
+
+-M^{TE\top} u_{SU_2}\\
+
+-M^{TKE\top} u_{SK_1}\\
+
+-M^{TKE\top} u_{SK_2}\\
+
++(\epsilon^\top - M^{TKE\top}) u_{SK_3}\\
+
+-M^{TGE\top} u_{SG_1}\\
+
++ u_{\sigma_1}
+\end{align*}
+$$
