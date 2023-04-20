@@ -1578,6 +1578,7 @@ Detailed general approach:
 $$\begin{align*} 
 -\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{\zeta^T_1}   \\
 -\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{\zeta^E_1}  \\
+- F^\top u_{TI_1}\\
 -\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{TI_2} \\
 + IP^\top u_{TI_3}  \\
 - M^{I4\top} u_{R^\leq_2}  \\
@@ -1661,22 +1662,23 @@ $$u_{SX_5} \in \bold{R}$$
 
 ## Dual objective function with fixed TI
 
-% TODO
-
 **Maximize:**
 $$\begin{align*} 
 -\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{\zeta^T_1}   \\
+-\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] \overline{TI^T} u_{\zeta^T_2}   \\
 -\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{\zeta^E_1}  \\
--\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{TI_2} \\
-+ IP^\top u_{TI_3}  \\
-- M^{I4\top} u_{R^\leq_2}  \\
-- M^{I4\top} u_{R_2^\geq}   \\
+-\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] \overline{TI^E} u_{\zeta^E_2}   \\
+% + \overline{TI^\top} u_{TI_2}\\ % F is a constant
++(\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] \overline{TI} -\left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ]) u_{TI_2} \\
++ (TP^\top \overline{TI} + IP^\top) u_{TI_3}  \\
+- (TU^\top \overline{TI} + M^{I4\top}) u_{R^\leq_2}  \\
++ (TU^\top \overline{TI} - M^{I4\top}) u_{R_2^\geq}   \\
 + IU^\top u_{R_3}  \\
 + \left [ \begin{matrix} 1 & \dots & 1 \end{matrix} \right ] u_{\Theta_1} \\
-- IDL^{\top} u_{TI^\leq_4}  \\
-+ IDE^{\top} u_{TI_4^\geq} \\
-- M^{\Omega\top} u_{\Omega^\leq_2}  \\
-- M^{\Omega\top} u_{\Omega^\geq_2} \\
++ (TDA^\top \overline{TI} - IDL^{\top}) u_{TI^\leq_4}  \\
++ (IDE^{\top} - TDA^\top \overline{TI}) u_{TI_4^\geq} \\
+- (M^{\Omega\top} - \overline{TI}) u_{\Omega^\leq_2}  \\
++ (\overline{TI} - M^{\Omega\top}) u_{\Omega^\geq_2} \\
 - M^{\Psi\top} u_{\Psi^\leq_3}  \\
 - M^{\Psi\top} u_{\Psi^\geq_3} \\
 - M^{Z\top} u_{Z^\leq_2} \\
@@ -1736,6 +1738,8 @@ $$\begin{align*}
 
 -M^{TGE\top} u_{SG_1}\\
 
-+ u_{\sigma_1}
++ u_{\sigma_1}\\
+
++ \alpha_I c_I^\top(IDL - \overline{TI^\top} \times TDA)
 \end{align*}
 $$
