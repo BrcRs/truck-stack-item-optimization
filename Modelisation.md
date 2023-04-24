@@ -761,7 +761,7 @@ $\sigma^1, \sigma^2, \sigma^3 \in \{0, 1\}$
 
 ## How to take into account extra trucks?
 
-For each planned truck $t$, add as many extra trucks that there are candidate items for truck $t$. Problem solved.
+For each planned truck $t$, add as many extra trucks that there are candidate items for truck $t$. This simple solution makes some variables too large to handle. We need to consider an alternative in which extra trucks are only added during subproblems resolution. Then, optimiality cuts would only take into account the trucks actually used. We need to determine if this method doesn't undermine the convergence of Benders.
 
 ## Rewriting the objective function
 

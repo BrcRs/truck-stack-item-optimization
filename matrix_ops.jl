@@ -1,6 +1,6 @@
-module TSIMatrixOps
+# module TSIMatrixOps
 
-export 
+# export fillXi1!, identityMat, fillXi2!, ones
 
 function fillXi1!(Xi::BitArray)
     n = size(Xi)[2]
@@ -47,4 +47,4 @@ end
 
 
 
-end
+# end
