@@ -245,8 +245,6 @@ function loadinstance(instancepath)
     nbplannedtrucks, nbsuppliers, nbsupplierdocks, nbplants, nbplantdocks  = countTrucks!(truckdict, supplierdict, 
     supplierdockdict, plantdict, plantdockdict, instancepath)    
     
-    # TODO return the numbers in functions
-    
     TE_P = Matrix{Union{Float64, Missing}}(missing, nbplannedtrucks, nbsuppliers)
     
     TL_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
@@ -306,7 +304,13 @@ function loadinstance(instancepath)
                 # if the supplier dock of i is not in the supplier docks of t
                 # or the same but with plant docks
                 # or the truck arrives after the latest arrival date allowed for i 
-                if !*((IK[i,:] .<= TK_P[t,:])...) || !*((IPD[i,:] .<= TG_P[t,:])...) || TDA_P[t] > IDL[i]
+                # or the truck's plant is not the item's
+                # or the item's supplier is not in the truck's
+                if !*((IK[i,:] .<= TK_P[t,:])...) || 
+                    !*((IPD[i,:] .<= TG_P[t,:])...) || 
+                    TDA_P[t] > IDL[i] ||
+                    TP_P[t] != IP[i] ||
+                    !*((IU[i,:] .<= TU_P[t,:])...)
                     # Remove i from compatible items for t
                     TR_P[t,i] = 0.0
                 end
@@ -366,13 +370,26 @@ function loadinstance(instancepath)
     TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TU_P, TP_P, TG_P, TK_P, TR_P, 
     reverse_truckdict)
     
+    costinventory = 0.0
+    costtransportation = 0.0
+    costextratruck = 0.0
+    timelimit = 0.0
+    open(*(instancepath, "input_parameters.csv")) do file
+        for row in CSV.File(file, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String)
+            costinventory = row[:Coefficient_inventory_cost]
+            costtransportation = row[:Coefficient_transportation_cost]
+            costextratruck = row[:Coefficient_cost_extra_truck]
+            timelimit = row[Symbol("timelimit_(sec)")]       
+
+        end
+    end
     
     return item_productcodes, truckdict, supplierdict, supplierdockdict, plantdict, 
     plantdockdict, nbplannedtrucks, nbitems, nbsuppliers, nbsupplierdocks, nbplants, nbplantdocks,
     TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TU_P, TP_P, TK_P, TG_P, TR_P,
     IU, IP, IK, IPD, IS, IDL, IDE, stackabilitycodedict, nbtrucks, TE, TL, TW, TH,
-    TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict
-    
+    TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict, 
+    costinventory, costtransportation, costextratruck, timelimit
     
 end
 # end
