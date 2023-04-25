@@ -365,24 +365,23 @@ We assume placing items into stacks can be done beforehand. The following progra
 
 **Minimize:**
 
-$$c_\rho^\top\rho + \left ( j^t(x^t,y^t)+(\kappa^t-\sum_{t'\in\bold{T}}\pi^{t'}\kappa^{t'})x^t\right)$$
-$$\alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^\top_{I} (IDL - TI^\top \times TDA)$$
+$$c_\rho^\top\rho + \alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^\top_{I} (IDL - TI^{t\top} \times TDA)+(\kappa^t-\sum_{t'\in\bold{T}}\kappa^{t'})TI^t$$
 
 **Subject to:**
 
 
-$$-\zeta^T \geq -\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^T_1)}$$  
+$$-\zeta^{tT} \geq -1\quad \bold{(\zeta^T_1)}$$  
 
-$$-\zeta^T \geq -TI^T\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^T_2)}$$
+$$-\zeta^{tT} \geq -TI^{tT}[t]\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^T_2)}$$
 
 
-$$-\zeta^E \geq -\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^E_1)}$$  
+$$-\zeta^{tE} \geq -1\quad \bold{(\zeta^E_1)}$$  
 
-$$-\zeta^E \geq -TI^E\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^E_2)}$$
+$$-\zeta^{tE} \geq -TI^{tE}[t]\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^E_2)}$$
 
-$$TI \leq TR\quad \bold{(TI_1)}$$
+$$TI^t \leq TR\quad \bold{(TI_1)}$$
 
-$$TI^\top\times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] = \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right]\quad \bold{(TI_2)}$$
+$$TI^{t\top}\times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] = \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right]\quad \bold{(TI_2)}$$
 
 
 $$Z\leq S\times M^{Z}\quad \bold{(Z_1)}$$  
@@ -390,7 +389,7 @@ $$Z\leq S\times M^{Z}\quad \bold{(Z_1)}$$
 
 $$\Omega[\dots, t, \dots]\leq S\cdot M^\Omega\quad \bold{(\Omega_1)}$$
 
-$$-(1-S)M^\Omega \leq \Omega[i,t,\dots] - TI[t]^\top \leq (1-S)M^\Omega\quad \forall i\quad \bold{(\Omega_2)}$$
+$$-(1-S)M^\Omega \leq \Omega[i,t,\dots] - TI^t[t]^\top \leq (1-S)M^\Omega\quad \forall i\quad \bold{(\Omega_2)}$$
 
 $$\Omega[\dots, t, \dots] \leq ST \cdot M^{\Omega^t}\quad \bold{(\Psi_2)}$$
 
@@ -544,27 +543,6 @@ $\epsilon = 0.001$
 
 This is a Mixed Integer Linear Program. We could try to solve it with B&B, with a smart branching on the binary variables which are not determined by other variables. The use of heuristic algorithms which ignore orientation for instance could prove useful. We could even use Benders decomposition.
 
-### Expressing the penality per overflowing items
-
-The cost of using one single truck per item can easily be calculated in advance. The objective function is:
-
-$$\alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^\top_{I} (IDL - TI^\top \times TDA)$$
-
-with
-
-$$-\zeta^T \geq -\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$  
-
-$$-\zeta^T \geq -TI^T\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$
-
-
-$$-\zeta^E \geq -\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$  
-
-$$-\zeta^E \geq -TI^E\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]$$
-
-$\zeta$ is only a mean of knowing which truck is used or not. In this case, we know which trucks are used. We have $n$ items, $m$ planned trucks. We assume $n \geq m$. The $m$ planned trucks are necessarily used, which leaves $n - m$ items to dispatch in extra trucks. In the worst case scenario, only the costliest extra trucks are used. In the worst case all items arrive late. The value of an upper bound of the objective function of the original problem is thus:
-
-$$\alpha_T c^\top_T \left [\begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] + (n-m)\alpha^E\max c_E + \alpha_I c_I^\top(IDL - TDE)$$
-
 ## In Summary
 
 ```
@@ -573,7 +551,7 @@ $$\alpha_T c^\top_T \left [\begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] + (
 while TI[t, k+1] - sum([pi[t] * TI[t, k+1] for t in bold_T]) != 0
     for t in bold_T
         # Solve the deterministic minimization problem for truck t with
-        # a penalization + kappa[t, k] * (t[t, k+1] - TIbar[k])
+        # a penalization + kappa[t, k] * (TI[t, k+1] - TIbar[k])
         # and obtain optimal first decision TI[t, k+1]
         ...
     end
