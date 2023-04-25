@@ -361,11 +361,11 @@ Given a set of items and a truck, place each item in a stack, so that:
 3. The items of a stack have the same stackability code, supplier, supplier dock, plant dock, orientation
 4. The loading orders are respected
 
-We assume placing items into stacks can be done beforehand. The following program places stacks in the truck as to minimize overflow in the X axis:
+The following program places stacks in the truck optimally and taking into account the Uzawa penalization:
 
 **Minimize:**
 
-$$c_\rho^\top\rho + \alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^\top_{I} (IDL - TI^{t\top} \times TDA)+(\kappa^t-\sum_{t'\in\bold{T}}\kappa^{t'})TI^t$$
+$$\alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^\top_{I} (IDL - TI^{t\top} \times TDA)+(\kappa^t-\sum_{t'\in\bold{T}}\kappa^{t'})TI^t$$
 
 **Subject to:**
 
@@ -383,17 +383,49 @@ $$TI^t \leq TR\quad \bold{(TI_1)}$$
 
 $$TI^{t\top}\times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] = \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right]\quad \bold{(TI_2)}$$
 
+The following one ensures that if an item is in a stack, the item is in the truck, because all stacks of the subproblem are in the truck:
+$$S \leq TI^t[t]$$
 
 $$Z\leq S\times M^{Z}\quad \bold{(Z_1)}$$  
 
+And this one ensures items of the truck are in a stack:
 
-$$\Omega[\dots, t, \dots]\leq S\cdot M^\Omega\quad \bold{(\Omega_1)}$$
+$$S^\top \times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] = 1$$ 
+**TODO linearize !! because it only concerns items of the truck**
 
-$$-(1-S)M^\Omega \leq \Omega[i,t,\dots] - TI^t[t]^\top \leq (1-S)M^\Omega\quad \forall i\quad \bold{(\Omega_2)}$$
+$$S\times IS = Z\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(S_1)}$$
 
-$$\Omega[\dots, t, \dots] \leq ST \cdot M^{\Omega^t}\quad \bold{(\Psi_2)}$$
 
-$$-(1-ST)M^{\Omega^t} \leq \Omega[\dots, t, \dots] - \left [S\cdot\left [ \begin{matrix} 1\\\vdots\\1\end{matrix} \right ]\dots\right ] \leq (1-ST)M^{\Omega^t}\quad \bold{(\Psi_3)}$$
+<!-- Omega variables become useless when we know for sure that the stacks we are dealing with are the ones of the truck -->
+<!-- $$\Omega[\dots, t, \dots]\leq S\cdot M^\Omega\quad \bold{(\Omega_1)}$$ -->
+
+<!-- $$-(1-S)M^\Omega \leq \Omega[i,t,\dots] - TI^t[t]^\top \leq (1-S)M^\Omega\quad \forall i\quad \bold{(\Omega_2)}$$ -->
+
+<!-- $$\Omega[\dots, t, \dots] \leq ST \cdot M^{\Omega^t}\quad \bold{(\Psi_2)}$$ -->
+
+<!-- $$-(1-ST)M^{\Omega^t} \leq \Omega[\dots, t, \dots] - \left [S\cdot\left [ \begin{matrix} 1\\\vdots\\1\end{matrix} \right ]\dots\right ] \leq (1-ST)M^{\Omega^t}\quad \bold{(\Psi_3)}$$ -->
+
+$$-M^{Z}(1-S) \leq Z - \left [  SS  \cdots  SS  \right ] \leq M^{Z}(1-S)\quad \bold{(Z_2)}$$
+
+$$Q\leq S\times M^Q\quad \bold{(Q_1)}$$  
+$$S\times IU = Q\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(Q_2)}$$
+
+$$-M^Q(1-S) \leq Q - \left [  SU  \cdots  SU  \right ] \leq M^Q(1-S)\quad \bold{(Q_3)}$$
+
+$$H\leq S\times M^H\quad \bold{(H_1)}$$  
+$$S\times IP = H\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(H_2)}$$
+
+$$-M^H(1-S) \leq H - \left [  SP  \cdots  SP  \right ] \leq M^H(1-S)\quad \bold{(H_3)}$$
+
+$$V\leq S\times M^V\quad \bold{(V_1)}$$  
+$$S\times IK = V\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(V_2)}$$
+
+$$-M^V(1-S) \leq V - \left [  SK  \cdots  SK  \right ] \leq M^V(1-S)\quad \bold{(V_3)}$$
+
+$$W\leq S\times M^{W}\quad \bold{(W_1)}$$  
+$$\displaystyle S\times IPD = W\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(W_2)}$$
+
+$$-M^{W}(1-S) \leq W - \left [  SPD  \cdots  SPD  \right ] \leq M^{W}(1-S)\quad \bold{(W_3)}$$
 
 
 $$G^l\leq S\times M^G$$  
@@ -415,12 +447,12 @@ $$SZ^o = 0$$
 
 $$SZ^e = S\cdot IH$$
 
-$$SX^e \leq  TL$$  
+$$SX^e \leq  TL[t]$$  
 
-$$\rho \geq SX^e - TL$$
+<!-- $$\rho \geq SX^e - TL$$ -->
 
-$$SY^e \leq  TW$$  
-$$SZ^e \leq  TH$$
+$$SY^e \leq  TW[t]$$  
+$$SZ^e \leq  TH[t]$$
 
 $$\left [ \begin{matrix} 1 & 0 & \dots & 0\\ & I & &  \end{matrix} \right ]\times SX^o \leq  SX^o$$
 
