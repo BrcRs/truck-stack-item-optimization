@@ -761,7 +761,7 @@ $\sigma^1, \sigma^2, \sigma^3 \in \{0, 1\}$
 
 ## How to take into account extra trucks?
 
-For each planned truck $t$, add as many extra trucks that there are candidate items for truck $t$. This simple solution makes some variables too large to handle. We need to consider an alternative in which extra trucks are only added during subproblems resolution. Then, optimiality cuts would only take into account the trucks actually used. We need to determine if this method doesn't undermine the convergence of Benders.
+For each planned truck $t$, add as many extra trucks that there are candidate items for truck $t$. This simple solution makes some variables too large to handle. Since we will not be using the actual full model, but only the residual model where TI is fixed, this problem might be easier to handle, and a lot of linearizations might finally disappear.
 
 ## Rewriting the objective function
 
@@ -1564,12 +1564,11 @@ Detailed general approach:
 5. Use an algorithm to determine an integer solution close to the one found.
 6. Solve separately each subproblem consisting in placing the items of a truck into stacks and placing those stacks into the truck, first by forming stacks logically and then solving via B&B the placing problem.
 7. Get the solution for X\{TI}
-8. Compute the number of missing items.
-9. Re-label the stacks so as to satisfy the global order in the X axis for the relaxation of the original MILP.
-10. Compute the objective function of the dual of the linear relaxation of the original MILP. Add penalities for items with no stacks.
-11. Generate an optimality cut and add it to `cuts`
-12. Solve master problem and obtain new potentially fractional TI
-13. Unless the optimal solution is found, return to 5.
+8. Re-label the stacks so as to satisfy the global order in the X axis for the relaxation of the original MILP.
+9. Compute the objective function of the dual of the linear relaxation of the original MILP, while not creating variables for unused extra trucks and adapting the formulation to keep a valid model.
+10. Generate an optimality cut and add it to `cuts`
+11. Solve master problem and obtain new potentially fractional TI
+12. Unless the optimal solution is found, return to 5.
 ```
 
 ## Dual objective function
@@ -1743,3 +1742,5 @@ $$\begin{align*}
 + \alpha_I c_I^\top(IDL - \overline{TI^\top} \times TDA)
 \end{align*}
 $$
+
+TODO determine if we can take advantage of inactive constraints in primal due to TI variables equal to zero to reduce the number of variables in dual to find and mechanically the number of primal variables to create. 
