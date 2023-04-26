@@ -28,8 +28,6 @@ function fillXi2!(Xi::BitArray)
     m = 1
     i = 1
     while n > 0
-        print(m, ":")
-        println(n)
         # Xi[m:m+n-1, i] .= 1
         # Xi[m:m+n-1, i:size(Xi)[2]] = diagm([1 for _ in 1:n])
         # Xi[m:m+n-1, i:size(Xi)[2]] = identityMat(n)
@@ -37,12 +35,11 @@ function fillXi2!(Xi::BitArray)
         m = m + n
         n = n - 1
         i = i + 1
-        println()
     end
 end
 
-function ones(n::Int)
-    return ones(Int8, n, 1)
+function vones(::Type{T}, n::Int) where {T<:Number}
+    return Base.ones(T, n, 1)
 end
 
 
