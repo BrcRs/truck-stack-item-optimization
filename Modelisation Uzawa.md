@@ -331,14 +331,14 @@ Scheme of the scenario decomposition algorithm:
 
 > P. Carpentier, J.-P. Chancelier, G. Cohen, M. De Lara, Stochastic Multi-Stage Optimization, Springer Cham, 2015.
 
-Input: step $\delta > 0$, initial multipliers $\{\lambda_{(0)}\}_{s\in\bold{S}}$ and first decision $\overline{x}_{(0)}$.
+Input: step $\delta > 0$, initial multipliers $\{\kappa_{(0)}\}_{s\in\bold{S}}$ and first decision $\overline{x}_{(0)}$.
 Output: optimal first decision $x$
 
 ```Julia
 while x[s, k+1] - sum([pi[s] * x[s, k+1] for s in bold_S]) != 0
     for s in bold_S
         # Solve the deterministic minimization problem for scenario s with
-        # a penalization + kappa[s, k] * (s[s, k+1] - xbar[k])
+        # a penalization + kappa[s, k] * (x[s, k+1] - xbar[k])
         # and obtain optimal first decision x[s, k+1]
         ...
     end
@@ -365,7 +365,7 @@ The following program places stacks in the truck optimally and taking into accou
 
 **Minimize:**
 
-$$\alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^\top_{I} (IDL - TI^{t\top} \times TDA)+(\kappa^t-\sum_{t'\in\bold{T}}\kappa^{t'})TI^t$$
+$$\alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^\top_{I} (IDL - TI^{t\top} \times TDA) + \kappa^t(TI^t - \overline{TI})$$
 
 **Subject to:**
 
@@ -390,8 +390,7 @@ $$Z\leq S\times M^{Z}\quad \bold{(Z_1)}$$
 
 And this one ensures items of the truck are in a stack:
 
-$$S^\top \times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] = 1$$ 
-**TODO linearize !! because it only concerns items of the truck**
+$$-\left (\left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] - TI[t]\right )M^S\leq S^\top \times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] - \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] \leq \left (\left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] - TI[t]\right )M^S$$ 
 
 $$S\times IS = Z\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(S_1)}$$
 
@@ -412,10 +411,11 @@ $$S\times IU = Q\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]
 
 $$-M^Q(1-S) \leq Q - \left [  SU  \cdots  SU  \right ] \leq M^Q(1-S)\quad \bold{(Q_3)}$$
 
-$$H\leq S\times M^H\quad \bold{(H_1)}$$  
+<!-- The following are unnecessary because the stacks naturally have the same plant as the truck, and since items of the stack must be in the truck, the item also have the same plant -->
+<!-- $$H\leq S\times M^H\quad \bold{(H_1)}$$  
 $$S\times IP = H\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(H_2)}$$
 
-$$-M^H(1-S) \leq H - \left [  SP  \cdots  SP  \right ] \leq M^H(1-S)\quad \bold{(H_3)}$$
+$$-M^H(1-S) \leq H - \left [  SP  \cdots  SP  \right ] \leq M^H(1-S)\quad \bold{(H_3)}$$ -->
 
 $$V\leq S\times M^V\quad \bold{(V_1)}$$  
 $$S\times IK = V\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(V_2)}$$
@@ -561,7 +561,10 @@ $TGE \in \bold{N}^{|trucks| \times |plantDocks|}$
 
 $M^\lambda = 2TL + 1$
 
+
 **Constants:**
+
+$M^S = 2$
 
 $SZ^o = 0$
 
