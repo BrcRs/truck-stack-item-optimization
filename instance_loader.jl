@@ -100,7 +100,7 @@ function expandTruckMatrices!(nbplannedtrucks,
 
 end
 
-function fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, stackabilitycodedict, supplierdict, plantdict, supplierdockdict, plantdockdict, itemdict, instancepath)
+function fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, _IO, stackabilitycodedict, supplierdict, plantdict, supplierdockdict, plantdockdict, itemdict, instancepath)
     nbstackabilitycodes = 0
     open(*(instancepath, "input_items.csv")) do input_itemsfile
 
@@ -111,6 +111,7 @@ function fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, stackabilitycodedict, supplie
             IPD[i, plantdockdict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = 1.0
             IDL[i] = parse(Float64, row[:Latest_arrival_time])
             IDE[i] = parse(Float64, row[:Earliest_arrival_time])
+            _IO[i] = row[:Forced_orientation] == "none" ? missing : row[:Forced_orientation] == "widthwise" ? 1 : 0
             if !haskey(stackabilitycodedict, row[:Stackability_code])
                 nbstackabilitycodes = nbstackabilitycodes + 1.0
                 stackabilitycodedict[row[:Stackability_code]] = nbstackabilitycodes
@@ -278,6 +279,8 @@ function loadinstance(instancepath)
     IK = falses(nbitems, nbsupplierdocks)
     IPD = falses(nbitems, nbplantdocks)
     
+    _IO = Vector{Union{Float64, Missing}}(missing, nbitems)
+
     IS = Vector{Union{Float64, Missing}}(missing, nbitems)
     
     IDL = Vector{Union{Float64, Missing}}(missing, nbitems)
@@ -287,7 +290,7 @@ function loadinstance(instancepath)
     
     ## Fill Item info matrices with data from input_items file
     stackabilitycodedict = Dict{String, Float64}()
-    nbstackabilitycodes = fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, stackabilitycodedict, supplierdict, plantdict, supplierdockdict, plantdockdict, itemdict, instancepath)
+    nbstackabilitycodes = fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, _IO, stackabilitycodedict, supplierdict, plantdict, supplierdockdict, plantdockdict, itemdict, instancepath)
     
     # Expand TR with information about docks
     # For each truck, for each item, if the truck doesn't stop at the supplier & supplier dock of the item or 
@@ -379,7 +382,7 @@ function loadinstance(instancepath)
             costinventory = row[:Coefficient_inventory_cost]
             costtransportation = row[:Coefficient_transportation_cost]
             costextratruck = row[:Coefficient_cost_extra_truck]
-            timelimit = row[Symbol("timelimit_(sec)")]       
+            timelimit = row[CSV.normalizename("timelimit_(sec)")]       
 
         end
     end
@@ -387,7 +390,7 @@ function loadinstance(instancepath)
     return item_productcodes, truckdict, supplierdict, supplierdockdict, plantdict, 
     plantdockdict, nbplannedtrucks, nbitems, nbsuppliers, nbsupplierdocks, nbplants, nbplantdocks,
     TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TU_P, TP_P, TK_P, TG_P, TR_P,
-    IU, IP, IK, IPD, IS, IDL, IDE, stackabilitycodedict, nbtrucks, TE, TL, TW, TH,
+    IU, IP, IK, IPD, IS, _IO, IDL, IDE, stackabilitycodedict, nbtrucks, TE, TL, TW, TH,
     TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict, 
     costinventory, costtransportation, costextratruck, timelimit
     
