@@ -45,12 +45,12 @@ function main()
     # instancePath = "Instances/AS/"
     instancePath = parsed_args["instancePath"]
 
-    model = TSIModel(Cbc.Optimizer, instancePath)
-    TID = model[:TID]
-    TR_P = model[:TR_P]
+    problem = TSIProblem(Cbc.Optimizer, instancePath)
+    TID = problem[:TID]
+    TR_P = problem[:TR_P]
     @debug begin
         open("tmp2.txt", "w") do io
-            show(io, "text/plain", [string(reverse_truckdict[i], " : ", sum(TR_P[i,:])) for i in 1:size(TR_P)[1]])
+            show(io, "text/plain", [string(problem[:reverse_truckdict][i], " : ", sum(TR_P[i,:])) for i in 1:size(TR_P)[1]])
         end
 
         
@@ -62,7 +62,7 @@ function main()
         @warn string("Nb of items with no truck available according to TR: ", sum(sum(TR_P[:, j]) == 0 ? 1 : 0 for j in 1:size(TR_P)[2]))
     end
 
-    @info "Displaying model..."
-    display(model)
+    @info "Solving problem..."
+    solve_uzawa!(problem, 1, 1)
 end
     @allocated main()
