@@ -100,7 +100,7 @@ function expandTruckMatrices!(nbplannedtrucks,
 
 end
 
-function fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, _IO, stackabilitycodedict, supplierdict, plantdict, supplierdockdict, plantdockdict, itemdict, instancepath)
+function fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, _IO, IL, IW, IH, stackabilitycodedict, supplierdict, plantdict, supplierdockdict, plantdockdict, itemdict, instancepath)
     nbstackabilitycodes = 0
     open(*(instancepath, "input_items.csv")) do input_itemsfile
 
@@ -118,6 +118,9 @@ function fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, _IO, stackabilitycodedict, su
             end
             IS[i] = stackabilitycodedict[row[:Stackability_code]]
             itemdict[i] = row[:Item_ident]
+            IL[i] = parse(Float64, row[:Length])
+            IW[i] = parse(Float64, row[:Width])
+            IH[i] = parse(Float64, row[:Height])
         end
     end
     return nbstackabilitycodes
@@ -281,6 +284,9 @@ function loadinstance(instancepath)
     
     _IO = Vector{Union{Float64, Missing}}(missing, nbitems)
 
+    IL = Vector{Float64}(undef, nbitems)
+    IW = Vector{Float64}(undef, nbitems)
+    IH = Vector{Float64}(undef, nbitems)
     IS = Vector{Union{Float64, Missing}}(missing, nbitems)
     
     IDL = Vector{Union{Float64, Missing}}(missing, nbitems)
@@ -290,7 +296,7 @@ function loadinstance(instancepath)
     
     ## Fill Item info matrices with data from input_items file
     stackabilitycodedict = Dict{String, Float64}()
-    nbstackabilitycodes = fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, _IO, stackabilitycodedict, supplierdict, plantdict, supplierdockdict, plantdockdict, itemdict, instancepath)
+    nbstackabilitycodes = fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, _IO, IL, IW, IH, stackabilitycodedict, supplierdict, plantdict, supplierdockdict, plantdockdict, itemdict, instancepath)
     
     # Expand TR with information about docks
     # For each truck, for each item, if the truck doesn't stop at the supplier & supplier dock of the item or 
@@ -390,7 +396,7 @@ function loadinstance(instancepath)
     return item_productcodes, truckdict, supplierdict, supplierdockdict, plantdict, 
     plantdockdict, nbplannedtrucks, nbitems, nbsuppliers, nbsupplierdocks, nbplants, nbplantdocks,
     TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TU_P, TP_P, TK_P, TG_P, TR_P,
-    IU, IP, IK, IPD, IS, _IO, IDL, IDE, stackabilitycodedict, nbtrucks, TE, TL, TW, TH,
+    IU, IP, IK, IPD, IS, _IO, IL, IW, IH, IDL, IDE, stackabilitycodedict, nbtrucks, TE, TL, TW, TH,
     TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict, 
     costinventory, costtransportation, costextratruck, timelimit
     

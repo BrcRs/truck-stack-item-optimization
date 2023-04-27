@@ -63,6 +63,6 @@ function main()
     end
 
     @info "Solving problem..."
-    solve_uzawa!(problem, 1, 1)
+    solve_uzawa!(problem, 1, 1, 5)
 end
     @allocated main()

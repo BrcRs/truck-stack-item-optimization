@@ -372,12 +372,12 @@ $$\alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^
 
 $$-\zeta^{tT} \geq -1\quad \bold{(\zeta^T_1)}$$  
 
-$$-\zeta^{tT} \geq -TI^{tT}[t]\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^T_2)}$$
+$$-\zeta^{tT} \geq -TI^{tT}\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^T_2)}$$
 
 
 $$-\zeta^{tE} \geq -1\quad \bold{(\zeta^E_1)}$$  
 
-$$-\zeta^{tE} \geq -TI^{tE}[t]\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^E_2)}$$
+$$-\zeta^{tE} \geq -TI^{tE}\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^E_2)}$$
 
 $$TI^t \leq TR\quad \bold{(TI_1)}$$
 
@@ -406,10 +406,16 @@ $$S\times IS = Z\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]
 
 $$-M^{Z}(1-S) \leq Z - \left [  SS  \cdots  SS  \right ] \leq M^{Z}(1-S)\quad \bold{(Z_2)}$$
 
-$$Q\leq S\times M^Q\quad \bold{(Q_1)}$$  
-$$S\times IU = Q\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(Q_2)}$$
+<!-- $$Q\leq S\times M^Q\quad \bold{(Q_1)}$$  
+$$S\times IU = Q\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(Q_2)}$$ -->
 
-$$-M^Q(1-S) \leq Q - \left [  SU  \cdots  SU  \right ] \leq M^Q(1-S)\quad \bold{(Q_3)}$$
+$$Q\leq SU^\top\times M^Q\quad \bold{(Q_1)}$$  
+<!-- $$S\times IU = Q\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(Q_2)}$$ -->
+$$S\times IU = SU^\top \cdot\left (S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\right ) \quad \bold{(Q_2)}$$
+
+
+$$-M^Q(1-SU^\top) \leq Q - S \leq M^Q(1-SU^\top)\quad \bold{(Q_3)}$$ 
+**TODO résoudre ce PB**
 
 <!-- The following are unnecessary because the stacks naturally have the same plant as the truck, and since items of the stack must be in the truck, the item also have the same plant -->
 <!-- $$H\leq S\times M^H\quad \bold{(H_1)}$$  
@@ -434,6 +440,24 @@ $$G^l\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = G^r\time
 
 $$-M^G(1-S) \leq G^r - \left [  SO  \cdots  SO  \right ] \leq M^G(1-S)$$  
 $$-M^G(1-S) \leq G^l - \left [  IOV  \cdots  IOV  \right ] \leq M^G(1-S)$$
+
+Define $SL$ and $SW$
+
+<!-- $$SL\times S\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = S\times IL$$
+$$SW\times S\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = S\times IW$$ -->
+
+$$D^L \leq S \times M^{D^L}$$
+
+$$-M^{D^L}(1 - S) \leq D^L - SL \leq M^{D^L}(1 - S)$$
+
+$$D^L\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = S\times IL$$
+
+$$D^W \leq S \times M^{D^W}$$
+
+$$-M^{D^W}(1 - S) \leq D^W - SW \leq M^{D^W}(1 - S)$$
+
+$$D^W\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = S\times IW$$
+
 
 $$SX^e - SX^o = SL + SO\cdot M^{TL}$$
 
