@@ -409,13 +409,14 @@ $$-M^{Z}(1-S) \leq Z - \left [  SS  \cdots  SS  \right ] \leq M^{Z}(1-S)\quad \b
 <!-- $$Q\leq S\times M^Q\quad \bold{(Q_1)}$$  
 $$S\times IU = Q\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(Q_2)}$$ -->
 
-$$Q\leq SU^\top\times M^Q\quad \bold{(Q_1)}$$  
+$$Q\leq SU\times M^Q\quad \bold{(Q_1)}$$  
 <!-- $$S\times IU = Q\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(Q_2)}$$ -->
-$$S\times IU = SU^\top \cdot\left (S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\right ) \quad \bold{(Q_2)}$$
+<!-- $$S\times IU = SU^\top \cdot\left (S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\right ) \quad \bold{(Q_2)}$$ -->
+$$S\times IU = SU \circ \left [S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \dots S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\right ] \quad \bold{(Q_2)}$$
+$$S\times IU = Q \quad \bold{(Q_2)}$$
 
 
-$$-M^Q(1-SU^\top) \leq Q - S \leq M^Q(1-SU^\top)\quad \bold{(Q_3)}$$ 
-**TODO résoudre ce PB**
+$$-M^Q(1-SU^\top) \leq Q - \left [S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \dots S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\right ] \leq M^Q(1-SU^\top)\quad \bold{(Q_3)}$$ 
 
 <!-- The following are unnecessary because the stacks naturally have the same plant as the truck, and since items of the stack must be in the truck, the item also have the same plant -->
 <!-- $$H\leq S\times M^H\quad \bold{(H_1)}$$  

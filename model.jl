@@ -73,7 +73,8 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize)
     
     nbtrucks = problem[:nbtrucks]
     nbitems = problem[:nbitems]
-    kappas = vones(Float64, nbtrucks)
+    # kappas = ones(nbtrucks, nbtrucks, nbitems)
+    kappas = ones(nbtrucks)
     # 1. Make first solution by distributing items in planned trucks
     # Allocating TIbar
     # TIbar = vcat(problem[:TR_P], falses(problem[:nbtrucks] - problem[:nbplannedtrucks], problem[:nbitems]))
@@ -112,7 +113,7 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize)
 
         # Update the multipliers by
         for t in 1:nbtrucks
-            kappa[t] = kappa[t] + delta * (valueTI(subproblems[t]) - TIbar)
+            kappas[t] = kappas[t] .+ delta * sum(valueTI(subproblems[t]) .- TIbar)
         end
     end
 end
@@ -240,9 +241,9 @@ function Subproblem(t, problem, optimizer)
     @info "Adding SK..."
     @variable(submodel, SK[1:nbstacks, 1:nbsupplierdocks], lower_bound = 0, upper_bound = 1) # No need for Bin because it is constrained to be equal to their items' which are integer
     # @variable(submodel, SK[1:nbstacks], lower_bound = 0) # No need for Bin because it is constrained to be equal to their items' which are integer
-    @info "Adding SPD..."
-    @variable(submodel, SPD[1:nbstacks, 1:nbplantdocks], lower_bound = 0, upper_bound = 1)
-    # @variable(submodel, SPD[1:nbstacks], lower_bound = 0)
+    # @info "Adding SG..."
+    # @variable(submodel, SG[1:nbstacks, 1:nbplantdocks], lower_bound = 0, upper_bound = 1)
+    # @variable(submodel, SG[1:nbstacks], lower_bound = 0)
     @info "Adding SU..."
     @variable(submodel, SU[1:nbstacks, 1:nbsuppliers], lower_bound = 0, upper_bound = 1)
     # @variable(submodel, SU[1:nbstacks], lower_bound = 0)
@@ -269,7 +270,7 @@ function Subproblem(t, problem, optimizer)
     @info "Adding phi..."
     @variable(submodel, phi[1:nbstacks] >= 0)
     @info "Adding SG..."
-    @variable(submodel, SG[1:nbstacks, 1:nbplants] >= 0)
+    @variable(submodel, SG[1:nbstacks, 1:nbplantdocks] >= 0, upper_bound = 1)
 
     @variable(submodel, SL[1:nbstacks] >= 0)
     @variable(submodel, SW[1:nbstacks] >= 0)
@@ -288,7 +289,6 @@ function Subproblem(t, problem, optimizer)
     @debug nbstacks nbstacks
     @debug nbtrucks nbtrucks
     @debug nbitems nbitems
-    @debug "nbstacks * nbtrucks * nbitems" nbstacks * nbtrucks * nbitems
     # @info "Adding Omega..."
     # @variable(submodel, Omega[1:nbstacks, 1:nbtrucks, 1:nbitems], lower_bound = 0, upper_bound = 1, container=Array, Bin)
 
@@ -324,9 +324,9 @@ function Subproblem(t, problem, optimizer)
     # @info "Adding H..."
     # @variable(submodel, H[1:nbstacks, 1:nbitems], lower_bound = 0, Int)
     @info "Adding V..."
-    @variable(submodel, V[1:nbstacks, 1:sum(problem[:TR][t, :])], lower_bound = 0, Int)
+    @variable(submodel, V[1:nbstacks, 1:nbsupplierdocks], lower_bound = 0, Int)
     @info "Adding W..."
-    @variable(submodel, W[1:nbstacks, 1:sum(problem[:TR][t, :])], lower_bound = 0, Int)
+    @variable(submodel, W[1:nbstacks, 1:nbplantdocks], lower_bound = 0, Int)
     @info "Adding Gl..."
     @variable(submodel, Gl[1:nbstacks, 1:sum(problem[:TR][t, :])], lower_bound = 0, Int)
     @info "Adding Gr..."
@@ -369,7 +369,7 @@ function Subproblem(t, problem, optimizer)
     #     throw(TypeError(MTL, "MTL must be of type Vector{T} where {T <: Real}", Vector{T} where {T <: Real}, typeof(MTL)))
     # end
 
-    MTE = max(problem[:TE]...)
+    MTE = max(skipmissing(problem[:TE])...)
 
     MTKE = max(problem[:TKE]...)
 
@@ -422,10 +422,10 @@ function Subproblem(t, problem, optimizer)
     @debug icandidates
     @info "Adding cTI_1_1..."
     # no more than one candidate item per truck
-    with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
-        @debug "transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :]" transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :]
-        @debug "vones(Int8, nbtrucks)" vones(Int8, nbtrucks)
-    end
+    # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
+    #     @debug "transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :]" transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :]
+    #     @debug "vones(Int8, nbtrucks)" vones(Int8, nbtrucks)
+    # end
     @constraint(submodel, cTI_1_1, transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :] * vones(Int8, nbtrucks) .<= vones(Int8, size(transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :], 1)))
     # @debug "cTI_1_1" cTI_1_1[icandidates[1], :]
     @info "Adding cS_TI..."
@@ -435,7 +435,7 @@ function Subproblem(t, problem, optimizer)
     #     @debug "S * vones(Int8, length(icandidates))" S * vones(Int8, length(icandidates))
     # end
     @constraint(submodel, cS_TI, S * vones(Int8, length(icandidates)) .== TI[t, filter(x -> x in icandidates, 1:nbitems)])
-    @debug "cS_TI" cS_TI
+    # @debug "cS_TI" cS_TI
     # @info "Adding cR_Theta_MI4..."
     # @constraint(submodel, cR_Theta_MI4, R <= Theta * MI4)
 
@@ -480,12 +480,12 @@ function Subproblem(t, problem, optimizer)
     @constraint(submodel, cS_IS_Z, S * problem[:IS][filter(x -> x in icandidates, 1:nbitems)] .== Z * vones(Int8, size(Z)[1]))
 
     @info "Adding cZ_SS_S..."
-    with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
-        # @debug  "(-S .+ 1)" (-S .+ 1)
-        # @debug "-MZ * (-S .+ 1)" -MZ * (-S .+ 1)
-        @debug "Z" Z
-        @debug "hcat([SS for i in 1:size(Z)[2]]...)" hcat([SS for i in 1:size(Z)[2]]...)
-    end
+    # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
+    #     # @debug  "(-S .+ 1)" (-S .+ 1)
+    #     # @debug "-MZ * (-S .+ 1)" -MZ * (-S .+ 1)
+    #     @debug "Z" Z
+    #     @debug "hcat([SS for i in 1:size(Z)[2]]...)" hcat([SS for i in 1:size(Z)[2]]...)
+    # end
     @constraint(submodel, cZ_SS_Sleft, -MZ * (-S .+ 1) .<= Z .- hcat([SS for i in 1:size(Z)[2]]...))
     @constraint(submodel, cZ_SS_Sright, Z .- hcat([SS for i in 1:size(Z)[2]]...) .<= MZ * (-S .+ 1))
 
@@ -493,17 +493,15 @@ function Subproblem(t, problem, optimizer)
     @constraint(submodel, cQ_S, Q .<= SU * MQ)
 
     @info "Adding cS_IU_Q..."
-    @constraint(submodel, cS_IU_Q, S * problem[:IU][filter(x -> x in icandidates, 1:nbitems)] .== Q * vones(Int8, size(Q)[1]))
+    @constraint(submodel, cS_IU_Q, S * problem[:IU][filter(x -> x in icandidates, 1:nbitems)] .== Q)
 
     @info "Adding cQ_SU_S..."
-    with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
-        @debug "SU" SU
-        @debug "Q" Q
-        @debug "Q .- SU" Q .- SU
-    end
-    @constraint(submodel, cQ_SU_Sleft, -MQ * (1 .- SU) .<= Q .- S)
-    @constraint(submodel, cQ_SU_Sright, Q .- S .<= MQ * (1 .- SU))
-    error("See Modelisation Uzawa")
+    # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
+    #     @debug "SU" SU
+    #     @debug "Q" Q
+    # end
+    @constraint(submodel, cQ_SU_Sleft, -MQ * (1 .- SU) .<= Q .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(Q, 2)]...))
+    @constraint(submodel, cQ_SU_Sright, Q .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(Q, 2)]...) .<= MQ * (1 .- SU))
 
 
     # @info "Adding cH_S..."
@@ -517,35 +515,26 @@ function Subproblem(t, problem, optimizer)
 
 
     @info "Adding cV_S..."
-    @constraint(submodel, cV_S, V .<= S * MV)
-
-    with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
-        @debug "S * problem[:IK][filter(x -> x in icandidates, 1:nbitems)]" S * problem[:IK][filter(x -> x in icandidates, 1:nbitems)]
-        @debug "V * vones(Int8, size(V)[1])" V * vones(Int8, size(V)[1])
-    end
+    @constraint(submodel, cV_S, V .<= SK * MV)
 
     @info "Adding cS_IK_V..."
-    @constraint(submodel, cS_IK_V, S * problem[:IK][filter(x -> x in icandidates, 1:nbitems)] .== V * vones(Int8, size(V)[1]))
+    @constraint(submodel, cS_IK_V, S * problem[:IK][filter(x -> x in icandidates, 1:nbitems)] .== V)
 
     @info "Adding cV_SK_S..."
-    @constraint(submodel, cV_SK_Sleft, -MV * (-S .+ 1) .<= V .- SK)
-    @constraint(submodel, cV_SK_Sright, V .- SK .<= MV * (-S .+ 1))
+    @constraint(submodel, cV_SK_Sleft, -MV * (-SK .+ 1) .<= V .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(V, 2)]...))
+    @constraint(submodel, cV_SK_Sright, V .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(V, 2)]...) .<= MV * (-SK .+ 1))
 
 
     @info "Adding cW_S..."
-    @constraint(submodel, cW_S, W .<= S * MW)
+    @constraint(submodel, cW_S, W .<= SG * MW)
 
     @info "Adding cS_IPD_W..."
 
-    with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
-        @debug "S * problem[:IPD][filter(x -> x in icandidates, 1:nbitems)]" S * problem[:IPD][filter(x -> x in icandidates, 1:nbitems)]
-        @debug "W * vones(Int8, size(W)[1])" W * vones(Int8, size(W)[1])
-    end
-    @constraint(submodel, cS_IPD_W, S * problem[:IPD][filter(x -> x in icandidates, 1:nbitems)] .== W * vones(Int8, size(problem[:IPD][filter(x -> x in icandidates, 1:nbitems)], 1)))
+    @constraint(submodel, cS_IPD_W, S * problem[:IPD][filter(x -> x in icandidates, 1:nbitems)] .== W)
 
-    @info "Adding cW_SPD_S..."
-    @constraint(submodel, cW_SPD_Sleft, -MW * (-S .+ 1) .<= W .- SPD)
-    @constraint(submodel, cW_SPD_Sright, W .- SPD .<= MW * (-S .+ 1))
+    @info "Adding cW_SG_S..."
+    @constraint(submodel, cW_SPD_Sleft, -MW * (-SG .+ 1) .<= W .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(W, 2)]...))
+    @constraint(submodel, cW_SPD_Sright, W .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(W, 2)]...) .<= MW * (-SG .+ 1))
 
 
     @info "Adding cGl_S..."
@@ -599,31 +588,31 @@ function Subproblem(t, problem, optimizer)
     @constraint(submodel, cSZe_ST_TH, SZe .<= problem[:TH][t])
 
     @info "Adding cSXo_SXo..."
-    with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
-        @debug  "SXo[1:end-1]" SXo[1:end-1]
-        @debug "SXo[2:end]" SXo[2:end]
-    end
+    # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
+    #     @debug  "SXo[1:end-1]" SXo[1:end-1]
+    #     @debug "SXo[2:end]" SXo[2:end]
+    # end
     # @constraint(submodel, cSXo_SXo, (vcat(hcat([1], falses(1, size(SXo)[1]-1)), I(size(SXo)[1])) * SXo)[2:end] .<= SXo)
     @constraint(submodel, cSXo_SXo, SXo[1:end-1] .<= SXo[2:end])
 
     @info "Adding cXi2SXo_Xi1SXe_betaM_betaP..."
-    with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
-        @debug "Xi2" Xi2
-        @debug "SXo" SXo
-        @debug "Xi1" Xi1
-        @debug "SXe" SXe
-        @debug "betaM" betaM
-        @debug "betaP" betaP
-        @debug "-epsilon * vones(Float64, size(Xi1, 1))" -epsilon * vones(Float64, size(Xi1, 1))
-    end
+    # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
+    #     @debug "Xi2" Xi2
+    #     @debug "SXo" SXo
+    #     @debug "Xi1" Xi1
+    #     @debug "SXe" SXe
+    #     @debug "betaM" betaM
+    #     @debug "betaP" betaP
+    #     @debug "-epsilon * vones(Float64, size(Xi1, 1))" -epsilon * vones(Float64, size(Xi1, 1))
+    # end
     @constraint(submodel, cXi2SXo_Xi1SXe_betaM_betaP, (Xi2 * SXo) - (Xi1 * SXe) - betaM + betaP .== -epsilon * vones(Float64, size(Xi1, 1)))
 
     @info "Adding cbetaM_lambda..."
-    with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
-        @debug "betaM" betaM
-        @debug "lambda" lambda
-        @debug "Mlambda" Mlambda 
-    end
+    # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
+    #     @debug "betaM" betaM
+    #     @debug "lambda" lambda
+    #     @debug "Mlambda" Mlambda 
+    # end
     @constraint(submodel, cbetaM_lambda, betaM .<= lambda .* Mlambda)
 
     @info "Adding betaP..."
@@ -653,13 +642,14 @@ function Subproblem(t, problem, optimizer)
     @constraint(submodel, cXi2SYe_Xi1SYo, Xi2 * SYe .<= Xi1 * SYo + (-xi .+ 1) * MTW + (-mu .+ 1) * MTW)
 
     @info "Adding cXi1SU_Xi2SU..."
-    with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
-        @debug "Xi1" Xi1
-        @debug "SU" SU
-        @debug "problem[:TE]" problem[:TE]
-    end
-    @constraint(submodel, cXi1SU_Xi2SU, Xi1 * SU * transpose(problem[:TE][t, :]) .<= Xi2 * SU * transpose(problem[:TE][t, :]))
-
+    # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
+    #     @debug "Xi1" Xi1
+    #     @debug "SU" SU
+    #     @debug "problem[:TE]" problem[:TE]
+    #     @debug "problem[:TE][t, :]" problem[:TE][t, :]
+    # end
+    notmissingTE = filter(x -> !ismissing(problem[:TE][t, x]), 1:nbsuppliers)
+    @constraint(submodel, cXi1SU_Xi2SU, Xi1 * SU[:, notmissingTE] * problem[:TE][t, notmissingTE] .<= Xi2 * SU[:, notmissingTE] * problem[:TE][t, notmissingTE])
     @info "Adding cXi1SU_Xi2SU_chi..."
     @constraint(submodel, cXi1SU_Xi2SU_chi, Xi1*SU - Xi2*SU .>= chi * epsilon - r*MTE - (-sigma1 .+ 1) * MTE)
 
@@ -667,15 +657,21 @@ function Subproblem(t, problem, optimizer)
     @constraint(submodel, cXi2SU_Xi1SU_chi, Xi2*SU - Xi1*SU .>= (-chi .+ 1) * epsilon - r*MTE - (-sigma1 .+ 1) * MTE)
 
     @info "Adding cXi2SK_Xi1SK..."
-    @constraint(submodel, cXi2SK_Xi1SK, Xi2*SK*transpose(problem[:TKE][t, :]) .>= Xi1*SK*transpose(problem[:TKE][t, :]) - (-r .+ 1) * MTKE)
+    notmissingTKE = filter(x -> !ismissing(problem[:TKE][t, x]), 1:nbsupplierdocks)
+    @constraint(submodel, cXi2SK_Xi1SK, Xi2*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] .>= Xi1*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] - (-r .+ 1) * MTKE)
 
     @info "Adding cXi1SK_Xi2SK_chi..."
-    @constraint(submodel, cXi1SK_Xi2SK_chi, Xi1*SK*transpose(problem[:TKE][t, :]) - Xi2*SK*transpose(problem[:TKE][t, :]) .>= chi*epsilon - (-sigma2 .+ 1)*MTKE)
+    @constraint(submodel, cXi1SK_Xi2SK_chi, Xi1*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] - Xi2*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] .>= chi*epsilon - (-sigma2 .+ 1)*MTKE)
     @info "Adding cXi2SK_Xi1SK_chi..."
-    @constraint(submodel, cXi2SK_Xi1SK_chi, Xi2*SK*transpose(problem[:TKE][t, :]) - Xi1*SK*transpose(problem[:TKE][t, :]) .>= (-chi .+ 1)*epsilon - (-sigma2 .+ 1)*MTKE)
+    @constraint(submodel, cXi2SK_Xi1SK_chi, Xi2*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] - Xi1*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] .>= (-chi .+ 1)*epsilon - (-sigma2 .+ 1)*MTKE)
 
     @info "Adding cXi2SG_Xi1SG..."
-    @constraint(submodel, cXi2SG_Xi1SG, Xi2*SG*transpose(problem[:TGE][t, :]) .>= Xi1*SG*transpose(problem[:TGE][t, :]) - (-sigma3 .+ 1) * MTGE)
+    notmissingTGE = filter(x -> !ismissing(problem[:TGE][t, x]), 1:nbplantdocks)
+    # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
+    #     @debug "SG[:, notmissingTGE]" SG[:, notmissingTGE]
+    #     @debug "problem[:TGE][t, notmissingTGE]" problem[:TGE][t, notmissingTGE]
+    # end
+    @constraint(submodel, cXi2SG_Xi1SG, Xi2*SG[:, notmissingTGE]*problem[:TGE][t, notmissingTGE] .>= Xi1*SG[:, notmissingTGE]*problem[:TGE][t, notmissingTGE] - (-sigma3 .+ 1) * MTGE)
 
     @info "Adding csigma1_sigma2_sigma3..."
     @constraint(submodel, csigma1_sigma2_sigma3, sigma1 + sigma2 + sigma3 .>= 1)
@@ -686,7 +682,36 @@ function Subproblem(t, problem, optimizer)
             @constraint(submodel, IOV[i] == problem[:_IO][i])
         end
     end
-    @objective(submodel, Min, problem[:costtransportation] * zetaT + problem[:costextratruck] * zetaE + problem[:costinventory] * (problem[:IDL] - transpose(TI) * problem[:TDA]) + (problem[:kappa][t] - sum([problem[:kappa][t] for t in 1:nbtrucks]) * TI))
+    @info "Adding objective function..."
+    # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
+    #     @debug "problem[:costtransportation]" problem[:costtransportation]
+    #     @debug "zetaT" zetaT
+
+    #     @debug "transpose(TI)" transpose(TI)
+    #     @debug "problem[:TDA]" problem[:TDA]
+    #     @debug "problem[:costinventory]" problem[:costinventory]
+    #     # @debug "problem[:IDL] - transpose(TI) * problem[:TDA]" problem[:IDL] - transpose(TI) * problem[:TDA]
+    # end
+    # @objective(submodel, Min, 
+    # problem[:costtransportation] * zetaT + 
+    # problem[:costextratruck] * zetaE + 
+    # problem[:costinventory] * (problem[:IDL] - transpose(TI) * problem[:TDA]) + 
+    # (kappa[t] - sum([problem[:kappa][t] for t in 1:nbtrucks]) * TI))
+
+
+
+    @objective(submodel, Min, 
+    sum(problem[:costtransportation] * zetaT) + 
+    sum(problem[:costextratruck] * zetaE) + 
+    sum(problem[:costinventory] * (problem[:IDL] - transpose(TI) * problem[:TDA])))
+
+    # @debug "kappa[t]" kappa[t]
+    # @debug "sum([kappa[t2] for t2 in 1:nbtrucks])" sum([kappa[t2] for t2 in 1:nbtrucks])
+    # @objective(submodel, Min, kappa * (submodel[:TI] - TIbar))
+    # @info "Adding objective function 2..."
+    # @objective(submodel, Min, problem[:costinventory] * (problem[:IDL] - transpose(TI) * problem[:TDA]))
+    # @info "Adding objective function 3..."
+    # @objective(submodel, Min, problem[:costextratruck] * zetaE + problem[:costinventory] * (problem[:IDL] - transpose(TI) * problem[:TDA]))
 
     return subproblem
 end

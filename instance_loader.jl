@@ -385,9 +385,9 @@ function loadinstance(instancepath)
     timelimit = 0.0
     open(*(instancepath, "input_parameters.csv")) do file
         for row in CSV.File(file, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String)
-            costinventory = row[:Coefficient_inventory_cost]
-            costtransportation = row[:Coefficient_transportation_cost]
-            costextratruck = row[:Coefficient_cost_extra_truck]
+            costinventory = parse(Float64, replace(row[:Coefficient_inventory_cost], "," => "."))
+            costtransportation = parse(Float64, replace(row[:Coefficient_transportation_cost], "," => "."))
+            costextratruck = parse(Float64, replace(row[:Coefficient_cost_extra_truck], "," => "."))
             timelimit = row[CSV.normalizename("timelimit_(sec)")]       
 
         end
