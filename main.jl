@@ -2,6 +2,7 @@
 using LinearAlgebra
 using JuMP
 using Cbc
+using GLPK
 # using CSV
 
 # using FilePaths
@@ -45,7 +46,7 @@ function main()
     # instancePath = "Instances/AS/"
     instancePath = parsed_args["instancePath"]
 
-    problem = TSIProblem(Cbc.Optimizer, instancePath)
+    problem = TSIProblem(GLPK.Optimizer, instancePath)
     TID = problem[:TID]
     TR_P = problem[:TR_P]
     @debug begin
@@ -63,6 +64,6 @@ function main()
     end
 
     @info "Solving problem..."
-    solve_uzawa!(problem, 1, 1, 1)
+    @time solve_uzawa!(problem, 1, 1, 1)
 end
-    @allocated main()
+    main()

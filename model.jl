@@ -28,6 +28,8 @@ optimizer(pb::TSIProblem) = pb.opt
 
 model(sub::Subproblem) = sub.submodel
 
+truck(sub::Subproblem) = sub.t
+
 function unregister(pb::TSIProblem, key::Symbol)
     return JuMP.unregister(pb.model, key)
 end
@@ -39,6 +41,15 @@ function Base.getindex(p::TSIProblem, name::Symbol)
     end
     return obj_dict[name]
 end
+
+function Base.getindex(sub::Subproblem, name::Symbol)
+    obj_dict = object_dictionary(sub.problem)
+    if !haskey(obj_dict, name)
+        throw(KeyError(name))
+    end
+    return obj_dict[name]
+end
+
 
 function Base.setindex!(problem::TSIProblem, value, name::Symbol)
     return object_dictionary(problem)[name] = value
@@ -52,13 +63,50 @@ function Base.haskey(problem::TSIProblem, name::Symbol)
     return haskey(object_dictionary(problem), name)
 end
 
+function Base.haskey(subproblem::Subproblem, name::Symbol)
+    return haskey(object_dictionary(subproblem.problem), name)
+end
+
 function upd_penalization!(subpb::Subproblem, TIbar, kappa)
     submodel = model(subpb)
-    @objective(submodel, Min, 
-    subpb[:costtransportation] * submodel[:zetaT] + 
-    subpb[:costextratruck] * submodel[:zetaE] + 
-    subpb[:costinventory] * (subpb[:IDL] - transpose(submodel[:TI][t]) * subpb[:TDA]) + 
-    kappa * (submodel[:TI] - TIbar))
+    t = truck(subpb)
+    # @objective(submodel, Min, 
+    # sum(problem[:costtransportation] * zetaT) + 
+    # sum(problem[:costextratruck] * zetaE) + 
+    # sum(problem[:costinventory] * (problem[:IDL] - transpose(TI) * problem[:TDA])))
+
+    with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
+        @debug "subpb[:costtransportation]" subpb[:costtransportation]
+        @debug "submodel[:zetaT]" submodel[:zetaT]
+        @debug "subpb[:costextratruck]" subpb[:costextratruck]
+        @debug "submodel[:zetaE]" submodel[:zetaE]
+        @debug "subpb[:costinventory]" subpb[:costinventory]
+        @debug "subpb[:IDL]" subpb[:IDL]
+        @debug "submodel[:TI][t, :]" submodel[:TI][t, :]
+        @debug "subpb[:TDA][t]" subpb[:TDA][t]
+        @debug "kappa" kappa
+        @debug "submodel[:TI]" submodel[:TI]
+        @debug "TIbar" TIbar
+        @debug "submodel[:TI][t, :] * subpb[:TDA][t]" submodel[:TI][t, :] * subpb[:TDA][t]
+        @debug "subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t]" subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t]
+        @debug "sum(subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t])" sum(subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t])
+    end
+
+    # error("Stop")
+
+    @expression(submodel, obj1, sum(subpb[:costtransportation] * submodel[:zetaT]))
+    @expression(submodel, obj2, sum(subpb[:costextratruck] * submodel[:zetaE]))
+    @expression(submodel, obj3, subpb[:costinventory] * sum(subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t]))
+    @expression(submodel, obj4, kappa * sum(submodel[:TI] - TIbar))
+
+    # @objective(submodel, Min, 
+    # sum(subpb[:costtransportation] * submodel[:zetaT]) + 
+    # sum(subpb[:costextratruck] * submodel[:zetaE]) + 
+    # subpb[:costinventory] * sum(subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t]) + 
+    # kappa * sum(submodel[:TI] - TIbar))
+
+    @objective(submodel, Min, obj1 + obj2 + obj3 + obj4)
+
 end
 
 valueTI(subpb::Subproblem) = subpb.valueTI
@@ -76,8 +124,8 @@ function are_all_TI_equal(TIvalues, TIbar, nbtrucks, eps)
     TIequality = true
     for t in 1:nbtrucks
         @debug "t" t
-        @debug "sum(TIvalues[t, :, :] .- TIbar)" sum(abs.(TIvalues[t, :, :] .- TIbar))
-        if sum(abs.(TIvalues[t, :, :] .- TIbar)) > eps
+        # @debug "sum(TIvalues[t, :, :] .- TIbar)" sum(abs.(TIvalues[t, :, :] .- TIbar))
+        if sum(TIvalues[t, :, :] == TIbar ? 0.0 : abs.(TIvalues[t, :, :] .- TIbar)) > eps
             TIequality = false
             @debug "FALSE"
             break
@@ -89,7 +137,9 @@ end
 function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize)
     
     nbtrucks = problem[:nbtrucks]
+    nbplannedtrucks = problem[:nbplannedtrucks]
     nbitems = problem[:nbitems]
+    chosentrucks = [] # Used in column generation
     # kappas = ones(nbtrucks, nbtrucks, nbitems)
     kappas = ones(nbtrucks)
     # 1. Make first solution by distributing items in planned trucks
@@ -110,39 +160,50 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize)
     
     TIequality = are_all_TI_equal(TIvalues, TIbar, nbtrucks, eps)
 
+    # alltrucksdone = falses(nbtrucks)
+
     while !TIequality
         @time begin
             # @info "Convergence gap" sum(abs.(TIvalues[t, :, :] .- TIbar))
-            t = 1
-            while t <= nbtrucks
-                for b in 0:batchsize-1
-                    tb = t + b
-                    @info "truck" tb
-                    # If the conscensus is that there are no items in this truck, the 
-                    # truck agrees and there is no need to solve it.
-                    if sum(TIbar[tb, :]) == 0
-                        @info "=> Truck empty"
-                        # setvalueTI!(subproblems[t], TIbar)
-                        TIvalues[tb, :, :] .= TIbar
-                    else
-                        @info "=> Optimizing subproblem..."
-                        if truck(subproblems[b]) != tb
-                            changetruck!(tb, subproblems[b])
+            pt = 1
+
+            for pt in 1:nbplannedtrucks
+                for b in 0:batchsize-1 # Threads
+                    @debug "Thread $b" 
+                    ### Assign a planned truck (and corresponding extra trucks) to a thread/subproblem instance
+                    ptb = pt + b
+                    if ptb > nbplannedtrucks
+                        continue
+                    end
+                    for i in problem[:truckindices][ptb]
+                        @debug "truck" i
+                        # If the conscensus is that there are no items in this truck, the 
+                        # truck agrees and there is no need to solve it.
+                        if sum(TIbar[i, :]) == 0
+                            @debug "=> Truck empty"
+                            # setvalueTI!(subproblems[t], TIbar)
+                            TIvalues[i, :, :] .= TIbar
+                        else
+                            @debug "=> Optimizing subproblem..."
+                            if truck(subproblems[b+1]) != i
+                                changetruck!(i, subproblems[b+1], changeS=i == ptb)
+                            end
+                            # Solve the deterministic minimization problem for truck t with
+                            # a penalization + kappa[t, k] * (TI[t, k+1] - TIbar[k])
+                            # and obtain optimal first decision TI[t, k+1]
+                            @debug "Adding penalization..."
+                            upd_penalization!(subproblems[b+1], TIbar, kappas[i])
+                            @debug "Setting start values..."
+                            set_start_value.(model(subproblems[b+1])[:TI], TIbar)
+                            @debug "Optimizing..."
+                            optimize!(model(subproblems[b+1]))
+                            # upd_valueTI!(subproblems[t])
+                            TIvalues[i, :, :] .= value.(model(subproblems[b+1])[:TI])
+
                         end
-                        # Solve the deterministic minimization problem for truck t with
-                        # a penalization + kappa[t, k] * (TI[t, k+1] - TIbar[k])
-                        # and obtain optimal first decision TI[t, k+1]
-                        @info "Adding penalization..."
-                        upd_penalization!(subproblems[b], TIbar, kappas[tb])
-                        @info "Setting start values..."
-                        set_start_value.(model(subproblems[b])[:TI], TIbar)
-                        @info "Optimizing..."
-                        optimize!(model(subproblems[b]))
-                        # upd_valueTI!(subproblems[t])
-                        TIvalues[tb, :, :] .= value.(model(subproblems[b])[:TI])
                     end
                 end
-                t += batchsize
+                pt += batchsize
             end
             # Update the mean first decisions:
             # TIbar[k+1] = sum([pi[t] * TI[t, k+1] for t in bold_T])
@@ -163,7 +224,7 @@ function TSIProblem(optimizer, instancepath::String)
     plantdockdict, nbplannedtrucks, nbitems, nbsuppliers, nbsupplierdocks, nbplants, 
     nbplantdocks, TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TU_P, TP_P, TK_P, 
     TG_P, TR_P, IU, IP, IK, IPD, IS, _IO, IL, IW, IH, IDL, IDE, stackabilitycodedict, nbtrucks, TE, 
-    TL, TW, TH, TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict,
+    TL, TW, TH, TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict, truckindices,
     costinventory, costtransportation, costextratruck, timelimit = loadinstance(instancepath)
     
 
@@ -172,7 +233,7 @@ function TSIProblem(optimizer, instancepath::String)
     plantdockdict, nbplannedtrucks, nbitems, nbsuppliers, nbsupplierdocks, nbplants, 
     nbplantdocks, TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TU_P, TP_P, TK_P, 
     TG_P, TR_P, IU, IP, IK, IPD, IS, _IO, IL, IW, IH, IDL, IDE, stackabilitycodedict, nbtrucks, TE, 
-    TL, TW, TH, TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict,  
+    TL, TW, TH, TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict, truckindices,
     costinventory, costtransportation, costextratruck, timelimit
     )
 
@@ -185,7 +246,7 @@ function TSIProblem(optimizer,
     plantdockdict, nbplannedtrucks, nbitems, nbsuppliers, nbsupplierdocks, nbplants, 
     nbplantdocks, TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TU_P, TP_P, TK_P, 
     TG_P, TR_P, IU, IP, IK, IPD, IS, _IO, IL, IW, IH, IDL, IDE, stackabilitycodedict, nbtrucks, TE, 
-    TL, TW, TH, TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict,  
+    TL, TW, TH, TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict, truckindices,
     costinventory, costtransportation, costextratruck, timelimit
     )
     pb = TSIProblem(optimizer, Dict{Symbol, Any}())
@@ -247,12 +308,13 @@ function TSIProblem(optimizer,
     pb[:TR] = TR
     pb[:TID] = TID
     pb[:reverse_truckdict] = reverse_truckdict
+    pb[:truckindices] = truckindices
     return pb
 
 end
 
 
-function changetruck!(t, subproblem::Subproblem)
+function changetruck!(t, subproblem::Subproblem, changeS=false)
     
     ## Create model
     submodel = model(subproblem)
@@ -270,15 +332,15 @@ function changetruck!(t, subproblem::Subproblem)
     subproblem.t = t
     # subproblem = Subproblem(t, problem, submodel, optimizer, nbstacks, Matrix{Union{Missing, Bool}}(missing, nbtrucks, nbtrucks))
 
-
-    @info "Replacing S..."
-    delete(submodel, S)
-    unregister(submodel, S)
-    @variable(submodel, S[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, upper_bound = 1, Bin)
-
+    if changeS
+        @info "Replacing S..."
+        delete(submodel, S)
+        unregister(submodel, S)
+        @variable(submodel, S[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, upper_bound = 1, Bin)
+    end
     @info "Computing parameters..."
-    # MI4 = [[max(TU[:, j]...) for j in 1:first(size(TU[1, :]))] for j in 1:first(size(TI[:, 1]))]
-    # MI4 = map(Int, (max(TU[:, i]...) for i = 1:first(size(TU[1, :])), j = 1:first(size(TI[:, 1]))))
+    MI4 = [[max(TU[:, j]...) for j in 1:first(size(TU[1, :]))] for j in 1:first(size(TI[:, 1]))]
+    MI4 = map(Int, (max(TU[:, i]...) for i = 1:first(size(TU[1, :])), j = 1:first(size(TI[:, 1]))))
 
     MZ = max(problem[:IS]...) + 1.0
 
@@ -297,8 +359,8 @@ function changetruck!(t, subproblem::Subproblem)
 
     # Meta = nbtrucks * Mtau/10
 
-    # MTL = Matrix{Float64}(undef, nbtrucks, 1)
-    # MTW = Matrix{Float64}(undef, nbtrucks, 1)
+    MTL = Matrix{Float64}(undef, nbtrucks, 1)
+    MTW = Matrix{Float64}(undef, nbtrucks, 1)
 
     MTL = max(problem[:TL]...) + 1.0
     MTW = max(problem[:TW]...) + 1.0
@@ -307,7 +369,7 @@ function changetruck!(t, subproblem::Subproblem)
     #     throw(TypeError(MTL, "MTL must be of type Vector{T} where {T <: Real}", Vector{T} where {T <: Real}, typeof(MTL)))
     # end
 
-    MTE = max(skipmissing(problem[:TE])...)
+    # MTE = max(skipmissing(problem[:TE])...)
 
     MTKE = max(problem[:TKE]...)
 
@@ -317,7 +379,7 @@ function changetruck!(t, subproblem::Subproblem)
 
     # MPsi = nbitems
 
-    # Mlambda = 2.0 * problem[:TL][t] + 1.0
+    Mlambda = 2.0 * problem[:TL][t] + 1.0
     Mlambda = 2.0 * max(problem[:TL]...) + 1.0
 
 
@@ -327,7 +389,7 @@ function changetruck!(t, subproblem::Subproblem)
 
     # MOmega = 2.0
 
-    Mmu = 2.0
+    # Mmu = 2.0
 
     # Mtau = 10.0
 
@@ -375,7 +437,12 @@ function changetruck!(t, subproblem::Subproblem)
     unregister(submodel, cS_TI)
     @constraint(submodel, cS_TI, S * vones(Int8, length(icandidates)) .== TI[t, filter(x -> x in icandidates, 1:nbitems)])
 
-
+    if changeS
+        @info "Replacing cZ_S_MZ..."
+        delete(submodel, cZ_S_MZ)
+        unregister(submodel, cZ_S_MZ)
+        @constraint(submodel, cZ_S_MZ, Z .<= S * MZ)
+    end
     @info "Replacing cS_TI_MS..."
     delete(submodel, cS_TI_MSleft)
     unregister(submodel, cS_TI_MSleft)
@@ -389,20 +456,77 @@ function changetruck!(t, subproblem::Subproblem)
     unregister(submodel, cS_IS_Z)
     @constraint(submodel, cS_IS_Z, S * problem[:IS][filter(x -> x in icandidates, 1:nbitems)] .== Z * vones(Int8, size(Z)[1]))
 
+    if changeS
+        @info "Replacing cZ_SS_S..."
+        delete(submodel, cZ_SS_Sleft)
+        unregister(submodel, cZ_SS_Sleft)
+        @constraint(submodel, cZ_SS_Sleft, -MZ * (-S .+ 1) .<= Z .- hcat([SS for i in 1:size(Z)[2]]...))
+        delete(submodel, cZ_SS_Sright)
+        unregister(submodel, cZ_SS_Sright)
+        @constraint(submodel, cZ_SS_Sright, Z .- hcat([SS for i in 1:size(Z)[2]]...) .<= MZ * (-S .+ 1))
+    end
+
     @info "Replacing cS_IU_Q..."
     delete(submodel, cS_IU_Q)
     unregister(submodel, cS_IU_Q)
     @constraint(submodel, cS_IU_Q, S * problem[:IU][filter(x -> x in icandidates, 1:nbitems)] .== Q)
+    
+    if changeS
+        @info "Replacing cQ_SU_S..."
+        delete(submodel, cQ_SU_Sleft)
+        unregister(submodel, cQ_SU_Sleft)
+        @constraint(submodel, cQ_SU_Sleft, -MQ * (1 .- SU) .<= Q .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(Q, 2)]...))
+        delete(submodel, cQ_SU_Sright)
+        unregister(submodel, cQ_SU_Sright)
+        @constraint(submodel, cQ_SU_Sright, Q .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(Q, 2)]...) .<= MQ * (1 .- SU))
+    end
 
     @info "Replacing cS_IK_V..."
     delete(submodel, cS_IK_V)
     unregister(submodel, cS_IK_V)
     @constraint(submodel, cS_IK_V, S * problem[:IK][filter(x -> x in icandidates, 1:nbitems)] .== V)
 
+    if changeS
+        @info "Adding cV_SK_S..."
+        delete(submodel, cV_SK_Sleft)
+        unregister(submodel, cV_SK_Sleft)
+        @constraint(submodel, cV_SK_Sleft, -MV * (-SK .+ 1) .<= V .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(V, 2)]...))
+        delete(submodel, cV_SK_Sright)
+        unregister(submodel, cV_SK_Sright)
+        @constraint(submodel, cV_SK_Sright, V .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(V, 2)]...) .<= MV * (-SK .+ 1))
+    end
+
     @info "Replacing cS_IPD_W..."
     delete(submodel, cS_IPD_W)
     unregister(submodel, cS_IPD_W)
     @constraint(submodel, cS_IPD_W, S * problem[:IPD][filter(x -> x in icandidates, 1:nbitems)] .== W)
+
+    if changeS
+        @info "Replacing cW_SG_S..."
+        delete(submodel, cW_SPD_Sleft)
+        unregister(submodel, cW_SPD_Sleft)
+        @constraint(submodel, cW_SPD_Sleft, -MW * (-SG .+ 1) .<= W .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(W, 2)]...))
+        delete(submodel, cW_SPD_Sright)
+        unregister(submodel, cW_SPD_Sright)
+        @constraint(submodel, cW_SPD_Sright, W .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(W, 2)]...) .<= MW * (-SG .+ 1))
+
+        @info "Replacing cGl_S..."
+        delete(submodel, cGl_S)
+        unregister(submodel, cGl_S)
+        @constraint(submodel, cGl_S, Gl .<= S * MG)
+        @info "Replacing cGr_S..."
+        delete(submodel, cGr_S)
+        unregister(submodel, cGr_S)
+        @constraint(submodel, cGr_S, Gr .<= S * MG)
+
+        @info "Replacing cGr_SO_S..."
+        delete(submodel, cGr_SO_Sleft)
+        unregister(submodel, cGr_SO_Sleft)
+        @constraint(submodel, cGr_SO_Sleft, -MG * (-S .+ 1) .<= Gr .- hcat([SO for i in 1:size(Gr)[2]]...))
+        delete(submodel, cGr_SO_Sright)
+        unregister(submodel, cGr_SO_Sright)
+        @constraint(submodel, cGr_SO_Sright, Gr .- hcat([SO for i in 1:size(Gr)[2]]...) .<= MG * (-S .+ 1))
+    end
 
     @info "Replacing cGl_IOV_S..."
     delete(submodel, cGl_IOV_Sleft)
@@ -412,10 +536,39 @@ function changetruck!(t, subproblem::Subproblem)
     unregister(submodel, cGl_IOV_Sright)
     @constraint(submodel, cGl_IOV_Sright, Gl .- hcat([IOV[filter(x -> x in icandidates, 1:nbitems)] for i in 1:size(Gl)[2]]...) .<= MG * (-S .+ 1))
 
+    if changeS
+        @info "Replacing cDL_S..."
+        delete(submodel, cDL_S)
+        unregister(submodel, cDL_S)
+        @constraint(submodel, cDL_S, DL .<= S * MDL)
+        @info "Replacing cDL_SL..."
+        delete(submodel, cDL_SLleft)
+        unregister(submodel, cDL_SLleft)
+        @constraint(submodel, cDL_SLleft, -MDL * (-S .+ 1) .<= DL - hcat([SL for i in 1:size(DL)[2]]...))
+        delete(submodel, cDL_SLright)
+        unregister(submodel, cDL_SLright)
+        @constraint(submodel, cDL_SLright, DL - hcat([SL for i in 1:size(DL)[2]]...) .<= MDL * (-S .+ 1))
+    end
     @info "Replacing cDL_S_IL..."
     delete(submodel, cDL_S_IL)
     unregister(submodel, cDL_S_IL)
     @constraint(submodel, cDL_S_IL, DL * vones(Int8, size(S, 1)) .== S * problem[:IL][filter(x -> x in icandidates, 1:nbitems)])
+    
+    if changeS
+        @info "Replacing cDW_S..."
+        delete(submodel, cDW_S)
+        unregister(submodel, cDW_S)
+        @constraint(submodel, cDW_S, DW .<= S * MDW)
+        @info "Replacing cDW_SW..."
+        delete(submodel, cDW_SWleft)
+        unregister(submodel, cDW_SWleft)
+        @constraint(submodel, cDW_SWleft, -MDW * (-S .+ 1) .<= DW - hcat([SW for i in 1:size(DW)[2]]...))
+        delete(submodel, cDW_SWright)
+        unregister(submodel, cDW_SWright)
+        @constraint(submodel, cDW_SWright, DW - hcat([SW for i in 1:size(DW)[2]]...) .<= MDW * (-S .+ 1))
+    end
+
+
     @info "Replacing cDW_S_IW..."
     delete(submodel, cDW_S_IW)
     unregister(submodel, cDW_S_IW)
@@ -661,6 +814,8 @@ function Subproblem(t, problem, optimizer)
     fillXi1!(Xi1)
     fillXi2!(Xi2)
 
+
+    ### DEBUG begin
     ## Add constraints
     @info "Adding constraints..."
     if t <= nbplannedtrucks
@@ -801,8 +956,8 @@ function Subproblem(t, problem, optimizer)
     @info "Adding cGr_S..."
     @constraint(submodel, cGr_S, Gr .<= S * MG)
 
-    @info "Adding Gl..."
-    @constraint(submodel, Gl * vones(Int8, size(Gl)[1]) .== Gr * vones(Int8, size(Gr)[1]))
+    @info "Adding cGl_Gr..."
+    @constraint(submodel, cGl_Gr, Gl * vones(Int8, size(Gl)[1]) .== Gr * vones(Int8, size(Gr)[1]))
 
     @info "Adding cGr_SO_S..."
     @constraint(submodel, cGr_SO_Sleft, -MG * (-S .+ 1) .<= Gr .- hcat([SO for i in 1:size(Gr)[2]]...))
@@ -935,6 +1090,7 @@ function Subproblem(t, problem, optimizer)
     @info "Adding csigma1_sigma2_sigma3..."
     @constraint(submodel, csigma1_sigma2_sigma3, sigma1 + sigma2 + sigma3 .>= 1)
 
+    #### DEBUG end
     @info "Adding IOV constraints..."
     for i in 1:nbitems
         if !ismissing(problem[:_IO][i])
@@ -959,10 +1115,10 @@ function Subproblem(t, problem, optimizer)
 
 
 
-    @objective(submodel, Min, 
-    sum(problem[:costtransportation] * zetaT) + 
-    sum(problem[:costextratruck] * zetaE) + 
-    sum(problem[:costinventory] * (problem[:IDL] - transpose(TI) * problem[:TDA])))
+    # @objective(submodel, Min, 
+    # sum(problem[:costtransportation] * zetaT) + 
+    # sum(problem[:costextratruck] * zetaE) + 
+    # sum(problem[:costinventory] * (problem[:IDL] - transpose(TI) * problem[:TDA])))
 
     @info "Done!"
     # @debug "kappa[t]" kappa[t]

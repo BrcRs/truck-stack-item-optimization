@@ -45,13 +45,14 @@ function expandTruckMatrices!(nbplannedtrucks,
      TG_P,
      TK_P,
      TR_P,
-     reverse_truckdict
+     reverse_truckdict,
+     truckindices
     )
 
     # For each planned truck
     j = nbplannedtrucks
     for p in 1:nbplannedtrucks
-
+        push!(truckindices[p], p)
         # Get planned truck as first lines of the bunch
         TE[p, :] .= TE_P[p, :]
         TL[p] = TL_P[p]
@@ -71,6 +72,7 @@ function expandTruckMatrices!(nbplannedtrucks,
         # for each candidate items, add an extra truck
         for e in 1:sum(TR_P[p,:])-1
             j = j + 1
+            push!(truckindices[p], j)
 
             # Fill relevant truck information
             tail = "_E" * string(e)
@@ -372,12 +374,15 @@ function loadinstance(instancepath)
     TR = falses(nbtrucks, nbitems) # TR is expanded, it will contain also only items which docks are stopped by by the truck
     TID = Vector{Union{String, Missing}}(missing, nbtrucks)
     reverse_truckdict = Dict(value => key for (key, value) in truckdict)
+    
+    # Associates to each planned truck, the indices of the planned truck + extra trucks
+    truckindices = [Vector{Integer}() for p in 1:nbplannedtrucks]
 
     ## Fill the actual truck matrices from the planned trucks (expand the planned 
     ## trucks matrix with extra trucks)
     expandTruckMatrices!(nbplannedtrucks, TE, TL, TW, TH, TKE, TGE, TDA, TU, TP, TG, TK, TID, TR, 
     TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TU_P, TP_P, TG_P, TK_P, TR_P, 
-    reverse_truckdict)
+    reverse_truckdict, truckindices)
     
     costinventory = 0.0
     costtransportation = 0.0
@@ -397,7 +402,7 @@ function loadinstance(instancepath)
     plantdockdict, nbplannedtrucks, nbitems, nbsuppliers, nbsupplierdocks, nbplants, nbplantdocks,
     TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TU_P, TP_P, TK_P, TG_P, TR_P,
     IU, IP, IK, IPD, IS, _IO, IL, IW, IH, IDL, IDE, stackabilitycodedict, nbtrucks, TE, TL, TW, TH,
-    TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict, 
+    TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict, truckindices,
     costinventory, costtransportation, costextratruck, timelimit
     
 end
