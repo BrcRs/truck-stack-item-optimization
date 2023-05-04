@@ -384,13 +384,13 @@ $$TI^t \leq TR\quad \bold{(TI_1)}$$
 $$TI^{t\top}\times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] = \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right]\quad \bold{(TI_2)}$$
 
 The following one ensures that if an item is in a stack, the item is in the truck, because all stacks of the subproblem are in the truck:
-$$S \leq TI^t[t]$$
+$$S^\top \cdot \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] = TI^t[t]$$
 
 $$Z\leq S\times M^{Z}\quad \bold{(Z_1)}$$  
 
-And this one ensures items of the truck are in a stack:
+<!-- And this one ensures items of the truck are in a stack:
 
-$$-\left (\left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] - TI[t]\right )M^S\leq S^\top \times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] - \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] \leq \left (\left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] - TI[t]\right )M^S$$ 
+$$-\left (\left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] - TI[t]\right )M^S\leq S^\top \times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] - \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] \leq \left (\left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] - TI[t]\right )M^S$$  -->
 
 $$S\times IS = Z\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(S_1)}$$
 
