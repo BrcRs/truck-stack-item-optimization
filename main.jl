@@ -64,6 +64,6 @@ function main()
     end
 
     @info "Solving problem..."
-    @time solve_uzawa!(problem, 1, 1, 1)
+    @time columngeneration(solve_uzawa!, problem, 1, 1, 1)
 end
     main()

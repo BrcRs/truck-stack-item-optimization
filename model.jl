@@ -94,10 +94,14 @@ function upd_penalization!(subpb::Subproblem, TIbar, kappa)
 
     # error("Stop")
 
+    # Worst case solution value:
+    MGI = subpb[:costtransportation] * nbplannedtrucks + (nbitems - nbplannedtrucks) * subpb[:costextratruck] + subpb[:costinventory] * sum((subpb[:IDL] - subpb[:TDE]))
+
     @expression(submodel, obj1, sum(subpb[:costtransportation] * submodel[:zetaT]))
     @expression(submodel, obj2, sum(subpb[:costextratruck] * submodel[:zetaE]))
     @expression(submodel, obj3, subpb[:costinventory] * sum(subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t]))
     @expression(submodel, obj4, kappa * sum(submodel[:TI] - TIbar))
+    @expression(submodel, obj5, MGI * sum(GI))
 
     # @objective(submodel, Min, 
     # sum(subpb[:costtransportation] * submodel[:zetaT]) + 
@@ -105,7 +109,7 @@ function upd_penalization!(subpb::Subproblem, TIbar, kappa)
     # subpb[:costinventory] * sum(subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t]) + 
     # kappa * sum(submodel[:TI] - TIbar))
 
-    @objective(submodel, Min, obj1 + obj2 + obj3 + obj4)
+    @objective(submodel, Min, obj1 + obj2 + obj3 + obj4 + obj5)
 
 end
 
@@ -134,33 +138,33 @@ function are_all_TI_equal(TIvalues, TIbar, nbtrucks, eps)
     return TIequality
 end
 
-function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize)
-    
+function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize, chosentrucks)
     nbtrucks = problem[:nbtrucks]
     nbplannedtrucks = problem[:nbplannedtrucks]
     nbitems = problem[:nbitems]
-    chosentrucks = [] # Used in column generation
+    nbchosentrucks = length(chosentrucks)
     # kappas = ones(nbtrucks, nbtrucks, nbitems)
-    kappas = ones(nbtrucks)
+    kappas = ones(nbchosentrucks)
     # 1. Make first solution by distributing items in planned trucks
     # Allocating TIbar
-    # TIbar = vcat(problem[:TR_P], falses(problem[:nbtrucks] - problem[:nbplannedtrucks], problem[:nbitems]))
-    TIvalues = falses(nbtrucks, nbtrucks, nbitems)
-    TIbar = falses(nbtrucks, nbitems)
+    # TIbar = vcat(problem[:TR_P], falses(problem[:nbchosentrucks] - problem[:nbplannedtrucks], problem[:nbitems]))
+    TIvalues = falses(nbchosentrucks, nbchosentrucks, nbitems) # TODO might need to be shared array
+    TIbar = falses(nbchosentrucks, nbitems)
     # For each item, assign a random allowed truck
     for i in 1:nbitems
-        icandidates = findall((x) -> x == 1, problem[:TR_P][:, i])
-        TIbar[rand(icandidates)] = 1
+        tcandidates = findall((x) -> x == 1, problem[:TR_P][:, i])
+        TIbar[rand(tcandidates), i] = 1
     end
 
     # 2. Instanciate as many subproblems than there are trucks. 
     # In each subproblem, only create constraints related to the corresponding truck.
-    subproblems = [Subproblem(t, problem, optimizer(problem)) for t in 1:batchsize]
+    subproblems = [Subproblem(t, problem, optimizer(problem), chosentrucks) for t in 1:batchsize]
 
+    optsolpertruck = [Dict{Symbol, Any}() for t in 1:nbtrucks]
     
-    TIequality = are_all_TI_equal(TIvalues, TIbar, nbtrucks, eps)
+    TIequality = are_all_TI_equal(TIvalues, TIbar, nbchosentrucks, eps)
 
-    # alltrucksdone = falses(nbtrucks)
+    # alltrucksdone = falses(nbchosentrucks)
 
     while !TIequality
         @time begin
@@ -168,6 +172,7 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize)
             pt = 1
 
             for pt in 1:nbplannedtrucks
+                # @sync @distributed for b in 0:batchsize-1 # Threads
                 for b in 0:batchsize-1 # Threads
                     @debug "Thread $b" 
                     ### Assign a planned truck (and corresponding extra trucks) to a thread/subproblem instance
@@ -175,7 +180,7 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize)
                     if ptb > nbplannedtrucks
                         continue
                     end
-                    for i in problem[:truckindices][ptb]
+                    for i in filter(x -> x in chosentrucks, problem[:truckindices][ptb])
                         @debug "truck" i
                         # If the conscensus is that there are no items in this truck, the 
                         # truck agrees and there is no need to solve it.
@@ -183,6 +188,12 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize)
                             @debug "=> Truck empty"
                             # setvalueTI!(subproblems[t], TIbar)
                             TIvalues[i, :, :] .= TIbar
+                            # optsolpertruck[i][:S] = nothing
+                            # optsolpertruck[i][:SG] = nothing
+                            # optsolpertruck[i][:SL] = nothing
+                            # optsolpertruck[i][:SW] = nothing
+                            # optsolpertruck[i][:SH] = nothing
+
                         else
                             @debug "=> Optimizing subproblem..."
                             if truck(subproblems[b+1]) != i
@@ -199,7 +210,20 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize)
                             optimize!(model(subproblems[b+1]))
                             # upd_valueTI!(subproblems[t])
                             TIvalues[i, :, :] .= value.(model(subproblems[b+1])[:TI])
-
+                            optsolpertruck[i][:S] = copy(value.(model(subproblems[b+1])[:S]))
+                            # optsolpertruck[i][:SG] = copy(value.(model(subproblems[b+1])[:SG]))
+                            # optsolpertruck[i][:SL] = copy(value.(model(subproblems[b+1])[:SL]))
+                            # optsolpertruck[i][:SW] = copy(value.(model(subproblems[b+1])[:SW]))
+                            # optsolpertruck[i][:SH] = copy(value.(model(subproblems[b+1])[:S])) * problem[:IH]
+                            optsolpertruck[i][:SXo] = copy(value.(model(subproblems[b+1])[:SXo]))
+                            optsolpertruck[i][:SXe] = copy(value.(model(subproblems[b+1])[:SXe]))
+                            optsolpertruck[i][:SYo] = copy(value.(model(subproblems[b+1])[:SYo]))
+                            optsolpertruck[i][:SYe] = copy(value.(model(subproblems[b+1])[:SYe]))
+                            optsolpertruck[i][:SZe] = copy(value.(model(subproblems[b+1])[:SZe]))
+                            optsolpertruck[i][:SO] = copy(value.(model(subproblems[b+1])[:SO]))
+                            optsolpertruck[i][:SU] = copy(value.(model(subproblems[b+1])[:SU]))
+                            optsolpertruck[i][:SK] = copy(value.(model(subproblems[b+1])[:SK]))
+                            optsolpertruck[i][:ST] = i
                         end
                     end
                 end
@@ -207,16 +231,19 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize)
             end
             # Update the mean first decisions:
             # TIbar[k+1] = sum([pi[t] * TI[t, k+1] for t in bold_T])
-            # TIbar = sum([value.(model(subproblems[t])[:TI]) for t in 1:nbtrucks])
-            TIbar = sum([TIvalues[t, :, :] for t in 1:nbtrucks])
+            # TIbar = sum([value.(model(subproblems[t])[:TI]) for t in 1:nbchosentrucks])
+            TIbar = sum([TIvalues[t, :, :] for t in 1:nbchosentrucks])
 
             # Update the multipliers by
-            for t in 1:nbtrucks
+            for t in 1:nbchosentrucks
                 kappas[t] = kappas[t] .+ delta * sum(TIvalues[t, :, :] .- TIbar)
             end
-            TIequality = are_all_TI_equal(TIvalues, TIbar, nbtrucks, eps)
+            TIequality = are_all_TI_equal(TIvalues, TIbar, nbchosentrucks, eps)
         end
     end
+
+
+    return TIbar, optsolpertruck
 end
 
 function TSIProblem(optimizer, instancepath::String)
@@ -314,7 +341,7 @@ function TSIProblem(optimizer,
 end
 
 
-function changetruck!(t, subproblem::Subproblem, changeS=false)
+function changetruck!(t, subproblem::Subproblem, chosentrucks, changeS=false)
     
     ## Create model
     submodel = model(subproblem)
@@ -323,12 +350,14 @@ function changetruck!(t, subproblem::Subproblem, changeS=false)
     nbstacks = nbcandidateitems
     nbitems = problem[:nbitems]
     nbtrucks = problem[:nbtrucks]
+    nbchosentrucks = length(chosentrucks)
     nbplannedtrucks = problem[:nbplannedtrucks]
     # nbplants = problem[:nbplants]
     nbplantdocks = problem[:nbplantdocks]
     nbsuppliers = problem[:nbsuppliers]
     nbsupplierdocks = problem[:nbsupplierdocks]
-    nbextratrucks = nbtrucks - nbplannedtrucks
+    # nbextratrucks = nbtrucks - nbplannedtrucks
+    nbextratrucks = length(filter(x -> x in 1:nbplannedtrucks, chosentrucks))
     subproblem.t = t
     # subproblem = Subproblem(t, problem, submodel, optimizer, nbstacks, Matrix{Union{Missing, Bool}}(missing, nbtrucks, nbtrucks))
 
@@ -359,8 +388,8 @@ function changetruck!(t, subproblem::Subproblem, changeS=false)
 
     # Meta = nbtrucks * Mtau/10
 
-    MTL = Matrix{Float64}(undef, nbtrucks, 1)
-    MTW = Matrix{Float64}(undef, nbtrucks, 1)
+    MTL = Matrix{Float64}(undef, nbchosentrucks, 1)
+    MTW = Matrix{Float64}(undef, nbchosentrucks, 1)
 
     MTL = max(problem[:TL]...) + 1.0
     MTW = max(problem[:TW]...) + 1.0
@@ -430,12 +459,12 @@ function changetruck!(t, subproblem::Subproblem, changeS=false)
     @info "Replacing cTI_1_1..."
     delete(submodel, cTI_1_1)
     unregister(submodel, cTI_1_1)
-    @constraint(submodel, cTI_1_1, transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :] * vones(Int8, nbtrucks) .<= vones(Int8, size(transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :], 1)))
+    @constraint(submodel, cTI_1_1, transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :] * vones(Int8, nbchosentrucks) + GI[filter(x -> x in icandidates, 1:nbitems)] .<= vones(Int8, size(transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :], 1)))
     # @debug "cTI_1_1" cTI_1_1[icandidates[1], :]
     @info "Replacing cS_TI..."
     delete(submodel, cS_TI)
     unregister(submodel, cS_TI)
-    @constraint(submodel, cS_TI, S * vones(Int8, length(icandidates)) .== TI[t, filter(x -> x in icandidates, 1:nbitems)])
+    @constraint(submodel, cS_TI, transpose(S) * vones(Int8, nbstacks) .== TI[t, filter(x -> x in icandidates, 1:nbitems)])
 
     if changeS
         @info "Replacing cZ_S_MZ..."
@@ -443,13 +472,13 @@ function changetruck!(t, subproblem::Subproblem, changeS=false)
         unregister(submodel, cZ_S_MZ)
         @constraint(submodel, cZ_S_MZ, Z .<= S * MZ)
     end
-    @info "Replacing cS_TI_MS..."
-    delete(submodel, cS_TI_MSleft)
-    unregister(submodel, cS_TI_MSleft)
-    @constraint(submodel, cS_TI_MSleft, -(vones(Int8, nbcandidateitems) - TI[t, filter(x -> x in icandidates, 1:nbitems)]) * MS .<= transpose(S) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems))
-    delete(submodel, cS_TI_MSright)
-    unregister(submodel, cS_TI_MSright)
-    @constraint(submodel, cS_TI_MSright, transpose(S) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems) .<= (vones(Int8, nbcandidateitems) - TI[t, filter(x -> x in icandidates, 1:nbitems)]) * MS)
+    # @info "Replacing cS_TI_MS..."
+    # delete(submodel, cS_TI_MSleft)
+    # unregister(submodel, cS_TI_MSleft)
+    # @constraint(submodel, cS_TI_MSleft, -(vones(Int8, nbcandidateitems) - TI[t, filter(x -> x in icandidates, 1:nbitems)]) * MS .<= transpose(S) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems))
+    # delete(submodel, cS_TI_MSright)
+    # unregister(submodel, cS_TI_MSright)
+    # @constraint(submodel, cS_TI_MSright, transpose(S) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems) .<= (vones(Int8, nbcandidateitems) - TI[t, filter(x -> x in icandidates, 1:nbitems)]) * MS)
 
     @info "Replacing cS_IS_Z..."
     delete(submodel, cS_IS_Z)
@@ -620,13 +649,14 @@ function changetruck!(t, subproblem::Subproblem, changeS=false)
     @constraint(submodel, cXi2SG_Xi1SG, Xi2*SG[:, notmissingTGE]*problem[:TGE][t, notmissingTGE] .>= Xi1*SG[:, notmissingTGE]*problem[:TGE][t, notmissingTGE] - (-sigma3 .+ 1) * MTGE)
 end
 
-function Subproblem(t, problem, optimizer)
+function Subproblem(t, problem, optimizer, chosentrucks)
     
     ## Create model
     submodel = Model(optimizer)
     nbcandidateitems = sum(problem[:TR][t, :])
     nbitems = problem[:nbitems]
     nbtrucks = problem[:nbtrucks]
+    nbchosentrucks = length(chosentrucks)
     # nbcandidateitems = max([sum(problem[:TR][t2, :]) for t2 in 1:nbtrucks]...)
     nbstacks = nbcandidateitems
     nbplannedtrucks = problem[:nbplannedtrucks]
@@ -634,15 +664,15 @@ function Subproblem(t, problem, optimizer)
     nbplantdocks = problem[:nbplantdocks]
     nbsuppliers = problem[:nbsuppliers]
     nbsupplierdocks = problem[:nbsupplierdocks]
-    nbextratrucks = nbtrucks - nbplannedtrucks
+    nbextratrucks = length(filter(x -> x in 1:nbplannedtrucks, chosentrucks))
     subproblem = Subproblem(t, problem, submodel, optimizer, nbstacks, Matrix{Union{Missing, Bool}}(missing, nbtrucks, nbtrucks))
 
     ## Add variables
     @info "Creating variables..."
     @info "Adding zetaT..."
-    @variable(submodel, zetaT[1:nbplannedtrucks] >= -1)
+    @variable(submodel, zetaT[1:nbplannedtrucks] <= 1)
     @info "Adding zetaE..."
-    @variable(submodel, zetaE[1:nbextratrucks] >= -1)
+    @variable(submodel, zetaE[1:nbextratrucks] <= 1)
 
     @info "Adding SS..."
     @variable(submodel, SS[1:nbstacks] >= 0)
@@ -686,7 +716,9 @@ function Subproblem(t, problem, optimizer)
     @variable(submodel, SW[1:nbstacks] >= 0)
 
     @info "Adding TI..."
-    @variable(submodel, TI[1:nbtrucks, 1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
+    @variable(submodel, TI[1:nbchosentrucks, 1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
+    @info "Adding GI..."
+    @variable(submodel, GI[1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding R..."
     @variable(submodel, R[1:nbitems, 1:nbsuppliers], lower_bound = 0, upper_bound = 1, Bin)
     @info "Adding Theta..."
@@ -835,12 +867,12 @@ function Subproblem(t, problem, optimizer)
     icandidates = findall((x) -> x == 1, problem[:TR][t, :])
     @debug icandidates
     @info "Adding cTI_1_1..."
-    # no more than one candidate item per truck
+    # no more than one truck per candidate item
     # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
     #     @debug "transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :]" transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :]
     #     @debug "vones(Int8, nbtrucks)" vones(Int8, nbtrucks)
     # end
-    @constraint(submodel, cTI_1_1, transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :] * vones(Int8, nbtrucks) .<= vones(Int8, size(transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :], 1)))
+    @constraint(submodel, cTI_1_1, transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :] * vones(Int8, nbchosentrucks) + GI[filter(x -> x in icandidates, 1:nbitems)] .<= vones(Int8, size(transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :], 1)))
     # @debug "cTI_1_1" cTI_1_1[icandidates[1], :]
     @info "Adding cS_TI..."
     # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do 
@@ -848,7 +880,7 @@ function Subproblem(t, problem, optimizer)
     #     @debug "vones(Int8, length(icandidates))" vones(Int8, length(icandidates))
     #     @debug "S * vones(Int8, length(icandidates))" S * vones(Int8, length(icandidates))
     # end
-    @constraint(submodel, cS_TI, S * vones(Int8, length(icandidates)) .== TI[t, filter(x -> x in icandidates, 1:nbitems)])
+    @constraint(submodel, cS_TI, transpose(S) * vones(Int8, nbstacks) .== TI[t, filter(x -> x in icandidates, 1:nbitems)])
     # @debug "cS_TI" cS_TI
     # @info "Adding cR_Theta_MI4..."
     # @constraint(submodel, cR_Theta_MI4, R <= Theta * MI4)
@@ -886,9 +918,9 @@ function Subproblem(t, problem, optimizer)
     # @info "Adding cPsi_S_ST..."
     # @constraint(submodel, cPsi_S_ST, -(1-ST)*MPsi <= Psi - hcat([S * vones(Int8, size(S)[1]) for i in 1:size(Psi)[2]]) <= (1-ST)*MPsi)
 
-    @info "Adding cS_TI_MS..."
-    @constraint(submodel, cS_TI_MSleft, -(vones(Int8, nbcandidateitems) - TI[t, filter(x -> x in icandidates, 1:nbitems)]) * MS .<= transpose(S) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems))
-    @constraint(submodel, cS_TI_MSright, transpose(S) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems) .<= (vones(Int8, nbcandidateitems) - TI[t, filter(x -> x in icandidates, 1:nbitems)]) * MS)
+    # @info "Adding cS_TI_MS..."
+    # @constraint(submodel, cS_TI_MSleft, -(vones(Int8, nbcandidateitems) - TI[t, filter(x -> x in icandidates, 1:nbitems)]) * MS .<= transpose(S) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems))
+    # @constraint(submodel, cS_TI_MSright, transpose(S) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems) .<= (vones(Int8, nbcandidateitems) - TI[t, filter(x -> x in icandidates, 1:nbitems)]) * MS)
 
     @info "Adding cS_IS_Z..."
     @constraint(submodel, cS_IS_Z, S * problem[:IS][filter(x -> x in icandidates, 1:nbitems)] .== Z * vones(Int8, size(Z)[1]))
@@ -1097,7 +1129,7 @@ function Subproblem(t, problem, optimizer)
             @constraint(submodel, IOV[i] == problem[:_IO][i])
         end
     end
-    @info "Adding objective function..."
+    # @info "Adding objective function..."
     # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
     #     @debug "problem[:costtransportation]" problem[:costtransportation]
     #     @debug "zetaT" zetaT
