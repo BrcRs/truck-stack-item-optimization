@@ -6,14 +6,12 @@
 using CSV
 
 # using FilePaths
-using Logging
+# using Logging
 # using Profile
 
 # using ArgParse
 
-logger = ConsoleLogger(stdout, Logging.Debug, show_limited=false)
 
-global_logger(logger)
 
 
 
@@ -27,6 +25,7 @@ function expandTruckMatrices!(nbplannedtrucks,
      TKE,
      TGE,
      TDA,
+     TDE,
      TU,
      TP,
      TG,
@@ -40,6 +39,7 @@ function expandTruckMatrices!(nbplannedtrucks,
      TKE_P,
      TGE_P,
      TDA_P,
+     TDE_P,
      TU_P,
      TP_P,
      TG_P,
@@ -61,6 +61,7 @@ function expandTruckMatrices!(nbplannedtrucks,
         TKE[p, :] .= TKE_P[p, :]
         TGE[p, :] .= TGE_P[p, :]
         TDA[p] = TDA_P[p]
+        TDE[p] = TDE_P[p]
         TU[p, :] .= TU_P[p, :]
         TP[p, :] .= TP_P[p, :]
         TG[p, :] .= TG_P[p, :]
@@ -84,6 +85,7 @@ function expandTruckMatrices!(nbplannedtrucks,
             TKE[j, :] .= TKE_P[p, :]
             TGE[j, :] .= TGE_P[p, :]
             TDA[j] = TDA_P[p]
+            TDE[j] = TDE_P[p]
             TU[j, :] .= TU_P[p, :]
             TP[j, :] .= TP_P[p, :]
             TG[j, :] .= TG_P[p, :]
@@ -169,7 +171,7 @@ function countTrucks!(
     return nbplannedtrucks, nbsuppliers, nbsupplierdocks, nbplants, nbplantdocks
 end
 
-function fillPlannedTruckMatrices!(TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, 
+function fillPlannedTruckMatrices!(TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TDE_P, 
     TU_P, TP_P, TG_P, TK_P, TR_P, instancepath, nbitems, truckdict, supplierdict, 
     supplierdockdict, plantdict, plantdockdict, item_productcodes)
     # For each line of input_trucks:
@@ -184,6 +186,7 @@ function fillPlannedTruckMatrices!(TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P,
             TKE_P[truckdict[row[:Id_truck]], supplierdockdict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])]] = parse(Float64, row[:Supplier_dock_loading_order])
             TGE_P[truckdict[row[:Id_truck]], plantdockdict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = parse(Float64, row[:Plant_dock_loading_order])
             TDA_P[truckdict[row[:Id_truck]]] = parse(Float64, row[:Arrival_time])
+            TDE_P[truckdict[row[:Id_truck]]] = parse(Float64, row[:Arrival_time])
             TU_P[truckdict[row[:Id_truck]], supplierdict[row[:Supplier_code]]] = 1.0
             TP_P[truckdict[row[:Id_truck]], plantdict[row[:Plant_code]]] = 1.0
 
@@ -264,6 +267,7 @@ function loadinstance(instancepath)
     fill!(TGE_P, nbplantdocks)
     
     TDA_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    TDE_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
     
     TU_P = falses(nbplannedtrucks, nbsuppliers)
     TP_P = falses(nbplannedtrucks, nbplants)
@@ -275,7 +279,7 @@ function loadinstance(instancepath)
     TR_P = falses(nbplannedtrucks, nbitems) # TR is expanded, it will contain also only items which docks are stopped by by the truck
     
     ## Fill planned truck matrices with info in input_trucksfile
-    fillPlannedTruckMatrices!(TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, 
+    fillPlannedTruckMatrices!(TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TDE_P, 
     TU_P, TP_P, TG_P, TK_P, TR_P, instancepath, nbitems, truckdict, supplierdict, 
     supplierdockdict, plantdict, plantdockdict, item_productcodes)
     
@@ -303,7 +307,7 @@ function loadinstance(instancepath)
     # Expand TR with information about docks
     # For each truck, for each item, if the truck doesn't stop at the supplier & supplier dock of the item or 
     # it doesn't stop by the plant & plant dock of the item: replace with 0
-    @debug sum(TR_P) sum(TR_P)
+    @debug "sum(TR_P)" sum(TR_P)
     
     ## Adjust TR with additional information
     # This loop might be useless or too restrictive, because it seems that the candidate list of 
@@ -363,6 +367,7 @@ function loadinstance(instancepath)
     fill!(TGE, nbplantdocks)
     
     TDA = Vector{Union{Float64, Missing}}(missing, nbtrucks)
+    TDE = Vector{Union{Float64, Missing}}(missing, nbtrucks)
     
     TU = falses(nbtrucks, nbsuppliers)
     TP = falses(nbtrucks, nbplants)
@@ -380,8 +385,8 @@ function loadinstance(instancepath)
 
     ## Fill the actual truck matrices from the planned trucks (expand the planned 
     ## trucks matrix with extra trucks)
-    expandTruckMatrices!(nbplannedtrucks, TE, TL, TW, TH, TKE, TGE, TDA, TU, TP, TG, TK, TID, TR, 
-    TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TU_P, TP_P, TG_P, TK_P, TR_P, 
+    expandTruckMatrices!(nbplannedtrucks, TE, TL, TW, TH, TKE, TGE, TDA, TDE, TU, TP, TG, TK, TID, TR, 
+    TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TDE_P, TU_P, TP_P, TG_P, TK_P, TR_P, 
     reverse_truckdict, truckindices)
     
     costinventory = 0.0
@@ -400,9 +405,9 @@ function loadinstance(instancepath)
     
     return item_productcodes, truckdict, supplierdict, supplierdockdict, plantdict, 
     plantdockdict, nbplannedtrucks, nbitems, nbsuppliers, nbsupplierdocks, nbplants, nbplantdocks,
-    TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TU_P, TP_P, TK_P, TG_P, TR_P,
+    TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TDE_P, TU_P, TP_P, TK_P, TG_P, TR_P,
     IU, IP, IK, IPD, IS, _IO, IL, IW, IH, IDL, IDE, stackabilitycodedict, nbtrucks, TE, TL, TW, TH,
-    TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict, truckindices,
+    TKE, TGE, TDA, TDE, TU, TP, TK, TG, TR, TID, reverse_truckdict, truckindices,
     costinventory, costtransportation, costextratruck, timelimit
     
 end
