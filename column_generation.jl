@@ -4,10 +4,33 @@ function columngeneration(solvefun!, problem, args...)
 
     nbplannedtrucks = problem[:nbplannedtrucks]
     truckindices = problem[:truckindices]
+    nbitems = problem[:nbitems]
     deadtrucks = []
-    chosentrucks = [truckindices[t][j] for t in 1:nbplannedtrucks for j in 1:2]
-    firstextratrucks = [truckindices[t][1] for t in 1:nbplannedtrucks]
-    optsol = solvefun!(problem, args..., chosentrucks)
+    @debug "truckindices" truckindices
+    # @debug begin
+    #     sleep(10)
+    # end
+    # @debug begin
+    #     # [truckindices[t][j] for t in 1:nbplannedtrucks for j in filter(x -> truckindices[t][x] in 1:length(truckindices[t]), 1:2)]
+    #     for t in 1:nbplannedtrucks
+    #         for j in filter(x -> x in 1:length(truckindices[t]), 1:2)
+    #             println(t, " ", j)
+    #             println(truckindices[t][j])
+    #             println()
+    #         end
+    #     end
+
+    # end
+    chosentrucks = [truckindices[t][j] for t in 1:nbplannedtrucks for j in filter(x -> x in 1:length(truckindices[t]), 1:2)]
+    firstextratrucks = [truckindices[t][end] + 1 for t in 1:nbplannedtrucks]
+    TIbar, optsolpertruck = solvefun!(problem, args..., chosentrucks)
+
+    optsol = Dict{Any, Any}(:TI => copy(TIbar))
+    optsol[:value] = sum(problem[:costtransportation] * [min(sum(optsol[:TI][t, :]), 1) for t in 1:nbplannedtrucks]) + 
+    sum(problem[:costextratruck] * [min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)]) + 
+    problem[:costinventory] * sum(problem[:IDL] - transpose(optsol[:TI]) * problem[:TDA])
+    
+    
 
     improvement = true
 
@@ -15,8 +38,9 @@ function columngeneration(solvefun!, problem, args...)
     oldvalue = optsol[:value] * 2
 
 
-    while transpose(optsol[:TI]) * vones(Int8, nbtrucks) != vones(Int8, nbitems) || improvement
-
+    # while transpose(optsol[:TI]) * vones(Int8, nbtrucks) != vones(Int8, nbitems) || improvement
+    while sum(optsol[:TI]) == nbitems || improvement
+        @debug "Solving with following trucks:" chosentrucks
         # Upd chosen trucks
         # Add extra trucks for each filled planned trucks
         for t in chosentrucks
@@ -36,10 +60,17 @@ function columngeneration(solvefun!, problem, args...)
         end
 
 
-        optsol = solvefun!(problem, args..., chosentrucks)
-        
+        TIbar, optsolpertruck = solvefun!(problem, args..., chosentrucks)
+        optsol[:TI] = copy(TIbar)
+        optsol[:variables] = copy(optsolpertruck)
+
+        optsol[:value] = sum(problem[:costtransportation] * [min(sum(optsol[:TI][t, :]), 1) for t in 1:nbplannedtrucks]) + 
+        sum(problem[:costextratruck] * [min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)]) + 
+        problem[:costinventory] * sum(problem[:IDL] - transpose(optsol[:TI]) * problem[:TDA])
+    
+
         # If no unaffected item:
-        if sum(optsol[:GI]) == 0
+        if sum(optsol[:TI]) == nbitems
             # remove empty unused useless trucks
             for t in chosentrucks
                 if sum(optsol[:TI][t, :]) == 0 && !(t in 1:nbplannedtrucks)
