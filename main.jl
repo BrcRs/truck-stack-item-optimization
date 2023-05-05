@@ -1,12 +1,11 @@
 
 using LinearAlgebra
 using JuMP
-using Cbc
-using GLPK
+using Cbc, GLPK, Clp
 # using CSV
 
 # using FilePaths
-# using Logging
+using Logging
 # using Profile
 
 using ArgParse
@@ -14,6 +13,7 @@ using ArgParse
 
 include("instance_loader.jl")
 include("model.jl")
+include("column_generation.jl")
 
 function parse_commandline()
     s = ArgParseSettings()
@@ -29,6 +29,16 @@ function parse_commandline()
         # "--flag1"
         #     help = "an option without argument, i.e. a flag"
         #     action = :store_true
+        "--debug", "-d"
+            help= "activate debug loggings"
+            action = :store_true
+        "--all", "-a"
+            help = "shows unlimited debug loggings"
+            action = :store_true
+        "--optimizer", "-o"
+            help = "chosen optimizer"
+            default = "Cbc"
+            arg_type = String
         "instancePath"
             help = "Path to the folder of the instance to solve."
             required = true
@@ -42,11 +52,16 @@ function main()
     for (arg,val) in parsed_args
         println("  $arg  =>  $val")
     end
-    
+    optimizers = Dict{String, Any}("Cbc" => Cbc, "GLPK" => GLPK)
+    if parsed_args["debug"]
+        logger = ConsoleLogger(stdout, Logging.Debug, show_limited=!parsed_args["all"])
+
+        global_logger(logger)
+    end
     # instancePath = "Instances/AS/"
     instancePath = parsed_args["instancePath"]
-
-    problem = TSIProblem(GLPK.Optimizer, instancePath)
+    opt = optimizers[parsed_args["optimizer"]]
+    problem = TSIProblem(opt.Optimizer, instancePath)
     TID = problem[:TID]
     TR_P = problem[:TR_P]
     @debug begin
