@@ -365,19 +365,24 @@ The following program places stacks in the truck optimally and taking into accou
 
 **Minimize:**
 
+<!-- $$\alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^\top_{I} (IDL - TI^{t\top} \times TDA) + \kappa^t(TI^t - \overline{TI})$$ -->
 $$\alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^\top_{I} (IDL - TI^{t\top} \times TDA) + \kappa^t(TI^t - \overline{TI})$$
 
 **Subject to:**
 
 
-$$-\zeta^{tT} \geq -1\quad \bold{(\zeta^T_1)}$$  
+<!-- $$-\zeta^{tT} \geq -1\quad \bold{(\zeta^T_1)}$$  
 
 $$-\zeta^{tT} \geq -TI^{tT}\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^T_2)}$$
 
 
 $$-\zeta^{tE} \geq -1\quad \bold{(\zeta^E_1)}$$  
 
-$$-\zeta^{tE} \geq -TI^{tE}\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^E_2)}$$
+$$-\zeta^{tE} \geq -TI^{tE}\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^E_2)}$$ -->
+
+$$\zeta M^\zeta \geq TI\times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ]$$
+
+$$-(1 - \zeta)M^\zeta + 1 \leq TI\times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ]$$
 
 $$TI^t \leq TR\quad \bold{(TI_1)}$$
 
