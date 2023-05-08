@@ -169,8 +169,9 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize, chosentr
     TIequality = are_all_TI_equal(TIvalues, TIbar, nbchosentrucks, eps)
 
     # alltrucksdone = falses(nbchosentrucks)
-
-    while !TIequality
+    firstpass = true # debug purpose
+    while !TIequality || firstpass
+        firstpass = false # debug purpose
         @time begin
             # @info "Convergence gap" sum(abs.(TIvalues[t, :, :] .- TIbar))
             pt = 1
@@ -403,7 +404,8 @@ function changetruck!(t, subproblem::Subproblem, chosentrucks; changeS=false)
 
     MW = max(subproblem[:IPD]...) + 1.0
 
-    MG = max(skipmissing(subproblem[:_IO])...) + 1.0
+    # MG = max(skipmissing(subproblem[:_IO])...) + 1.0
+    MG = 5.0
 
     MDL =  max(subproblem[:IL]...) + 1.0
     MDW =  max(subproblem[:IW]...) + 1.0
@@ -433,6 +435,7 @@ function changetruck!(t, subproblem::Subproblem, chosentrucks; changeS=false)
     Mlambda = 2.0 * subproblem[:TL][t] + 1.0
     Mlambda = 2.0 * max(subproblem[:TL]...) + 1.0
 
+    Mzeta = nbitems
 
     # SZo = 0.0
 
@@ -465,13 +468,19 @@ function changetruck!(t, subproblem::Subproblem, chosentrucks; changeS=false)
         # end
         delete.(submodel, submodel[:cZetaT2])
         JuMP.unregister.(submodel, :cZetaT2)
-        @constraint(submodel, cZetaT2, submodel[:zetaT] .>= -submodel[:TI][1:nbplannedtrucks, :] * vones(Int8, nbitems))
-    else
+        @constraint(submodel, cZetaT2, submodel[:zetaT] * Mzeta .>= submodel[:TI][1:nbplannedtrucks, :] * vones(Int8, nbitems))
+        delete.(submodel, submodel[:cZetaT3])
+        JuMP.unregister.(submodel, :cZetaT3)
+        @constraint(submodel, cZetaT3, -(1 .- submodel[:zetaT]) * Mzeta + 1 .<= submodel[:TI][1:nbplannedtrucks, :] * vones(Int8, nbitems))
+else
         @info "Replacing cZetaE2..."
         delete.(submodel, submodel[:cZetaE2])
         JuMP.unregister.(submodel, :cZetaE2)
-        @constraint(submodel, cZetaE2, submodel[:zetaE] .>= -submodel[:TI][nbplannedtrucks+1:end, :] * vones(Int8, nbitems))
-    end
+        @constraint(submodel, cZetaE2, submodel[:zetaE] * Mzeta .>= submodel[:TI][nbplannedtrucks+1:end, :] * vones(Int8, nbitems))
+        delete.(submodel, submodel[:cZetaE3])
+        JuMP.unregister.(submodel, :cZetaE3)
+        @constraint(submodel, cZetaE3, -(1 .- submodel[:zetaE]) * Mzeta + 1 .<= submodel[:TI][nbplannedtrucks+1:end, :] * vones(Int8, nbitems))
+end
     @info "Replacing cTI_TR..."
     delete.(submodel, submodel[:cTI_TR])
     JuMP.unregister.(submodel, :cTI_TR)
@@ -649,6 +658,11 @@ function changetruck!(t, subproblem::Subproblem, chosentrucks; changeS=false)
     JuMP.unregister.(submodel, :cXi1SU_Xi2SU)
     @constraint(submodel, cXi1SU_Xi2SU, Xi1 * submodel[:SU][:, notmissingTE] * subproblem[:TE][t, notmissingTE] .<= Xi2 * submodel[:SU][:, notmissingTE] * subproblem[:TE][t, notmissingTE])
 
+    @debug begin
+        @debug "cXi1SU_Xi2SU" cXi1SU_Xi2SU
+        sleep(20)
+    end
+
     @info "Replacing cXi2SK_Xi1SK..."
     delete.(submodel, submodel[:cXi2SK_Xi1SK])
     JuMP.unregister.(submodel, :cXi2SK_Xi1SK)
@@ -692,9 +706,9 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     ## Add variables
     @info "Creating variables..."
     @info "Adding zetaT..."
-    @variable(submodel, -1 <= zetaT[1:nbplannedtrucks] <= 0)
+    @variable(submodel, zetaT[1:nbplannedtrucks] >= 0) 
     @info "Adding zetaE..."
-    @variable(submodel, -1 <= zetaE[1:nbextratrucks] <= 0)
+    @variable(submodel, zetaE[1:nbextratrucks] >= 0)
 
     @info "Adding SS..."
     @variable(submodel, SS[1:nbstacks] >= 0)
@@ -817,7 +831,7 @@ function Subproblem(t, problem, optimizer, chosentrucks)
 
     MW = max(problem[:IPD]...) + 1.0
 
-    MG = max(skipmissing(problem[:_IO])...) + 1.0
+    MG = 5.0
 
     MDL =  max(problem[:IL]...) + 1.0
     MDW =  max(problem[:IW]...) + 1.0
@@ -847,6 +861,7 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     # Mlambda = 2.0 * problem[:TL][t] + 1.0
     Mlambda = 2.0 * max(problem[:TL]...) + 1.0
 
+    Mzeta = nbitems
 
     # SZo = 0.0
 
@@ -879,10 +894,14 @@ function Subproblem(t, problem, optimizer, chosentrucks)
         #     @debug "-reshape(TI[t, :], nbitems, 1)" -reshape(TI[t, :], nbitems, 1)
         #     @debug "vones(Int8, nbitems)" vones(Int8, nbitems)
         # end
-        @constraint(submodel, cZetaT2, zetaT .>= -TI[1:nbplannedtrucks, :] * vones(Int8, nbitems))
+        @constraint(submodel, cZetaT2, zetaT * Mzeta .>= TI[1:nbplannedtrucks, :] * vones(Int8, nbitems))
+        @info "Adding cZetaT3..."
+        @constraint(submodel, cZetaT3, -(1 .- zetaT) * Mzeta .+ 1 .<= TI[1:nbplannedtrucks, :] * vones(Int8, nbitems))
     else
         @info "Adding cZetaE2..."
-        @constraint(submodel, cZetaE2, zetaE .>= -TI[nbplannedtrucks+1:end, :] * vones(Int8, nbitems))
+        @constraint(submodel, cZetaE2, zetaE * Mzeta .>= TI[nbplannedtrucks+1:end, :] * vones(Int8, nbitems))
+        @info "Adding cZetaE3..."
+        @constraint(submodel, cZetaE3, -(1 .- zetaE) * Mzeta .+ 1 .<= TI[nbplannedtrucks+1:end, :] * vones(Int8, nbitems))
     end
     @info "Adding cTI_TR..."
     @constraint(submodel, cTI_TR, TI[t, :] <= problem[:TR][t, :])
@@ -1136,6 +1155,16 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     # end
     notmissingTE = filter(x -> !ismissing(problem[:TE][t, x]), 1:nbsuppliers)
     @constraint(submodel, cXi1SU_Xi2SU, Xi1 * SU[:, notmissingTE] * problem[:TE][t, notmissingTE] .<= Xi2 * SU[:, notmissingTE] * problem[:TE][t, notmissingTE])
+    # @debug begin
+    #     @debug "cXi1SU_Xi2SU" cXi1SU_Xi2SU
+    #     @debug "notmissingTE" notmissingTE
+    #     @debug "Xi1" Xi1
+    #     @debug "Xi2" Xi2
+    #     @debug "SU[:, notmissingTE]" SU[:, notmissingTE]
+    #     @debug "problem[:TE][t, notmissingTE]" problem[:TE][t, notmissingTE]
+    #     sleep(20)
+    # end
+    # error("Debug stop!!")
     @info "Adding cXi1SU_Xi2SU_chi..."
     @constraint(submodel, cXi1SU_Xi2SU_chi, Xi1*SU - Xi2*SU .>= chi * epsilon - r*MTE - (-sigma1 .+ 1) * MTE)
 
