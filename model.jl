@@ -101,8 +101,8 @@ function upd_penalization!(subpb::Subproblem, TIbar, kappa)
     # Worst case solution value:
     MGI = subpb[:costtransportation] * nbplannedtrucks + (nbitems - nbplannedtrucks) * subpb[:costextratruck] + subpb[:costinventory] * nbitems * (min(subpb[:IDL]...) - max(subpb[:TDE]...))
 
-    @expression(submodel, obj1, sum(subpb[:costtransportation] * -submodel[:zetaT]))
-    @expression(submodel, obj2, sum(subpb[:costextratruck] * -submodel[:zetaE]))
+    @expression(submodel, obj1, sum(subpb[:costtransportation] * submodel[:zetaT]))
+    @expression(submodel, obj2, sum(subpb[:costextratruck] * submodel[:zetaE]))
     @expression(submodel, obj3, subpb[:costinventory] * sum(subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t]))
     @expression(submodel, obj4, kappa * sum(submodel[:TI] - TIbar))
     @expression(submodel, obj5, MGI * sum(submodel[:GI]))
@@ -229,6 +229,7 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize, chosentr
                             #     error("Stop")
                             # end
                             optimize!(model(subproblems[b+1]))
+                            error("Stop")
                             # upd_valueTI!(subproblems[t])
                             TIvalues[i, :, :] .= value.(model(subproblems[b+1])[:TI])
                             optsolpertruck[i][:S] = copy(value.(model(subproblems[b+1])[:S]))
@@ -484,7 +485,7 @@ end
     @info "Replacing cTI_TR..."
     delete.(submodel, submodel[:cTI_TR])
     JuMP.unregister.(submodel, :cTI_TR)
-    @constraint(submodel, cTI_TR, submodel[:TI][t, :] <= subproblem[:TR][t, :])
+    @constraint(submodel, cTI_TR, submodel[:TI][t, :] .<= subproblem[:TR][t, :])
 
     icandidates = findall((x) -> x == 1, subproblem[:TR][t, :])
     @info "Replacing cTI_1_1..."
@@ -904,7 +905,7 @@ function Subproblem(t, problem, optimizer, chosentrucks)
         @constraint(submodel, cZetaE3, -(1 .- zetaE) * Mzeta .+ 1 .<= TI[nbplannedtrucks+1:end, :] * vones(Int8, nbitems))
     end
     @info "Adding cTI_TR..."
-    @constraint(submodel, cTI_TR, TI[t, :] <= problem[:TR][t, :])
+    @constraint(submodel, cTI_TR, TI[t, :] .<= problem[:TR][t, :])
 
     icandidates = findall((x) -> x == 1, problem[:TR][t, :])
     # @debug icandidates
