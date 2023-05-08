@@ -26,10 +26,21 @@ function columngeneration(solvefun!, problem, args...)
     TIbar, optsolpertruck = solvefun!(problem, args..., chosentrucks)
 
     optsol = Dict{Any, Any}(:TI => copy(TIbar))
-    optsol[:value] = sum(problem[:costtransportation] * [min(sum(optsol[:TI][t, :]), 1) for t in 1:nbplannedtrucks]) + 
-    sum(problem[:costextratruck] * [min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)]) + 
+    # @debug begin
+    #     @debug "[optsol[:TI][t, :] for t in nbplannedtrucks+1:length(chosentrucks)]" [optsol[:TI][t, :] for t in nbplannedtrucks+1:length(chosentrucks)]
+    #     @debug "[sum(optsol[:TI][t, :]) for t in nbplannedtrucks+1:length(chosentrucks)]" [sum(optsol[:TI][t, :]) for t in nbplannedtrucks+1:length(chosentrucks)]
+    #     @debug "[min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)]" [min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)]
+    #     @debug "sum([min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)])" sum([min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)])
+    #     @debug "problem[:costextratruck] * sum([min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)])" problem[:costextratruck] * sum([min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)])
+    #     @debug "sum(problem[:costextratruck] * [min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)])" sum(problem[:costextratruck] * [min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)])
+    # end
+    optsol[:value] = problem[:costtransportation] * reduce(+, [min(sum(optsol[:TI][t, :]), 1) for t in 1:nbplannedtrucks], init=0.0) + 
+    problem[:costextratruck] * reduce(+, [min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)], init=0.0) + 
     problem[:costinventory] * sum(problem[:IDL] - transpose(optsol[:TI]) * problem[:TDA])
-    
+
+    # optsol[:value] = sum(problem[:costtransportation] * [min(sum(optsol[:TI][t, :]), 1) for t in 1:nbplannedtrucks])
+    # optsol[:value] = sum(problem[:costextratruck] * [min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)])
+    # optsol[:value] = problem[:costinventory] * sum(problem[:IDL] - transpose(optsol[:TI]) * problem[:TDA])
     
 
     improvement = true
@@ -39,14 +50,14 @@ function columngeneration(solvefun!, problem, args...)
 
 
     # while transpose(optsol[:TI]) * vones(Int8, nbtrucks) != vones(Int8, nbitems) || improvement
-    while sum(optsol[:TI]) == nbitems || improvement
+    while sum(optsol[:TI]) != nbitems || improvement
         @debug "Solving with following trucks:" chosentrucks
         # Upd chosen trucks
         # Add extra trucks for each filled planned trucks
         for t in chosentrucks
             if sum(optsol[:TI][t, :]) > 0
                 if t in 1:nbplannedtrucks
-                    if !(truckindices[t][2] in chosentrucks) && !(truckindices[t][2] in deadtrucks)
+                    if 2 in keys(truckindices[t]) && !(truckindices[t][2] in chosentrucks) && !(truckindices[t][2] in deadtrucks)
                         push!(chosentrucks, truckindices[t][2])
                     end
                     continue
@@ -64,11 +75,11 @@ function columngeneration(solvefun!, problem, args...)
         optsol[:TI] = copy(TIbar)
         optsol[:variables] = copy(optsolpertruck)
 
-        optsol[:value] = sum(problem[:costtransportation] * [min(sum(optsol[:TI][t, :]), 1) for t in 1:nbplannedtrucks]) + 
-        sum(problem[:costextratruck] * [min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)]) + 
+        optsol[:value] = problem[:costtransportation] * reduce(+, [min(sum(optsol[:TI][t, :]), 1) for t in 1:nbplannedtrucks], init=0.0) + 
+        problem[:costextratruck] * reduce(+, [min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)], init=0.0) + 
         problem[:costinventory] * sum(problem[:IDL] - transpose(optsol[:TI]) * problem[:TDA])
-    
-
+        
+       
         # If no unaffected item:
         if sum(optsol[:TI]) == nbitems
             # remove empty unused useless trucks
@@ -77,12 +88,19 @@ function columngeneration(solvefun!, problem, args...)
                     push!(deadtrucks, t)
                 end
             end
-            filter!(x -> x in deadtrucks, chosentrucks)
+            filter!(x -> !(x in deadtrucks), chosentrucks)
         end
 
         improvement = optsol[:value] < oldvalue || optsol[:TI] != oldTI
         oldTI = copy(optsol[:TI])
         oldvalue = optsol[:value]
+
+        @debug begin
+            @debug "improvement" improvement
+            @debug "optsol[:TI] != oldTI" optsol[:TI] != oldTI
+            sleep(10)
+        end
+
     end
 
     return optsol
