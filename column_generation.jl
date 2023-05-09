@@ -5,6 +5,7 @@ function columngeneration(solvefun!, problem, args...)
     nbplannedtrucks = problem[:nbplannedtrucks]
     truckindices = problem[:truckindices]
     nbitems = problem[:nbitems]
+    nbtrucks = problem[:nbtrucks]
     deadtrucks = []
     @debug "truckindices" truckindices
     # @debug begin
@@ -36,7 +37,7 @@ function columngeneration(solvefun!, problem, args...)
     # end
     optsol[:value] = problem[:costtransportation] * reduce(+, [min(sum(optsol[:TI][t, :]), 1) for t in 1:nbplannedtrucks], init=0.0) + 
     problem[:costextratruck] * reduce(+, [min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)], init=0.0) + 
-    problem[:costinventory] * sum(problem[:IDL] - transpose(optsol[:TI]) * problem[:TDA])
+    problem[:costinventory] * sum(problem[:IDL] - transpose(optsol[:TI]) * problem[:TDA][filter(x -> x in chosentrucks, 1:nbtrucks)])
 
     # optsol[:value] = sum(problem[:costtransportation] * [min(sum(optsol[:TI][t, :]), 1) for t in 1:nbplannedtrucks])
     # optsol[:value] = sum(problem[:costextratruck] * [min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)])
@@ -51,11 +52,18 @@ function columngeneration(solvefun!, problem, args...)
 
     # while transpose(optsol[:TI]) * vones(Int8, nbtrucks) != vones(Int8, nbitems) || improvement
     while sum(optsol[:TI]) != nbitems || improvement
-        @debug "Solving with following trucks:" chosentrucks
+        printstyled("Column Generation\n", color=:light_green)
+        printstyled("Value change: \n", color=:light_green)
+        printstyled(optsol[:value] - oldvalue, "\n")
+        printstyled("Number of unaffected items: \n", color=:light_green)
+        printstyled(nbitems - sum(optsol[:TI]), "\n")
+        printstyled("Solving with ", length(chosentrucks), " trucks\n", color=:light_blue)
+        # @debug "sort(chosentrucks)" sort(chosentrucks)
+        # @debug "optsol[:TI]" optsol[:TI]
         # Upd chosen trucks
         # Add extra trucks for each filled planned trucks
-        for t in chosentrucks
-            if sum(optsol[:TI][t, :]) > 0
+        for (i, t) in enumerate(chosentrucks)
+            if sum(optsol[:TI][i, :]) > 0
                 if t in 1:nbplannedtrucks
                     if 2 in keys(truckindices[t]) && !(truckindices[t][2] in chosentrucks) && !(truckindices[t][2] in deadtrucks)
                         push!(chosentrucks, truckindices[t][2])
@@ -75,16 +83,21 @@ function columngeneration(solvefun!, problem, args...)
         optsol[:TI] = copy(TIbar)
         optsol[:variables] = copy(optsolpertruck)
 
+        # @debug begin
+        #     @debug "problem[:TDA]" problem[:TDA]
+        #     @debug "transpose(optsol[:TI])" transpose(optsol[:TI])
+        # end
+
         optsol[:value] = problem[:costtransportation] * reduce(+, [min(sum(optsol[:TI][t, :]), 1) for t in 1:nbplannedtrucks], init=0.0) + 
         problem[:costextratruck] * reduce(+, [min(sum(optsol[:TI][t, :]), 1) for t in nbplannedtrucks+1:length(chosentrucks)], init=0.0) + 
-        problem[:costinventory] * sum(problem[:IDL] - transpose(optsol[:TI]) * problem[:TDA])
+        problem[:costinventory] * sum(problem[:IDL] - transpose(optsol[:TI]) * problem[:TDA][chosentrucks])
         
        
         # If no unaffected item:
         if sum(optsol[:TI]) == nbitems
             # remove empty unused useless trucks
-            for t in chosentrucks
-                if sum(optsol[:TI][t, :]) == 0 && !(t in 1:nbplannedtrucks)
+            for (i, t) in enumerate(chosentrucks)
+                if sum(optsol[:TI][i, :]) == 0 && !(t in 1:nbplannedtrucks)
                     push!(deadtrucks, t)
                 end
             end
@@ -92,14 +105,16 @@ function columngeneration(solvefun!, problem, args...)
         end
 
         improvement = optsol[:value] < oldvalue || optsol[:TI] != oldTI
-        oldTI = copy(optsol[:TI])
-        oldvalue = optsol[:value]
-
         @debug begin
             @debug "improvement" improvement
+            @debug "optsol[:value]" optsol[:value]
+            @debug "oldvalue" oldvalue
             @debug "optsol[:TI] != oldTI" optsol[:TI] != oldTI
             sleep(10)
         end
+        oldTI = copy(optsol[:TI])
+        oldvalue = optsol[:value]
+
 
     end
 
