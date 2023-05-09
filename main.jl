@@ -79,6 +79,9 @@ function main()
     end
 
     @info "Solving problem..."
-    @time columngeneration(solve_uzawa!, problem, 1, 1, 1)
+    @time begin 
+        optsol = columngeneration(solve_uzawa!, problem, 10, 100, 1)
+    end
+    display(optsol)
 end
     main()

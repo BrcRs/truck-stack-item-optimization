@@ -7,7 +7,7 @@ using Base.Threads
 include("instance_loader.jl")
 include("matrix_ops.jl")
 include("linear_infeasibilities.jl")
-
+include("progress.jl")
 # TODO Refactor
 
 mutable struct TSIProblem
@@ -81,25 +81,32 @@ function upd_penalization!(subpb::Subproblem, TIbar, kappa)
     # sum(problem[:costextratruck] * zetaE) + 
     # sum(problem[:costinventory] * (problem[:IDL] - transpose(TI) * problem[:TDA])))
 
-    # @debug "subpb[:costtransportation]" subpb[:costtransportation]
-    # @debug "submodel[:zetaT]" submodel[:zetaT]
-    # @debug "subpb[:costextratruck]" subpb[:costextratruck]
-    # @debug "submodel[:zetaE]" submodel[:zetaE]
-    # @debug "subpb[:costinventory]" subpb[:costinventory]
-    # @debug "subpb[:IDL]" subpb[:IDL]
-    # @debug "submodel[:TI][t, :]" submodel[:TI][t, :]
-    # @debug "subpb[:TDA][t]" subpb[:TDA][t]
-    # @debug "kappa" kappa
-    # @debug "submodel[:TI]" submodel[:TI]
-    # @debug "TIbar" TIbar
-    # @debug "submodel[:TI][t, :] * subpb[:TDA][t]" submodel[:TI][t, :] * subpb[:TDA][t]
-    # @debug "subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t]" subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t]
-    # @debug "sum(subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t])" sum(subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t])
 
     # error("Stop")
 
     # Worst case solution value:
     MGI = subpb[:costtransportation] * nbplannedtrucks + (nbitems - nbplannedtrucks) * subpb[:costextratruck] + subpb[:costinventory] * nbitems * (min(subpb[:IDL]...) - max(subpb[:TDE]...))
+
+    if haskey(JuMP.object_dictionary(submodel), :obj1)
+        # delete(submodel, submodel[:obj1])
+        JuMP.unregister(submodel, :obj1)
+    end
+    if haskey(JuMP.object_dictionary(submodel), :obj2)
+        # delete(submodel, submodel[:obj2])
+        JuMP.unregister(submodel, :obj2)
+    end
+    if haskey(JuMP.object_dictionary(submodel), :obj3)
+        # delete(submodel, submodel[:obj3])
+        JuMP.unregister(submodel, :obj3)
+    end
+    if haskey(JuMP.object_dictionary(submodel), :obj4)
+        # delete(submodel, submodel[:obj4])
+        JuMP.unregister(submodel, :obj4)
+    end
+    if haskey(JuMP.object_dictionary(submodel), :obj5)
+        # delete(submodel, submodel[:obj5])
+        JuMP.unregister(submodel, :obj5)
+    end
 
     @expression(submodel, obj1, sum(subpb[:costtransportation] * submodel[:zetaT]))
     @expression(submodel, obj2, sum(subpb[:costextratruck] * submodel[:zetaE]))
@@ -128,17 +135,16 @@ function upd_valueTI!(subpb::Subproblem)
 end
 
 function are_all_TI_equal(TIvalues, TIbar, nbtrucks, eps)
-    @info "Verifying equality..."
+    # @info "Verifying equality..."
     TIequality = true
     for t in 1:nbtrucks
-        # @debug "t" t
-        # @debug "sum(TIvalues[t, :, :] .- TIbar)" sum(abs.(TIvalues[t, :, :] .- TIbar))
         if sum(TIvalues[t, :, :] == TIbar ? 0.0 : abs.(TIvalues[t, :, :] .- TIbar)) > eps
             TIequality = false
-            # @debug "FALSE"
+            # @info "All not equal"
             break
         end
     end
+    # @info "All equal!"
     return TIequality
 end
 
@@ -167,32 +173,38 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize, chosentr
     optsolpertruck = [Dict{Symbol, Any}() for t in 1:nbtrucks]
     
     TIequality = are_all_TI_equal(TIvalues, TIbar, nbchosentrucks, eps)
-
+    @debug "TIequality" TIequality
     # alltrucksdone = falses(nbchosentrucks)
-    firstpass = true # debug purpose
+    firstpass = true
+    iteration = 0
     while !TIequality || firstpass
-        firstpass = false # debug purpose
-        @time begin
-            # @info "Convergence gap" sum(abs.(TIvalues[t, :, :] .- TIbar))
+    # while !TIequality
+        firstpass = false
+        begin
+            # # @info "Convergence gap" sum(abs.(TIvalues[t, :, :] .- TIbar))
             pt = 1
-
+            iteration +=1
+            printstyled("Uzawa -- iteration ", iteration, "\n", color=:blue)
             for pt in 1:nbplannedtrucks
+                display_progress(pt, nbplannedtrucks, n=20)
                 # @sync @distributed for b in 0:batchsize-1 # Threads
                 for b in 0:batchsize-1 # Threads
-                    @debug "Thread $b" 
+                    # @debug "Thread $b" 
                     ### Assign a planned truck (and corresponding extra trucks) to a thread/subproblem instance
                     ptb = pt + b
                     if ptb > nbplannedtrucks
                         continue
                     end
                     for i in filter(x -> x in chosentrucks, problem[:truckindices][ptb])
-                        @debug "truck" i
+                        idx = findfirst(==(i), chosentrucks)
+                        # @debug "truck" i
                         # If the conscensus is that there are no items in this truck, the 
                         # truck agrees and there is no need to solve it.
-                        if sum(TIbar[i, :]) == 0
-                            @debug "=> Truck empty"
+                        if sum(TIbar[idx, :]) == 0
+                        # if sum(TIbar[i, :]) == 0 || sum(problem[:TR][i, :]) == 0
+                            # @debug "=> Truck empty"
                             # setvalueTI!(subproblems[t], TIbar)
-                            TIvalues[i, :, :] .= TIbar
+                            TIvalues[idx, :, :] .= round.(TIbar) # TODO round is risky?
                             # optsolpertruck[i][:S] = nothing
                             # optsolpertruck[i][:SG] = nothing
                             # optsolpertruck[i][:SL] = nothing
@@ -200,24 +212,33 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize, chosentr
                             # optsolpertruck[i][:SH] = nothing
 
                         else
-                            @debug "=> Optimizing subproblem..."
+                            # @debug "=> Optimizing subproblem..."
                             if truck(subproblems[b+1]) != i
-                                changetruck!(i, subproblems[b+1], chosentrucks, changeS=i == ptb)
+                                # @debug begin
+                                #     @debug "Changing truck of subproblem $(b+1)"
+                                #     @debug "Was previously $(truck(subproblems[b+1]))"
+                                #     @debug "Is now $i"
+                                #     @debug "i == ptb"  i == ptb
+                                #     @debug "ptb" ptb
+                                #     @debug "problem[:truckindices][ptb]" problem[:truckindices][ptb]
+                                # end
+                                changeS = !(i in problem[:truckindices][ptb] && truck(subproblems[b+1]) in problem[:truckindices][ptb])
+                                changetruck!(i, subproblems[b+1], chosentrucks, changeS=changeS)
                             end
                             # Solve the deterministic minimization problem for truck t with
                             # a penalization + kappa[t, k] * (TI[t, k+1] - TIbar[k])
                             # and obtain optimal first decision TI[t, k+1]
-                            @debug "Adding penalization..."
-                            upd_penalization!(subproblems[b+1], TIbar, kappas[i])
-                            # @debug "Setting start values..." # disabled for debug
-                            # set_start_value.(model(subproblems[b+1])[:TI], TIbar)
-                            @debug "Optimizing..."
-                            @debug begin
-                                @debug "TR" problem[:TR]
-                                show(model(subproblems[b+1]))
-                                print(model(subproblems[b+1]))
-                                write_to_file(model(subproblems[b+1]), "model.lp")
-                            end
+                            # @debug "Adding penalization..."
+                            upd_penalization!(subproblems[b+1], TIbar, kappas[idx])
+                            # @debug "Setting start values..."
+                            set_start_value.(model(subproblems[b+1])[:TI], TIbar)
+                            # @debug "Optimizing..."
+                            # @debug begin
+                            #     # @debug "TR" problem[:TR]
+                            #     # show(model(subproblems[b+1]))
+                            #     # print(model(subproblems[b+1]))
+                            #     write_to_file(model(subproblems[b+1]), "model.lp")
+                            # end
                             # @debug begin
                             #     # error("Debug stop")
                             #     undo = relax_integrality(model(subproblems[b+1]))
@@ -229,9 +250,9 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize, chosentr
                             #     error("Stop")
                             # end
                             optimize!(model(subproblems[b+1]))
-                            error("Stop")
+                            # error("Stop") # debug
                             # upd_valueTI!(subproblems[t])
-                            TIvalues[i, :, :] .= value.(model(subproblems[b+1])[:TI])
+                            TIvalues[idx, :, :] .= round.(value.(model(subproblems[b+1])[:TI])) # TODO round is risky?
                             optsolpertruck[i][:S] = copy(value.(model(subproblems[b+1])[:S]))
                             # optsolpertruck[i][:SG] = copy(value.(model(subproblems[b+1])[:SG]))
                             # optsolpertruck[i][:SL] = copy(value.(model(subproblems[b+1])[:SL]))
@@ -245,16 +266,19 @@ function solve_uzawa!(problem::TSIProblem, delta::Real, eps, batchsize, chosentr
                             optsolpertruck[i][:SO] = copy(value.(model(subproblems[b+1])[:SO]))
                             optsolpertruck[i][:SU] = copy(value.(model(subproblems[b+1])[:SU]))
                             optsolpertruck[i][:SK] = copy(value.(model(subproblems[b+1])[:SK]))
-                            optsolpertruck[i][:ST] = i
+                            optsolpertruck[i][:ST] = i # ? TODO
                         end
                     end
                 end
                 pt += batchsize
             end
+            clearnlines(2)
+            # printstyled("Done", "\n", color=:green)
+
             # Update the mean first decisions:
             # TIbar[k+1] = sum([pi[t] * TI[t, k+1] for t in bold_T])
             # TIbar = sum([value.(model(subproblems[t])[:TI]) for t in 1:nbchosentrucks])
-            TIbar = sum([TIvalues[t, :, :] for t in 1:nbchosentrucks])
+            TIbar = sum([TIvalues[t, :, :] for t in 1:nbchosentrucks])/nbchosentrucks
 
             # Update the multipliers by
             for t in 1:nbchosentrucks
@@ -369,9 +393,9 @@ function changetruck!(t, subproblem::Subproblem, chosentrucks; changeS=false)
     
     ## Create model
     submodel = model(subproblem)
-    nbcandidateitems = sum(subproblem[:TR][t, :])
+    nbcandidateitems = max(1, sum(subproblem[:TR][chosentrucks[t], :]))
     # nbcandidateitems = max([sum(problem[:TR][t2, :]) for t2 in 1:nbtrucks]...)
-    nbstacks = nbcandidateitems
+    nbstacks = max(1, nbcandidateitems) # in case no candidate item, at least equal to 1
     nbitems = subproblem[:nbitems]
     nbtrucks = subproblem[:nbtrucks]
     nbchosentrucks = length(chosentrucks)
@@ -381,17 +405,167 @@ function changetruck!(t, subproblem::Subproblem, chosentrucks; changeS=false)
     nbsuppliers = subproblem[:nbsuppliers]
     nbsupplierdocks = subproblem[:nbsupplierdocks]
     # nbextratrucks = nbtrucks - nbplannedtrucks
-    nbextratrucks = length(filter(x -> x in 1:nbplannedtrucks, chosentrucks))
+    nbextratrucks = length(filter(x -> !(x in 1:nbplannedtrucks), chosentrucks))
     subproblem.t = t
     # subproblem = Subproblem(t, subproblem, submodel, optimizer, nbstacks, Matrix{Union{Missing, Bool}}(missing, nbtrucks, nbtrucks))
 
     if changeS
-        @info "Replacing S..."
+        # # @info "Replacing S..."
         delete.(submodel, submodel[:S])
         JuMP.unregister.(submodel, :S)
         @variable(submodel, S[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, upper_bound = 1, Bin)
+
+        # # @info "Replacing SS..."
+        delete.(submodel, submodel[:SS])
+        JuMP.unregister.(submodel, :SS)
+        @variable(submodel, SS[1:nbstacks] >= 0)
+        # # @info "Replacing SP..."
+        delete.(submodel, submodel[:SP])
+        JuMP.unregister.(submodel, :SP)
+        @variable(submodel, SP[1:nbstacks], lower_bound = 0)
+        # # @info "Replacing SK..."
+        delete.(submodel, submodel[:SK])
+        JuMP.unregister.(submodel, :SK)
+        @variable(submodel, SK[1:nbstacks, 1:nbsupplierdocks], lower_bound = 0, upper_bound = 1) # No need for Bin because it is constrained to be equal to their items' which are integer
+        # # @info "Replacing SU..."
+        delete.(submodel, submodel[:SU])
+        JuMP.unregister.(submodel, :SU)
+        @variable(submodel, SU[1:nbstacks, 1:nbsuppliers], lower_bound = 0, upper_bound = 1)
+        # # @info "Replacing SO..."
+        delete.(submodel, submodel[:SO])
+        JuMP.unregister.(submodel, :SO)
+        @variable(submodel, SO[1:nbstacks] >= 0)
+        # # @info "Replacing SXe..."
+        delete.(submodel, submodel[:SXe])
+        JuMP.unregister.(submodel, :SXe)
+        @variable(submodel, SXe[1:nbstacks] >= 0)
+        # # @info "Replacing SXo..."
+        delete.(submodel, submodel[:SXo])
+        JuMP.unregister.(submodel, :SXo)
+        @variable(submodel, SXo[1:nbstacks] >= 0)
+        # # @info "Replacing SYe..."
+        delete.(submodel, submodel[:SYe])
+        JuMP.unregister.(submodel, :SYe)
+        @variable(submodel, SYe[1:nbstacks] >= 0)
+        # # @info "Replacing SYo..."
+        delete.(submodel, submodel[:SYo])
+        JuMP.unregister.(submodel, :SYo)
+        @variable(submodel, SYo[1:nbstacks] >= 0)
+        # # @info "Replacing SZe..."
+        delete.(submodel, submodel[:SZe])
+        JuMP.unregister.(submodel, :SZe)
+        @variable(submodel, SZe[1:nbstacks] >= 0)
+        # # @info "Replacing betaM..."
+        delete.(submodel, submodel[:betaM])
+        JuMP.unregister.(submodel, :betaM)
+        @variable(submodel, betaM[1:convert(Int, nbstacks*(nbstacks+1)/2)] >= 0)
+        # # @info "Replacing betaP..."
+        delete.(submodel, submodel[:betaP])
+        JuMP.unregister.(submodel, :betaP)
+        @variable(submodel, betaP[1:convert(Int, nbstacks*(nbstacks+1)/2)] >= 0)
+        # # @info "Replacing nu..."
+        delete.(submodel, submodel[:nu])
+        JuMP.unregister.(submodel, :nu)
+        @variable(submodel, nu[1:nbstacks] >= 0)
+        # # @info "Replacing tau..."
+        delete.(submodel, submodel[:tau])
+        JuMP.unregister.(submodel, :tau)
+        @variable(submodel, tau[1:nbstacks] >= 0)
+        # # @info "Replacing phi..."
+        delete.(submodel, submodel[:phi])
+        JuMP.unregister.(submodel, :phi)
+        @variable(submodel, phi[1:nbstacks] >= 0)
+        # # @info "Replacing SG..."
+        delete.(submodel, submodel[:SG])
+        JuMP.unregister.(submodel, :SG)
+        @variable(submodel, SG[1:nbstacks, 1:nbplantdocks] >= 0, upper_bound = 1)
+    
+        # # @info "Replacing SL..."
+        delete.(submodel, submodel[:SL])
+        JuMP.unregister.(submodel, :SL)
+        @variable(submodel, SL[1:nbstacks] >= 0)
+        delete.(submodel, submodel[:SW])
+        JuMP.unregister.(submodel, :SW)
+        @variable(submodel, SW[1:nbstacks] >= 0)
+        # # @info "Replacing Z..."
+        delete.(submodel, submodel[:Z])
+        JuMP.unregister.(submodel, :Z)
+        @variable(submodel, Z[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, upper_bound = 1, Bin)
+        # # @info "Replacing mu..."
+        delete.(submodel, submodel[:mu])
+        JuMP.unregister.(submodel, :mu)
+        @variable(submodel, mu[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
+        # # @info "Replacing eta..."
+        delete.(submodel, submodel[:eta])
+        JuMP.unregister.(submodel, :eta)
+        @variable(submodel, eta[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
+        # # @info "Replacing xi..."
+        delete.(submodel, submodel[:xi])
+        JuMP.unregister.(submodel, :xi)
+        @variable(submodel, xi[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
+        # # @info "Replacing chi..."
+        delete.(submodel, submodel[:chi])
+        JuMP.unregister.(submodel, :chi)
+        @variable(submodel, chi[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
+        # # @info "Replacing r..."
+        delete.(submodel, submodel[:r])
+        JuMP.unregister.(submodel, :r)
+        @variable(submodel, r[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
+        # # @info "Replacing sigma1..."
+        delete.(submodel, submodel[:sigma1])
+        JuMP.unregister.(submodel, :sigma1)
+        @variable(submodel, sigma1[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
+        # # @info "Replacing sigma2..."
+        delete.(submodel, submodel[:sigma2])
+        JuMP.unregister.(submodel, :sigma2)
+        @variable(submodel, sigma2[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
+        # # @info "Replacing sigma3..."
+        delete.(submodel, submodel[:sigma3])
+        JuMP.unregister.(submodel, :sigma3)
+        @variable(submodel, sigma3[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
+        # # @info "Replacing Q..."
+        delete.(submodel, submodel[:Q])
+        JuMP.unregister.(submodel, :Q)
+        @variable(submodel, Q[1:nbstacks, 1:nbsuppliers], lower_bound = 0, Int)
+        # # @info "Replacing V..."
+        delete.(submodel, submodel[:V])
+        JuMP.unregister.(submodel, :V)
+        @variable(submodel, V[1:nbstacks, 1:nbsupplierdocks], lower_bound = 0, Int)
+        # # @info "Replacing W..."
+        delete.(submodel, submodel[:W])
+        JuMP.unregister.(submodel, :W)
+        @variable(submodel, W[1:nbstacks, 1:nbplantdocks], lower_bound = 0, Int)
+        # # @info "Replacing Gl..."
+        delete.(submodel, submodel[:Gl])
+        JuMP.unregister.(submodel, :Gl)
+        @variable(submodel, Gl[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, Int)
+        # # @info "Replacing Gr..."
+        delete.(submodel, submodel[:Gr])
+        JuMP.unregister.(submodel, :Gr)
+        @variable(submodel, Gr[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, Int)
+        # # @info "Replacing DL..."    
+        delete.(submodel, submodel[:DL])
+        JuMP.unregister.(submodel, :DL)
+        @variable(submodel, DL[1:nbstacks, 1:nbcandidateitems], lower_bound = 0)
+        # @debug begin
+        #     if length(DL) == 0
+        #         @debug "DL" DL
+        #         @debug "S" S
+        #         sleep(20)
+        #     end
+        # end
+        # # @info "Replacing DW..."
+        delete.(submodel, submodel[:DW])
+        JuMP.unregister.(submodel, :DW)
+        @variable(submodel, DW[1:nbstacks, 1:nbcandidateitems], lower_bound = 0)
+    
+        # # @info "Replacing lambda..."
+        delete.(submodel, submodel[:lambda])
+        JuMP.unregister.(submodel, :lambda)
+        @variable(submodel, lambda[1:convert(Int, nbstacks * (nbstacks+1)/2)], lower_bound = 0, Bin)
+                   
     end
-    @info "Computing parameters..."
+    # # @info "Computing parameters..."
     MI4 = [[max(subproblem[:TU][:, j]...) for j in 1:first(size(subproblem[:TU][1, :]))] for j in 1:first(size(submodel[:TI][:, 1]))]
     MI4 = map(Int, (max(subproblem[:TU][:, i]...) for i = 1:first(size(subproblem[:TU][1, :])), j = 1:first(size(submodel[:TI][:, 1]))))
 
@@ -423,7 +597,7 @@ function changetruck!(t, subproblem::Subproblem, chosentrucks; changeS=false)
     #     throw(TypeError(MTL, "MTL must be of type Vector{T} where {T <: Real}", Vector{T} where {T <: Real}, typeof(MTL)))
     # end
 
-    # MTE = max(skipmissing(subproblem[:TE])...)
+    MTE = max(skipmissing(subproblem[:TE])...)
 
     MTKE = max(subproblem[:TKE]...)
 
@@ -444,7 +618,7 @@ function changetruck!(t, subproblem::Subproblem, chosentrucks; changeS=false)
 
     # MOmega = 2.0
 
-    # Mmu = 2.0
+    Mmu = 2.0
 
     # Mtau = 10.0
 
@@ -460,51 +634,63 @@ function changetruck!(t, subproblem::Subproblem, chosentrucks; changeS=false)
     fillXi2!(Xi2)
 
     ## Add constraints
-    @info "Replacing constraints..."
-    if t <= nbplannedtrucks
-        @info "Replacing cZetaT2..."
-        # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
-        #     @debug "-reshape(TI[t, :], nbitems, 1)" -reshape(TI[t, :], nbitems, 1)
-        #     @debug "vones(Int8, nbitems)" vones(Int8, nbitems)
-        # end
+    # # @info "Replacing constraints..."
+    if haskey(JuMP.object_dictionary(submodel), :cZetaT2)
         delete.(submodel, submodel[:cZetaT2])
         JuMP.unregister.(submodel, :cZetaT2)
-        @constraint(submodel, cZetaT2, submodel[:zetaT] * Mzeta .>= submodel[:TI][1:nbplannedtrucks, :] * vones(Int8, nbitems))
+    end
+    if haskey(JuMP.object_dictionary(submodel), :cZetaT3)
         delete.(submodel, submodel[:cZetaT3])
         JuMP.unregister.(submodel, :cZetaT3)
-        @constraint(submodel, cZetaT3, -(1 .- submodel[:zetaT]) * Mzeta + 1 .<= submodel[:TI][1:nbplannedtrucks, :] * vones(Int8, nbitems))
-else
-        @info "Replacing cZetaE2..."
+    end
+    if haskey(JuMP.object_dictionary(submodel), :cZetaE2)
         delete.(submodel, submodel[:cZetaE2])
         JuMP.unregister.(submodel, :cZetaE2)
-        @constraint(submodel, cZetaE2, submodel[:zetaE] * Mzeta .>= submodel[:TI][nbplannedtrucks+1:end, :] * vones(Int8, nbitems))
+    end
+    if haskey(JuMP.object_dictionary(submodel), :cZetaE3)
         delete.(submodel, submodel[:cZetaE3])
         JuMP.unregister.(submodel, :cZetaE3)
-        @constraint(submodel, cZetaE3, -(1 .- submodel[:zetaE]) * Mzeta + 1 .<= submodel[:TI][nbplannedtrucks+1:end, :] * vones(Int8, nbitems))
-end
-    @info "Replacing cTI_TR..."
+    end
+    if t <= nbplannedtrucks
+        # # @info "Replacing cZetaT2..."
+        @constraint(submodel, cZetaT2, submodel[:zetaT] * Mzeta .>= submodel[:TI][1:nbplannedtrucks, :] * vones(Int8, nbitems))
+        @constraint(submodel, cZetaT3, -(1 .- submodel[:zetaT]) * Mzeta .+ 1 .<= submodel[:TI][1:nbplannedtrucks, :] * vones(Int8, nbitems)) # TODO correct
+    else
+        # # @info "Replacing cZetaE2..."
+        @constraint(submodel, cZetaE2, submodel[:zetaE] * Mzeta .>= submodel[:TI][nbplannedtrucks+1:end, :] * vones(Int8, nbitems))
+        @constraint(submodel, cZetaE3, -(1 .- submodel[:zetaE]) * Mzeta .+ 1 .<= submodel[:TI][nbplannedtrucks+1:end, :] * vones(Int8, nbitems))
+    end
+    # # @info "Replacing cTI_TR..."
     delete.(submodel, submodel[:cTI_TR])
     JuMP.unregister.(submodel, :cTI_TR)
-    @constraint(submodel, cTI_TR, submodel[:TI][t, :] .<= subproblem[:TR][t, :])
+    @constraint(submodel, cTI_TR, submodel[:TI][t, :] .<= subproblem[:TR][chosentrucks[t], :])
 
-    icandidates = findall((x) -> x == 1, subproblem[:TR][t, :])
-    @info "Replacing cTI_1_1..."
+    icandidates = findall((x) -> x == 1, subproblem[:TR][chosentrucks[t], :])
+    # # @info "Replacing cTI_1_1..."
     delete.(submodel, submodel[:cTI_1_1])
     JuMP.unregister.(submodel, :cTI_1_1)
     @constraint(submodel, cTI_1_1, transpose(submodel[:TI])[filter(x -> x in icandidates, 1:nbitems), :] * vones(Int8, nbchosentrucks) + submodel[:GI][filter(x -> x in icandidates, 1:nbitems)] .<= vones(Int8, size(transpose(submodel[:TI])[filter(x -> x in icandidates, 1:nbitems), :], 1)))
     # @debug "cTI_1_1" cTI_1_1[icandidates[1], :]
-    @info "Replacing cS_TI..."
+    # # @info "Replacing cS_TI..."
     delete.(submodel, submodel[:cS_TI])
     JuMP.unregister.(submodel, :cS_TI)
-    @constraint(submodel, cS_TI, transpose(submodel[:S]) * vones(Int8, nbstacks) .== submodel[:TI][t, filter(x -> x in icandidates, 1:nbitems)])
+    # @debug begin
+    #     @debug "transpose(submodel[:S])" transpose(submodel[:S])
+    #     @debug "submodel[:TI][chosentrucks[t], filter(x -> x in icandidates, 1:nbitems)]" submodel[:TI][chosentrucks[t], filter(x -> x in icandidates, 1:nbitems)]
+    #     @debug "nbcandidateitems" nbcandidateitems
+    #     @debug "icandidates" icandidates
+    #     @debug "submodel[:S]" submodel[:S]
+    #     @debug "changeS" changeS
+    # end 
+    @constraint(submodel, cS_TI, transpose(submodel[:S]) * vones(Int8, nbstacks) .== submodel[:TI][chosentrucks[t], filter(x -> x in icandidates, 1:nbitems)])
 
     if changeS
-        @info "Replacing cZ_S_MZ..."
+        # # @info "Replacing cZ_S_MZ..."
         delete.(submodel, submodel[:cZ_S_MZ])
         JuMP.unregister.(submodel, :cZ_S_MZ)
         @constraint(submodel, cZ_S_MZ, submodel[:Z] .<= submodel[:S] * MZ)
     end
-    # @info "Replacing cS_TI_MS..."
+    # # # @info "Replacing cS_TI_MS..."
     # delete.(submodel, submodel[:cS_TI_MSleft])
     # JuMP.unregister.(submodel, :cS_TI_MSleft)
     # @constraint(submodel, cS_TI_MSleft, -(vones(Int8, nbcandidateitems) - submodel[:TI][t, filter(x -> x in icandidates, 1:nbitems)]) * MS .<= transpose(submodel[:S]) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems))
@@ -512,58 +698,73 @@ end
     # JuMP.unregister.(submodel, :cS_TI_MSright)
     # @constraint(submodel, cS_TI_MSright, transpose(submodel[:S]) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems) .<= (vones(Int8, nbcandidateitems) - submodel[:TI][t, filter(x -> x in icandidates, 1:nbitems)]) * MS)
 
-    @info "Replacing cS_IS_Z..."
+    # # @info "Replacing cS_IS_Z..."
     delete.(submodel, submodel[:cS_IS_Z])
     JuMP.unregister.(submodel, :cS_IS_Z)
+    # @debug begin
+    #     @debug "submodel[:S]" submodel[:S]
+    #     @debug "subproblem[:IS][filter(x -> x in icandidates, 1:nbitems)]" subproblem[:IS][filter(x -> x in icandidates, 1:nbitems)]
+    # end
     @constraint(submodel, cS_IS_Z, submodel[:S] * subproblem[:IS][filter(x -> x in icandidates, 1:nbitems)] .== submodel[:Z] * vones(Int8, size(submodel[:Z])[1]))
 
     if changeS
-        @info "Replacing cZ_SS_S..."
+        # # @info "Replacing cZ_SS_S..."
         delete.(submodel, submodel[:cZ_SS_Sleft])
         JuMP.unregister.(submodel, :cZ_SS_Sleft)
         @constraint(submodel, cZ_SS_Sleft, -MZ * (-submodel[:S] .+ 1) .<= submodel[:Z] .- hcat([submodel[:SS] for i in 1:size(submodel[:Z])[2]]...))
         delete.(submodel, submodel[:cZ_SS_Sright])
         JuMP.unregister.(submodel, :cZ_SS_Sright)
         @constraint(submodel, cZ_SS_Sright, submodel[:Z] .- hcat([submodel[:SS] for i in 1:size(submodel[:Z])[2]]...) .<= MZ * (-submodel[:S] .+ 1))
+        # # @info "Replacing cQ_SU..."
+        delete.(submodel, submodel[:cQ_SU])
+        JuMP.unregister.(submodel, :cQ_SU)
+        @constraint(submodel, cQ_SU, submodel[:Q] .<= submodel[:SU] * MQ)
+
     end
 
-    @info "Replacing cS_IU_Q..."
+    # # @info "Replacing cS_IU_Q..."
     delete.(submodel, submodel[:cS_IU_Q])
     JuMP.unregister.(submodel, :cS_IU_Q)
     @constraint(submodel, cS_IU_Q, submodel[:S] * subproblem[:IU][filter(x -> x in icandidates, 1:nbitems)] .== submodel[:Q])
     
     if changeS
-        @info "Replacing cQ_SU_S..."
+        # # @info "Replacing cQ_SU_S..."
         delete.(submodel, submodel[:cQ_SU_Sleft])
         JuMP.unregister.(submodel, :cQ_SU_Sleft)
         @constraint(submodel, cQ_SU_Sleft, -MQ * (1 .- submodel[:SU]) .<= submodel[:Q] .- hcat([submodel[:S] * vones(Int8, size(submodel[:S], 2)) for i in 1:size(submodel[:Q], 2)]...))
         delete.(submodel, submodel[:cQ_SU_Sright])
         JuMP.unregister.(submodel, :cQ_SU_Sright)
         @constraint(submodel, cQ_SU_Sright, submodel[:Q] .- hcat([submodel[:S] * vones(Int8, size(submodel[:S], 2)) for i in 1:size(submodel[:Q], 2)]...) .<= MQ * (1 .- submodel[:SU]))
+        # # @info "Replacing cV_SK..."
+        delete.(submodel, submodel[:cV_SK])
+        JuMP.unregister.(submodel, :cV_SK)
+        @constraint(submodel, cV_SK, submodel[:V] .<= submodel[:SK] * MV)
+        
+        # # @info "Replacing cS_IK_V..."
+        delete.(submodel, submodel[:cS_IK_V])
+        JuMP.unregister.(submodel, :cS_IK_V)
+        @constraint(submodel, cS_IK_V, submodel[:S] * subproblem[:IK][filter(x -> x in icandidates, 1:nbitems)] .== submodel[:V])
     end
 
-    @info "Replacing cS_IK_V..."
-    delete.(submodel, submodel[:cS_IK_V])
-    JuMP.unregister.(submodel, :cS_IK_V)
-    @constraint(submodel, cS_IK_V, submodel[:S] * subproblem[:IK][filter(x -> x in icandidates, 1:nbitems)] .== submodel[:V])
-
     if changeS
-        @info "Adding cV_SK_S..."
+        # # @info "Replacing cV_SK_S..."
         delete.(submodel, submodel[:cV_SK_Sleft])
         JuMP.unregister.(submodel, :cV_SK_Sleft)
         @constraint(submodel, cV_SK_Sleft, -MV * (-submodel[:SK] .+ 1) .<= submodel[:V] .- hcat([submodel[:S] * vones(Int8, size(submodel[:S], 2)) for i in 1:size(submodel[:V], 2)]...))
         delete.(submodel, submodel[:cV_SK_Sright])
         JuMP.unregister.(submodel, :cV_SK_Sright)
         @constraint(submodel, cV_SK_Sright, submodel[:V] .- hcat([submodel[:S] * vones(Int8, size(submodel[:S], 2)) for i in 1:size(submodel[:V], 2)]...) .<= MV * (-submodel[:SK] .+ 1))
-    end
+        # # @info "Replacing cW_SG..."
+        delete.(submodel, submodel[:cW_SG])
+        JuMP.unregister.(submodel, :cW_SG)
+        @constraint(submodel, cW_SG, submodel[:W] .<= submodel[:SG] * MW)
+        
+        # # @info "Replacing cS_IPD_W..."
+        delete.(submodel, submodel[:cS_IPD_W])
+        JuMP.unregister.(submodel, :cS_IPD_W)
+        @constraint(submodel, cS_IPD_W, submodel[:S] * subproblem[:IPD][filter(x -> x in icandidates, 1:nbitems)] .== submodel[:W])
 
-    @info "Replacing cS_IPD_W..."
-    delete.(submodel, submodel[:cS_IPD_W])
-    JuMP.unregister.(submodel, :cS_IPD_W)
-    @constraint(submodel, cS_IPD_W, submodel[:S] * subproblem[:IPD][filter(x -> x in icandidates, 1:nbitems)] .== submodel[:W])
-
-    if changeS
-        @info "Replacing cW_SG_S..."
+        # # @info "Replacing cW_SG_S..."
         delete.(submodel, submodel[:cW_SPD_Sleft])
         JuMP.unregister.(submodel, :cW_SPD_Sleft)
         @constraint(submodel, cW_SPD_Sleft, -MW * (-submodel[:SG] .+ 1) .<= submodel[:W] .- hcat([submodel[:S] * vones(Int8, size(submodel[:S], 2)) for i in 1:size(submodel[:W], 2)]...))
@@ -571,254 +772,347 @@ end
         JuMP.unregister.(submodel, :cW_SPD_Sright)
         @constraint(submodel, cW_SPD_Sright, submodel[:W] .- hcat([submodel[:S] * vones(Int8, size(submodel[:S], 2)) for i in 1:size(submodel[:W], 2)]...) .<= MW * (-submodel[:SG] .+ 1))
 
-        @info "Replacing cGl_S..."
+        # # @info "Replacing cGl_S..."
         delete.(submodel, submodel[:cGl_S])
         JuMP.unregister.(submodel, :cGl_S)
         @constraint(submodel, cGl_S, submodel[:Gl] .<= submodel[:S] * MG)
-        @info "Replacing cGr_S..."
+        # # @info "Replacing cGr_S..."
         delete.(submodel, submodel[:cGr_S])
         JuMP.unregister.(submodel, :cGr_S)
         @constraint(submodel, cGr_S, submodel[:Gr] .<= submodel[:S] * MG)
 
-        @info "Replacing cGr_SO_S..."
+        # # @info "Replacing cGl_Gr..."
+        delete.(submodel, submodel[:cGl_Gr])
+        JuMP.unregister.(submodel, :cGl_Gr)
+        @constraint(submodel, cGl_Gr, submodel[:Gl] .== submodel[:Gr])
+
+        # # @info "Replacing cGr_SO_S..."
         delete.(submodel, submodel[:cGr_SO_Sleft])
         JuMP.unregister.(submodel, :cGr_SO_Sleft)
         @constraint(submodel, cGr_SO_Sleft, -MG * (-submodel[:S] .+ 1) .<= submodel[:Gr] .- hcat([submodel[:SO] for i in 1:nbcandidateitems]...))
         delete.(submodel, submodel[:cGr_SO_Sright])
         JuMP.unregister.(submodel, :cGr_SO_Sright)
         @constraint(submodel, cGr_SO_Sright, submodel[:Gr] .- hcat([submodel[:SO] for i in 1:nbcandidateitems]...) .<= MG * (-submodel[:S] .+ 1))
-    end
+        
+        # # @info "Replacing cGl_IOV_S..."
+        delete.(submodel, submodel[:cGl_IOV_Sleft])
+        JuMP.unregister.(submodel, :cGl_IOV_Sleft)
+        @constraint(submodel, cGl_IOV_Sleft, -MG * (-submodel[:S] .+ 1) .<= submodel[:Gl] .- vcat([transpose(submodel[:IOV][filter(x -> x in icandidates, 1:nbitems)]) for i in 1:nbstacks]...))
+        delete.(submodel, submodel[:cGl_IOV_Sright])
+        JuMP.unregister.(submodel, :cGl_IOV_Sright)
+        @constraint(submodel, cGl_IOV_Sright, submodel[:Gl] .- vcat([transpose(submodel[:IOV][filter(x -> x in icandidates, 1:nbitems)]) for i in 1:nbstacks]...) .<= MG * (-submodel[:S] .+ 1))
 
-    @info "Replacing cGl_IOV_S..."
-    delete.(submodel, submodel[:cGl_IOV_Sleft])
-    JuMP.unregister.(submodel, :cGl_IOV_Sleft)
-    @constraint(submodel, cGl_IOV_Sleft, -MG * (-submodel[:S] .+ 1) .<= submodel[:Gl] .- vcat([transpose(submodel[:IOV][filter(x -> x in icandidates, 1:nbitems)]) for i in 1:nbstacks]...))
-    delete.(submodel, submodel[:cGl_IOV_Sright])
-    JuMP.unregister.(submodel, :cGl_IOV_Sright)
-    @constraint(submodel, cGl_IOV_Sright, submodel[:Gl] .- vcat([transpose(submodel[:IOV][filter(x -> x in icandidates, 1:nbitems)]) for i in 1:nbstacks]...) .<= MG * (-submodel[:S] .+ 1))
-
-    if changeS
-        @info "Replacing cDL_S..."
+        # # @info "Replacing cDL_S..."
         delete.(submodel, submodel[:cDL_S])
         JuMP.unregister.(submodel, :cDL_S)
         @constraint(submodel, cDL_S, submodel[:DL] .<= submodel[:S] * MDL)
-        @info "Replacing cDL_SL..."
+        # # @info "Replacing cDL_SL..."
         delete.(submodel, submodel[:cDL_SLleft])
         JuMP.unregister.(submodel, :cDL_SLleft)
         @constraint(submodel, cDL_SLleft, -MDL * (-submodel[:S] .+ 1) .<= submodel[:DL] - hcat([submodel[:SL] for i in 1:size(submodel[:DL])[2]]...))
         delete.(submodel, submodel[:cDL_SLright])
         JuMP.unregister.(submodel, :cDL_SLright)
+        # @debug begin
+        #     @debug "submodel[:DL]" submodel[:DL]
+        #     @debug "hcat([submodel[:SL] for i in 1:size(submodel[:DL])[2]]...)" hcat([submodel[:SL] for i in 1:size(submodel[:DL])[2]]...)
+        #     @debug "MDL" MDL
+        #     @debug "(-submodel[:S] .+ 1)" (-submodel[:S] .+ 1)
+        # end
         @constraint(submodel, cDL_SLright, submodel[:DL] - hcat([submodel[:SL] for i in 1:size(submodel[:DL])[2]]...) .<= MDL * (-submodel[:S] .+ 1))
-    end
-    @info "Replacing cDL_S_IL..."
-    delete.(submodel, submodel[:cDL_S_IL])
-    JuMP.unregister.(submodel, :cDL_S_IL)
-    @constraint(submodel, cDL_S_IL, submodel[:DL] * vones(Int8, size(submodel[:S], 1)) .== submodel[:S] * subproblem[:IL][filter(x -> x in icandidates, 1:nbitems)])
-    
-    if changeS
-        @info "Replacing cDW_S..."
+        # # @info "Replacing cDL_S_IL..."
+        delete.(submodel, submodel[:cDL_S_IL])
+        JuMP.unregister.(submodel, :cDL_S_IL)
+        @constraint(submodel, cDL_S_IL, submodel[:DL] * vones(Int8, size(submodel[:S], 1)) .== submodel[:S] * subproblem[:IL][filter(x -> x in icandidates, 1:nbitems)])
+
+        # # @info "Replacing cDW_S..."
         delete.(submodel, submodel[:cDW_S])
         JuMP.unregister.(submodel, :cDW_S)
         @constraint(submodel, cDW_S, submodel[:DW] .<= submodel[:S] * MDW)
-        @info "Replacing cDW_SW..."
+        # # @info "Replacing cDW_SW..."
         delete.(submodel, submodel[:cDW_SWleft])
         JuMP.unregister.(submodel, :cDW_SWleft)
         @constraint(submodel, cDW_SWleft, -MDW * (-submodel[:S] .+ 1) .<= submodel[:DW] - hcat([submodel[:SW] for i in 1:size(submodel[:DW])[2]]...))
         delete.(submodel, submodel[:cDW_SWright])
         JuMP.unregister.(submodel, :cDW_SWright)
         @constraint(submodel, cDW_SWright, submodel[:DW] - hcat([submodel[:SW] for i in 1:size(submodel[:DW])[2]]...) .<= MDW * (-submodel[:S] .+ 1))
+        
+        
+        # # @info "Replacing cDW_S_IW..."
+        delete.(submodel, submodel[:cDW_S_IW])
+        JuMP.unregister.(submodel, :cDW_S_IW)
+        @constraint(submodel, cDW_S_IW, submodel[:DW] * vones(Int8, size(submodel[:S], 1)) .== submodel[:S] * subproblem[:IW][filter(x -> x in icandidates, 1:nbitems)])
+        
+        # # @info "Replacing cSZe_S_IH..."
+        delete.(submodel, submodel[:cSZe_S_IH])
+        JuMP.unregister.(submodel, :cSZe_S_IH)
+        @constraint(submodel, cSZe_S_IH, submodel[:SZe] .== submodel[:S]* subproblem[:IH][filter(x -> x in icandidates, 1:nbitems)])
+
+        # # @info "Replacing cSXe_SXo_SL_SO..."
+        delete.(submodel, submodel[:cSXe_SXo_SL_SOleft])
+        JuMP.unregister.(submodel, :cSXe_SXo_SL_SOleft)
+        @constraint(submodel, cSXe_SXo_SL_SOleft, submodel[:SXe] - submodel[:SXo] - submodel[:SL] .<= submodel[:SO] * MTL)
+        delete.(submodel, submodel[:cSXe_SXo_SL_SOright])
+        JuMP.unregister.(submodel, :cSXe_SXo_SL_SOright)
+        @constraint(submodel, cSXe_SXo_SL_SOright, submodel[:SXe] - submodel[:SXo] - submodel[:SL] .>= -submodel[:SO] * MTL)
+        # # @info "Replacing cSYe_SYo_SW_SO..."
+        delete.(submodel, submodel[:cSYe_SYo_SW_SOleft])
+        JuMP.unregister.(submodel, :cSYe_SYo_SW_SOleft)
+        @constraint(submodel, cSYe_SYo_SW_SOleft, submodel[:SYe] - submodel[:SYo] - submodel[:SW] .<= submodel[:SO] * MTW)
+        delete.(submodel, submodel[:cSYe_SYo_SW_SOright])
+        JuMP.unregister.(submodel, :cSYe_SYo_SW_SOright)
+        @constraint(submodel, cSYe_SYo_SW_SOright, submodel[:SYe] - submodel[:SYo] - submodel[:SW] .>= -submodel[:SO] * MTW)
+        # # @info "Replacing cSXe_SXo_SW_SO..."
+        delete.(submodel, submodel[:cSXe_SXo_SW_SOleft])
+        JuMP.unregister.(submodel, :cSXe_SXo_SW_SOleft)
+        @constraint(submodel, cSXe_SXo_SW_SOleft, submodel[:SXe] - submodel[:SXo] - submodel[:SW] .<= (-submodel[:SO] .+ 1) * MTW)
+        delete.(submodel, submodel[:cSXe_SXo_SW_SOright])
+        JuMP.unregister.(submodel, :cSXe_SXo_SW_SOright)
+        @constraint(submodel, cSXe_SXo_SW_SOright, submodel[:SXe] - submodel[:SXo] - submodel[:SW] .>= -(-submodel[:SO] .+ 1) * MTW)
+        # # @info "Replacing cSYe_SYo_SL_SO..."
+        delete.(submodel, submodel[:cSYe_SYo_SL_SOleft])
+        JuMP.unregister.(submodel, :cSYe_SYo_SL_SOleft)
+        @constraint(submodel, cSYe_SYo_SL_SOleft, submodel[:SYe] - submodel[:SYo] - submodel[:SL] .<= (-submodel[:SO] .+ 1) * MTL)
+        delete.(submodel, submodel[:cSYe_SYo_SL_SOright])
+        JuMP.unregister.(submodel, :cSYe_SYo_SL_SOright)
+        @constraint(submodel, cSYe_SYo_SL_SOright, submodel[:SYe] - submodel[:SYo] - submodel[:SL] .>= -(-submodel[:SO] .+ 1) * MTL)
     end
 
-
-    @info "Replacing cDW_S_IW..."
-    delete.(submodel, submodel[:cDW_S_IW])
-    JuMP.unregister.(submodel, :cDW_S_IW)
-    @constraint(submodel, cDW_S_IW, submodel[:DW] * vones(Int8, size(submodel[:S], 1)) .== submodel[:S] * subproblem[:IW][filter(x -> x in icandidates, 1:nbitems)])
-
-    @info "Replacing cSZe_S_IH..."
-    delete.(submodel, submodel[:cSZe_S_IH])
-    JuMP.unregister.(submodel, :cSZe_S_IH)
-    @constraint(submodel, cSZe_S_IH, submodel[:SZe] .== submodel[:S]* subproblem[:IH][filter(x -> x in icandidates, 1:nbitems)])
-
-    @info "Replacing cSXe_ST_TL..."
+    # # @info "Replacing cSXe_ST_TL..."
     delete.(submodel, submodel[:cSXe_ST_TL])
     JuMP.unregister.(submodel, :cSXe_ST_TL)
-    @constraint(submodel, cSXe_ST_TL, submodel[:SXe] .<= subproblem[:TL][t])
-    @info "Replacing cSYe_ST_TW..."
+    @constraint(submodel, cSXe_ST_TL, submodel[:SXe] .<= subproblem[:TL][chosentrucks[t]])
+    # # @info "Replacing cSYe_ST_TW..."
     delete.(submodel, submodel[:cSYe_ST_TW])
     JuMP.unregister.(submodel, :cSYe_ST_TW)
-    @constraint(submodel, cSYe_ST_TW, submodel[:SYe] .<= subproblem[:TW][t])
-    @info "Replacing cSZe_ST_TH..."
+    @constraint(submodel, cSYe_ST_TW, submodel[:SYe] .<= subproblem[:TW][chosentrucks[t]])
+    # # @info "Replacing cSZe_ST_TH..."
     delete.(submodel, submodel[:cSZe_ST_TH])
     JuMP.unregister.(submodel, :cSZe_ST_TH)
-    @constraint(submodel, cSZe_ST_TH, submodel[:SZe] .<= subproblem[:TH][t])
+    @constraint(submodel, cSZe_ST_TH, submodel[:SZe] .<= subproblem[:TH][chosentrucks[t]])
+    if changeS
+        # # @info "Replacing cSXo_SXo..."
+        delete.(submodel, submodel[:cSXo_SXo])
+        JuMP.unregister.(submodel, :cSXo_SXo)
+        @constraint(submodel, cSXo_SXo, submodel[:SXo][1:end-1] .<= submodel[:SXo][2:end])
 
-    @info "Replacing cXi1SU_Xi2SU..."
-    notmissingTE = filter(x -> !ismissing(subproblem[:TE][t, x]), 1:nbsuppliers)
+        # # @info "Adding cXi2SXo_Xi1SXe_betaM_betaP..."
+        # # @info "Replacing cSXo_SXo..."
+        delete.(submodel, submodel[:cXi2SXo_Xi1SXe_betaM_betaP])
+        JuMP.unregister.(submodel, :cXi2SXo_Xi1SXe_betaM_betaP)
+        @constraint(submodel, cXi2SXo_Xi1SXe_betaM_betaP, (Xi2 * submodel[:SXo]) - (Xi1 * submodel[:SXe]) - submodel[:betaM] + submodel[:betaP] .== -epsilon * vones(Float64, size(Xi1, 1)))
+        
+        
+        
+        # # @info "Replacing cbetaM_lambda..."
+        delete.(submodel, submodel[:cbetaM_lambda])
+        JuMP.unregister.(submodel, :cbetaM_lambda)
+        @constraint(submodel, cbetaM_lambda, submodel[:betaM] .<= submodel[:lambda] .* Mlambda)
+        
+        # # @info "Replacing cbetaP_lambda..."
+        delete.(submodel, submodel[:cbetaP_lambda])
+        JuMP.unregister.(submodel, :cbetaP_lambda)
+        @constraint(submodel, cbetaP_lambda, submodel[:betaP] .<= (-submodel[:lambda] .+ 1)*Mlambda)
+        
+        # # @info "Replacing cmu_betaM..."
+        delete.(submodel, submodel[:cmu_betaM])
+        JuMP.unregister.(submodel, :cmu_betaM)
+        @constraint(submodel, cmu_betaM, (-submodel[:mu] .+ 1) .<= submodel[:betaM] * Mmu)
+        
+        # # @info "Replacing cXi1SYe_Xi2SYo..."
+        delete.(submodel, submodel[:cXi1SYe_Xi2SYo])
+        JuMP.unregister.(submodel, :cXi1SYe_Xi2SYo)
+        @constraint(submodel, cXi1SYe_Xi2SYo, Xi1 * submodel[:SYe] .<= Xi2 * submodel[:SYo] + submodel[:xi] * MTW + (-submodel[:mu] .+ 1) * MTW)
+        
+        # # @info "Replacing cXi2SYe_Xi1SYo..."
+        delete.(submodel, submodel[:cXi2SYe_Xi1SYo])
+        JuMP.unregister.(submodel, :cXi2SYe_Xi1SYo)
+        @constraint(submodel, cXi2SYe_Xi1SYo, Xi2 * submodel[:SYe] .<= Xi1 * submodel[:SYo] + (-submodel[:xi] .+ 1) * MTW + (-submodel[:mu] .+ 1) * MTW)
+        
+    end
+    
+    
+    
+    
+    # # @info "Replacing cXi1SU_Xi2SU..."
+    notmissingTE = filter(x -> !ismissing(subproblem[:TE][chosentrucks[t], x]), 1:nbsuppliers)
     delete.(submodel, submodel[:cXi1SU_Xi2SU])
     JuMP.unregister.(submodel, :cXi1SU_Xi2SU)
-    @constraint(submodel, cXi1SU_Xi2SU, Xi1 * submodel[:SU][:, notmissingTE] * subproblem[:TE][t, notmissingTE] .<= Xi2 * submodel[:SU][:, notmissingTE] * subproblem[:TE][t, notmissingTE])
+    @constraint(submodel, cXi1SU_Xi2SU, Xi1 * submodel[:SU][:, notmissingTE] * subproblem[:TE][chosentrucks[t], notmissingTE] .<= Xi2 * submodel[:SU][:, notmissingTE] * subproblem[:TE][chosentrucks[t], notmissingTE])
 
-    @debug begin
-        @debug "cXi1SU_Xi2SU" cXi1SU_Xi2SU
-        sleep(20)
-    end
+    # # @info "Replacing cXi1SU_Xi2SU_chi..."
+    delete.(submodel, submodel[:cXi1SU_Xi2SU_chi])
+    JuMP.unregister.(submodel, :cXi1SU_Xi2SU_chi)
+    @constraint(submodel, cXi1SU_Xi2SU_chi, Xi1*submodel[:SU] - Xi2*submodel[:SU] .>= submodel[:chi] * epsilon - submodel[:r]*MTE - (-submodel[:sigma1] .+ 1) * MTE)
 
-    @info "Replacing cXi2SK_Xi1SK..."
+    # # @info "Replacing cXi2SU_Xi1SU_chi..."
+    delete.(submodel, submodel[:cXi2SU_Xi1SU_chi])
+    JuMP.unregister.(submodel, :cXi2SU_Xi1SU_chi)
+    @constraint(submodel, cXi2SU_Xi1SU_chi, Xi2*submodel[:SU] - Xi1*submodel[:SU] .>= (-submodel[:chi] .+ 1) * epsilon - submodel[:r]*MTE - (-submodel[:sigma1] .+ 1) * MTE)
+
+
+    # # @info "Replacing cXi2SK_Xi1SK..."
     delete.(submodel, submodel[:cXi2SK_Xi1SK])
     JuMP.unregister.(submodel, :cXi2SK_Xi1SK)
-    notmissingTKE = filter(x -> !ismissing(subproblem[:TKE][t, x]), 1:nbsupplierdocks)
-    @constraint(submodel, cXi2SK_Xi1SK, Xi2*submodel[:SK][:, notmissingTKE]*subproblem[:TKE][t, notmissingTKE] .>= Xi1*submodel[:SK][:, notmissingTKE]*subproblem[:TKE][t, notmissingTKE] - (-submodel[:r] .+ 1) * MTKE)
+    notmissingTKE = filter(x -> !ismissing(subproblem[:TKE][chosentrucks[t], x]), 1:nbsupplierdocks)
+    @constraint(submodel, cXi2SK_Xi1SK, Xi2*submodel[:SK][:, notmissingTKE]*subproblem[:TKE][chosentrucks[t], notmissingTKE] .>= Xi1*submodel[:SK][:, notmissingTKE]*subproblem[:TKE][chosentrucks[t], notmissingTKE] - (-submodel[:r] .+ 1) * MTKE)
 
-    @info "Replacing cXi1SK_Xi2SK_chi..."
+    # # @info "Replacing cXi1SK_Xi2SK_chi..."
     delete.(submodel, submodel[:cXi1SK_Xi2SK_chi])
     JuMP.unregister.(submodel, :cXi1SK_Xi2SK_chi)
-    @constraint(submodel, cXi1SK_Xi2SK_chi, Xi1*submodel[:SK][:, notmissingTKE]*subproblem[:TKE][t, notmissingTKE] - Xi2*submodel[:SK][:, notmissingTKE]*subproblem[:TKE][t, notmissingTKE] .>= submodel[:chi]*epsilon - (-submodel[:sigma2] .+ 1)*MTKE)
-    @info "Replacing cXi2SK_Xi1SK_chi..."
+    @constraint(submodel, cXi1SK_Xi2SK_chi, Xi1*submodel[:SK][:, notmissingTKE]*subproblem[:TKE][chosentrucks[t], notmissingTKE] - Xi2*submodel[:SK][:, notmissingTKE]*subproblem[:TKE][chosentrucks[t], notmissingTKE] .>= submodel[:chi]*epsilon - (-submodel[:sigma2] .+ 1)*MTKE)
+    # # @info "Replacing cXi2SK_Xi1SK_chi..."
     delete.(submodel, submodel[:cXi2SK_Xi1SK_chi])
     JuMP.unregister.(submodel, :cXi2SK_Xi1SK_chi)
-    @constraint(submodel, cXi2SK_Xi1SK_chi, Xi2*submodel[:SK][:, notmissingTKE]*subproblem[:TKE][t, notmissingTKE] - Xi1*submodel[:SK][:, notmissingTKE]*subproblem[:TKE][t, notmissingTKE] .>= (-submodel[:chi] .+ 1)*epsilon - (-submodel[:sigma2] .+ 1)*MTKE)
+    @constraint(submodel, cXi2SK_Xi1SK_chi, Xi2*submodel[:SK][:, notmissingTKE]*subproblem[:TKE][chosentrucks[t], notmissingTKE] - Xi1*submodel[:SK][:, notmissingTKE]*subproblem[:TKE][chosentrucks[t], notmissingTKE] .>= (-submodel[:chi] .+ 1)*epsilon - (-submodel[:sigma2] .+ 1)*MTKE)
 
-    @info "Replacing cXi2SG_Xi1SG..."
+    # # @info "Replacing cXi2SG_Xi1SG..."
     delete.(submodel, submodel[:cXi2SG_Xi1SG])
     JuMP.unregister.(submodel, :cXi2SG_Xi1SG)
-    notmissingTGE = filter(x -> !ismissing(subproblem[:TGE][t, x]), 1:nbplantdocks)
-    @constraint(submodel, cXi2SG_Xi1SG, Xi2*submodel[:SG][:, notmissingTGE]*subproblem[:TGE][t, notmissingTGE] .>= Xi1*submodel[:SG][:, notmissingTGE]*subproblem[:TGE][t, notmissingTGE] - (-submodel[:sigma3] .+ 1) * MTGE)
+    notmissingTGE = filter(x -> !ismissing(subproblem[:TGE][chosentrucks[t], x]), 1:nbplantdocks)
+    @constraint(submodel, cXi2SG_Xi1SG, Xi2*submodel[:SG][:, notmissingTGE]*subproblem[:TGE][chosentrucks[t], notmissingTGE] .>= Xi1*submodel[:SG][:, notmissingTGE]*subproblem[:TGE][chosentrucks[t], notmissingTGE] - (-submodel[:sigma3] .+ 1) * MTGE)
+
+    # # @info "Replacing csigma1_sigma2_sigma3..."
+    delete.(submodel, submodel[:csigma1_sigma2_sigma3])
+    JuMP.unregister.(submodel, :csigma1_sigma2_sigma3)
+    @constraint(submodel, csigma1_sigma2_sigma3, submodel[:sigma1] + submodel[:sigma2] + submodel[:sigma3] .>= 1)
+
+
 end
 
 function Subproblem(t, problem, optimizer, chosentrucks)
     
     ## Create model
     submodel = Model(optimizer)
-    nbcandidateitems = sum(problem[:TR][t, :])
+    set_silent(submodel)
+    nbcandidateitems = sum(problem[:TR][chosentrucks[t], :])
     nbitems = problem[:nbitems]
     nbtrucks = problem[:nbtrucks]
     nbchosentrucks = length(chosentrucks)
     # nbcandidateitems = max([sum(problem[:TR][t2, :]) for t2 in 1:nbtrucks]...)
-    nbstacks = nbcandidateitems
+    nbstacks = max(1, nbcandidateitems) # 1 in case no candidate items
     nbplannedtrucks = problem[:nbplannedtrucks]
     nbplants = problem[:nbplants]
     nbplantdocks = problem[:nbplantdocks]
     nbsuppliers = problem[:nbsuppliers]
     nbsupplierdocks = problem[:nbsupplierdocks]
-    nbextratrucks = length(filter(x -> x in 1:nbplannedtrucks, chosentrucks))
+    nbextratrucks = length(filter(x -> !(x in 1:nbplannedtrucks), chosentrucks))
     subproblem = Subproblem(t, problem, submodel, optimizer, nbstacks, Matrix{Union{Missing, Bool}}(missing, nbtrucks, nbtrucks))
 
     ## Add variables
-    @info "Creating variables..."
-    @info "Adding zetaT..."
+    # # @info "Creating variables..."
+    # @info "Adding zetaT..."
     @variable(submodel, zetaT[1:nbplannedtrucks] >= 0) 
-    @info "Adding zetaE..."
+    # @info "Adding zetaE..."
     @variable(submodel, zetaE[1:nbextratrucks] >= 0)
 
-    @info "Adding SS..."
+    # @info "Adding SS..."
     @variable(submodel, SS[1:nbstacks] >= 0)
-    @info "Adding SP..."
+    # @info "Adding SP..."
     @variable(submodel, SP[1:nbstacks], lower_bound = 0)
-    @info "Adding SK..."
+    # @info "Adding SK..."
     @variable(submodel, SK[1:nbstacks, 1:nbsupplierdocks], lower_bound = 0, upper_bound = 1) # No need for Bin because it is constrained to be equal to their items' which are integer
     # @variable(submodel, SK[1:nbstacks], lower_bound = 0) # No need for Bin because it is constrained to be equal to their items' which are integer
-    # @info "Adding SG..."
+    # # @info "Adding SG..."
     # @variable(submodel, SG[1:nbstacks, 1:nbplantdocks], lower_bound = 0, upper_bound = 1)
     # @variable(submodel, SG[1:nbstacks], lower_bound = 0)
-    @info "Adding SU..."
+    # @info "Adding SU..."
     @variable(submodel, SU[1:nbstacks, 1:nbsuppliers], lower_bound = 0, upper_bound = 1)
     # @variable(submodel, SU[1:nbstacks], lower_bound = 0)
-    @info "Adding SO..."
+    # @info "Adding SO..."
     @variable(submodel, SO[1:nbstacks] >= 0)
-    @info "Adding SXe..."
+    # @info "Adding SXe..."
     @variable(submodel, SXe[1:nbstacks] >= 0)
-    @info "Adding SXo..."
+    # @info "Adding SXo..."
     @variable(submodel, SXo[1:nbstacks] >= 0)
-    @info "Adding SYe..."
+    # @info "Adding SYe..."
     @variable(submodel, SYe[1:nbstacks] >= 0)
-    @info "Adding SYo..."
+    # @info "Adding SYo..."
     @variable(submodel, SYo[1:nbstacks] >= 0)
-    @info "Adding SZe..."
+    # @info "Adding SZe..."
     @variable(submodel, SZe[1:nbstacks] >= 0)
-    @info "Adding betaM..."
+    # @info "Adding betaM..."
     @variable(submodel, betaM[1:convert(Int, nbstacks*(nbstacks+1)/2)] >= 0)
-    @info "Adding betaP..."
+    # @info "Adding betaP..."
     @variable(submodel, betaP[1:convert(Int, nbstacks*(nbstacks+1)/2)] >= 0)
-    @info "Adding nu..."
+    # @info "Adding nu..."
     @variable(submodel, nu[1:nbstacks] >= 0)
-    @info "Adding tau..."
+    # @info "Adding tau..."
     @variable(submodel, tau[1:nbstacks] >= 0)
-    @info "Adding phi..."
+    # @info "Adding phi..."
     @variable(submodel, phi[1:nbstacks] >= 0)
-    @info "Adding SG..."
+    # @info "Adding SG..."
     @variable(submodel, SG[1:nbstacks, 1:nbplantdocks] >= 0, upper_bound = 1)
 
     @variable(submodel, SL[1:nbstacks] >= 0)
     @variable(submodel, SW[1:nbstacks] >= 0)
 
-    @info "Adding TI..."
+    # @info "Adding TI..."
     @variable(submodel, TI[1:nbchosentrucks, 1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
-    @info "Adding GI..."
+    # @info "Adding GI..."
     @variable(submodel, GI[1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
-    @info "Adding R..."
+    # @info "Adding R..."
     @variable(submodel, R[1:nbitems, 1:nbsuppliers], lower_bound = 0, upper_bound = 1, Bin)
-    @info "Adding Theta..."
+    # @info "Adding Theta..."
     @variable(submodel, Theta[1:nbitems, 1:nbsuppliers], lower_bound = 0, upper_bound = 1, Bin)
-    @info "Adding S..."
+    # @info "Adding S..."
     @variable(submodel, S[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, upper_bound = 1, Bin)
-    @info "Adding Z..."
+    # @info "Adding Z..."
     @variable(submodel, Z[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, upper_bound = 1, Bin)
 
-    @debug "nbstacks" nbstacks
-    @debug "nbtrucks" nbtrucks
-    @debug "nbchosentrucks" nbchosentrucks
-    @debug "nbitems" nbitems
-    # @info "Adding Omega..."
+    # @debug "nbstacks" nbstacks
+    # @debug "nbtrucks" nbtrucks
+    # @debug "nbchosentrucks" nbchosentrucks
+    # @debug "nbitems" nbitems
+    # # @info "Adding Omega..."
     # @variable(submodel, Omega[1:nbstacks, 1:nbtrucks, 1:nbitems], lower_bound = 0, upper_bound = 1, container=Array, Bin)
 
-    # @info string("Adding Omega[", t, "]...")
+    # # @info string("Adding Omega[", t, "]...")
     # submodel[Symbol("Omega[", t, "]")] = @variable(submodel, [1:nbstacks, 1:nbitems], lower_bound = 0, upper_bound = 1, container=Array, Bin)
 
-    # @info "Adding ST..."
+    # # @info "Adding ST..."
     # @variable(submodel, ST[1:nbstacks, 1:nbtrucks], lower_bound = 0, upper_bound = 1, Bin)
-    @info "Adding IOV..."
+    # @info "Adding IOV..."
     @variable(submodel, IOV[1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
-    @info "Adding mu..."
+    # @info "Adding mu..."
     @variable(submodel, mu[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
-    @info "Adding eta..."
+    # @info "Adding eta..."
     @variable(submodel, eta[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
-    @info "Adding xi..."
+    # @info "Adding xi..."
     @variable(submodel, xi[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
-    @info "Adding chi..."
+    # @info "Adding chi..."
     @variable(submodel, chi[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
-    @info "Adding r..."
+    # @info "Adding r..."
     @variable(submodel, r[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
 
-    @info "Adding sigma1..."
+    # @info "Adding sigma1..."
     @variable(submodel, sigma1[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
-    @info "Adding sigma2..."
+    # @info "Adding sigma2..."
     @variable(submodel, sigma2[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
-    @info "Adding sigma3..."
+    # @info "Adding sigma3..."
     @variable(submodel, sigma3[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
 
-    # @info "Adding Psi..."
+    # # @info "Adding Psi..."
     # @variable(submodel, Psi[1:nbstacks, 1:nbtrucks], lower_bound = 0, Int)
-    @info "Adding Q..."
+    # @info "Adding Q..."
     @variable(submodel, Q[1:nbstacks, 1:nbsuppliers], lower_bound = 0, Int)
-    # @info "Adding H..."
+    # # @info "Adding H..."
     # @variable(submodel, H[1:nbstacks, 1:nbitems], lower_bound = 0, Int)
-    @info "Adding V..."
+    # @info "Adding V..."
     @variable(submodel, V[1:nbstacks, 1:nbsupplierdocks], lower_bound = 0, Int)
-    @info "Adding W..."
+    # @info "Adding W..."
     @variable(submodel, W[1:nbstacks, 1:nbplantdocks], lower_bound = 0, Int)
-    @info "Adding Gl..."
+    # @info "Adding Gl..."
     @variable(submodel, Gl[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, Int)
-    @info "Adding Gr..."
+    # @info "Adding Gr..."
     @variable(submodel, Gr[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, Int)
 
     @variable(submodel, DL[1:nbstacks, 1:nbcandidateitems], lower_bound = 0)
     @variable(submodel, DW[1:nbstacks, 1:nbcandidateitems], lower_bound = 0)
 
-    @info "Adding lambda..."
+    # @info "Adding lambda..."
     @variable(submodel, lambda[1:convert(Int, nbstacks * (nbstacks+1)/2)], lower_bound = 0, Bin)
     
-    @info "Computing parameters..."
+    # @info "Computing parameters..."
     # MI4 = [[max(TU[:, j]...) for j in 1:first(size(TU[1, :]))] for j in 1:first(size(TI[:, 1]))]
     # MI4 = map(Int, (max(TU[:, i]...) for i = 1:first(size(TU[1, :])), j = 1:first(size(TI[:, 1]))))
 
@@ -888,28 +1182,28 @@ function Subproblem(t, problem, optimizer, chosentrucks)
 
     ### DEBUG begin
     ## Add constraints
-    @info "Adding constraints..."
+    # @info "Adding constraints..."
     if t <= nbplannedtrucks
-        @info "Adding cZetaT2..."
+        # @info "Adding cZetaT2..."
         # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
         #     @debug "-reshape(TI[t, :], nbitems, 1)" -reshape(TI[t, :], nbitems, 1)
         #     @debug "vones(Int8, nbitems)" vones(Int8, nbitems)
         # end
         @constraint(submodel, cZetaT2, zetaT * Mzeta .>= TI[1:nbplannedtrucks, :] * vones(Int8, nbitems))
-        @info "Adding cZetaT3..."
+        # @info "Adding cZetaT3..."
         @constraint(submodel, cZetaT3, -(1 .- zetaT) * Mzeta .+ 1 .<= TI[1:nbplannedtrucks, :] * vones(Int8, nbitems))
     else
-        @info "Adding cZetaE2..."
+        # @info "Adding cZetaE2..."
         @constraint(submodel, cZetaE2, zetaE * Mzeta .>= TI[nbplannedtrucks+1:end, :] * vones(Int8, nbitems))
-        @info "Adding cZetaE3..."
+        # @info "Adding cZetaE3..."
         @constraint(submodel, cZetaE3, -(1 .- zetaE) * Mzeta .+ 1 .<= TI[nbplannedtrucks+1:end, :] * vones(Int8, nbitems))
     end
-    @info "Adding cTI_TR..."
-    @constraint(submodel, cTI_TR, TI[t, :] .<= problem[:TR][t, :])
+    # @info "Adding cTI_TR..."
+    @constraint(submodel, cTI_TR, TI[chosentrucks[t], :] .<= problem[:TR][chosentrucks[t], :])
 
-    icandidates = findall((x) -> x == 1, problem[:TR][t, :])
+    icandidates = findall((x) -> x == 1, problem[:TR][chosentrucks[t], :])
     # @debug icandidates
-    @info "Adding cTI_1_1..."
+    # @info "Adding cTI_1_1..."
     # no more than one truck per candidate item
     # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
     #     @debug "transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :]" transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :]
@@ -917,192 +1211,163 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     # end
     @constraint(submodel, cTI_1_1, transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :] * vones(Int8, nbchosentrucks) + GI[filter(x -> x in icandidates, 1:nbitems)] .<= vones(Int8, size(transpose(TI)[filter(x -> x in icandidates, 1:nbitems), :], 1)))
     # @debug "cTI_1_1" cTI_1_1[icandidates[1], :]
-    @info "Adding cS_TI..."
+    # @info "Adding cS_TI..."
     # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do 
     #     @debug "S" S
     #     @debug "vones(Int8, length(icandidates))" vones(Int8, length(icandidates))
     #     @debug "S * vones(Int8, length(icandidates))" S * vones(Int8, length(icandidates))
     # end
-    @constraint(submodel, cS_TI, transpose(S) * vones(Int8, nbstacks) .== TI[t, filter(x -> x in icandidates, 1:nbitems)])
+    @constraint(submodel, cS_TI, transpose(S) * vones(Int8, nbstacks) .== TI[chosentrucks[t], filter(x -> x in icandidates, 1:nbitems)])
     # @debug "cS_TI" cS_TI
-    # @info "Adding cR_Theta_MI4..."
+    # # @info "Adding cR_Theta_MI4..."
     # @constraint(submodel, cR_Theta_MI4, R <= Theta * MI4)
 
-    # @info "Adding cR_TI_TU..."
+    # # @info "Adding cR_TI_TU..."
     # @constraint(submodel, cR_TI_TU, -MI4*(1-Theta) <= R - (transpose(TI) * TU) <= MI4* (1-Theta))
 
-    # @info "Adding cR_1_IU..."
+    # # @info "Adding cR_1_IU..."
     # @constraint(submodel, cR_1_IU, R * vones(Int8, size(R)[1]) == IU)
 
-    # @info "Adding cTheta_1_1..."
+    # # @info "Adding cTheta_1_1..."
     # @constraint(submodel, cTheta_1_1, Theta * vones(Int8, size(Theta)[1]) >= vones(Int8, size(Theta)[1]))
 
-    # @info "Adding cIDE_TI_TDA_IDL..."
+    # # @info "Adding cIDE_TI_TDA_IDL..."
     # @constraint(submodel, cIDE_TI_TDA_IDL, IDE <= transpose(TI) * TDA <= IDL)
 
-    @info "Adding cZ_S_MZ..."
+    # @info "Adding cZ_S_MZ..."
     @constraint(submodel, cZ_S_MZ, Z .<= S * MZ)
-    # @info "Adding cPsi_Omega..."
+    # # @info "Adding cPsi_Omega..."
     # @constraint(submodel, cPsi_Omega, Psi == hcat([Omega[:,i,:]*vones(Int8, size(Omega)[1]) for i in 1:size(Omega)[2]]...))
 
     # for j in 1:size(Omega)[2]
-    #     @info "Adding cOmega_S_MOmega..."
+    #     # @info "Adding cOmega_S_MOmega..."
     #     # @constraint(submodel, cOmega_S_MOmega, Omega[:, j, :] <= S * MOmega)
     #     @constraint(submodel, cOmega_S_MOmega, submodel(Symbol("Omega[", j, "]")) <= S * MOmega)
     # end
     # for i in 1:size(Omega)[1]
-    #     @info "Adding cOmega_TI_S..."
+    #     # @info "Adding cOmega_TI_S..."
     #     @constraint(submodel, cOmega_TI_S, -(1-S)*MOmega <= Omega[i,:,:] - transpose(TI) <= (1 - S)*MOmega)
     # end
 
-    # @info "Adding cPsi_ST_MPsi..."
+    # # @info "Adding cPsi_ST_MPsi..."
     # @constraint(submodel, cPsi_ST_MPsi, Psi <= ST * MPsi)
 
-    # @info "Adding cPsi_S_ST..."
+    # # @info "Adding cPsi_S_ST..."
     # @constraint(submodel, cPsi_S_ST, -(1-ST)*MPsi <= Psi - hcat([S * vones(Int8, size(S)[1]) for i in 1:size(Psi)[2]]) <= (1-ST)*MPsi)
 
-    # @info "Adding cS_TI_MS..."
-    # @constraint(submodel, cS_TI_MSleft, -(vones(Int8, nbcandidateitems) - TI[t, filter(x -> x in icandidates, 1:nbitems)]) * MS .<= transpose(S) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems))
-    # @constraint(submodel, cS_TI_MSright, transpose(S) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems) .<= (vones(Int8, nbcandidateitems) - TI[t, filter(x -> x in icandidates, 1:nbitems)]) * MS)
+    # # @info "Adding cS_TI_MS..."
+    # @constraint(submodel, cS_TI_MSleft, -(vones(Int8, nbcandidateitems) - TI[chosentrucks[t], filter(x -> x in icandidates, 1:nbitems)]) * MS .<= transpose(S) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems))
+    # @constraint(submodel, cS_TI_MSright, transpose(S) * vones(Int8, nbcandidateitems) - vones(Int8, nbcandidateitems) .<= (vones(Int8, nbcandidateitems) - TI[chosentrucks[t], filter(x -> x in icandidates, 1:nbitems)]) * MS)
 
-    @info "Adding cS_IS_Z..."
+    # @info "Adding cS_IS_Z..."
     @constraint(submodel, cS_IS_Z, S * problem[:IS][filter(x -> x in icandidates, 1:nbitems)] .== Z * vones(Int8, size(Z)[1]))
 
-    @info "Adding cZ_SS_S..."
-    # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
-    #     # @debug  "(-S .+ 1)" (-S .+ 1)
-    #     # @debug "-MZ * (-S .+ 1)" -MZ * (-S .+ 1)
-    #     @debug "Z" Z
-    #     @debug "hcat([SS for i in 1:size(Z)[2]]...)" hcat([SS for i in 1:size(Z)[2]]...)
-    # end
+    # @info "Adding cZ_SS_S..."
     @constraint(submodel, cZ_SS_Sleft, -MZ * (-S .+ 1) .<= Z .- hcat([SS for i in 1:size(Z)[2]]...))
     @constraint(submodel, cZ_SS_Sright, Z .- hcat([SS for i in 1:size(Z)[2]]...) .<= MZ * (-S .+ 1))
 
-    @info "Adding cQ_S..."
-    @constraint(submodel, cQ_S, Q .<= SU * MQ)
+    # @info "Adding cQ_SU..."
+    @constraint(submodel, cQ_SU, Q .<= SU * MQ)
 
-    @info "Adding cS_IU_Q..."
+    # @info "Adding cS_IU_Q..."
     @constraint(submodel, cS_IU_Q, S * problem[:IU][filter(x -> x in icandidates, 1:nbitems)] .== Q)
 
-    @info "Adding cQ_SU_S..."
-    # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
-    #     @debug "SU" SU
-    #     @debug "Q" Q
-    # end
+    # @info "Adding cQ_SU_S..."
     @constraint(submodel, cQ_SU_Sleft, -MQ * (1 .- SU) .<= Q .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(Q, 2)]...))
     @constraint(submodel, cQ_SU_Sright, Q .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(Q, 2)]...) .<= MQ * (1 .- SU))
 
 
-    # @info "Adding cH_S..."
+    # # @info "Adding cH_S..."
     # @constraint(submodel, cH_S, H <= S * MH)
 
-    # @info "Adding cS_IP_H..."
+    # # @info "Adding cS_IP_H..."
     # @constraint(submodel, cS_IP_H, S * IP == H * vones(Int8, size(H)[1]))
 
-    # @info "Adding cH_SP_S..."
+    # # @info "Adding cH_SP_S..."
     # @constraint(submodel, cH_SP_S, -MH * (1-S) <= H - hcat([SP for i in 1:size(H)[2]]) <= MH * (1-S))
 
 
-    @info "Adding cV_S..."
-    @constraint(submodel, cV_S, V .<= SK * MV)
+    # @info "Adding cV_SK..."
+    @constraint(submodel, cV_SK, V .<= SK * MV)
 
-    @info "Adding cS_IK_V..."
+    # @info "Adding cS_IK_V..."
     @constraint(submodel, cS_IK_V, S * problem[:IK][filter(x -> x in icandidates, 1:nbitems)] .== V)
 
-    @info "Adding cV_SK_S..."
+    # @info "Adding cV_SK_S..."
     @constraint(submodel, cV_SK_Sleft, -MV * (-SK .+ 1) .<= V .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(V, 2)]...))
     @constraint(submodel, cV_SK_Sright, V .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(V, 2)]...) .<= MV * (-SK .+ 1))
 
 
-    @info "Adding cW_S..."
-    @constraint(submodel, cW_S, W .<= SG * MW)
+    # @info "Adding cW_SG..."
+    @constraint(submodel, cW_SG, W .<= SG * MW)
 
-    @info "Adding cS_IPD_W..."
+    # @info "Adding cS_IPD_W..."
 
     @constraint(submodel, cS_IPD_W, S * problem[:IPD][filter(x -> x in icandidates, 1:nbitems)] .== W)
 
-    @info "Adding cW_SG_S..."
+    # @info "Adding cW_SG_S..."
     @constraint(submodel, cW_SPD_Sleft, -MW * (-SG .+ 1) .<= W .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(W, 2)]...))
     @constraint(submodel, cW_SPD_Sright, W .- hcat([S * vones(Int8, size(S, 2)) for i in 1:size(W, 2)]...) .<= MW * (-SG .+ 1))
 
 
-    @info "Adding cGl_S..."
+    # @info "Adding cGl_S..."
     @constraint(submodel, cGl_S, Gl .<= S * MG)
-    @info "Adding cGr_S..."
+    # @info "Adding cGr_S..."
     @constraint(submodel, cGr_S, Gr .<= S * MG)
 
-    @info "Adding cGl_Gr..."
+    # @info "Adding cGl_Gr..."
     # @constraint(submodel, cGl_Gr, Gl * vones(Int8, size(Gl)[1]) .== Gr * vones(Int8, size(Gr)[1])) # I don't understand this
     @constraint(submodel, cGl_Gr, Gl .== Gr)
 
-    @info "Adding cGr_SO_S..."
-    @debug begin
-        @debug "SO " SO 
-        # sleep(10)
-        @debug "hcat([SO for i in 1:size(Gr)[2]]...)" hcat([SO for i in 1:nbcandidateitems]...)
-        # sleep(10)
-        @debug "Gr" Gr
-        # sleep(30)
-    end
+    # @info "Adding cGr_SO_S..."
     @constraint(submodel, cGr_SO_Sleft, -MG * (-S .+ 1) .<= Gr .- hcat([SO for i in 1:nbcandidateitems]...))
     @constraint(submodel, cGr_SO_Sright, Gr .- hcat([SO for i in 1:nbcandidateitems]...) .<= MG * (-S .+ 1))
-    @info "Adding cGl_IOV_S..."
-    @debug begin
-        @debug "IOV " IOV 
-        # sleep(10)
-        @debug "vcat([transpose(IOV[filter(x -> x in icandidates, 1:nbitems)]) for i in 1:size(Gl)[2]]...)" vcat([transpose(IOV[filter(x -> x in icandidates, 1:nbitems)]) for i in 1:size(Gl)[2]]...)
-        # sleep(10)
-        @debug "Gl" Gl
-        # sleep(30)
-    end
+    # @info "Adding cGl_IOV_S..."
     @constraint(submodel, cGl_IOV_Sleft, -MG * (-S .+ 1) .<= Gl .- vcat([transpose(IOV[filter(x -> x in icandidates, 1:nbitems)]) for i in 1:nbstacks]...))
     @constraint(submodel, cGl_IOV_Sright, Gl .- vcat([transpose(IOV[filter(x -> x in icandidates, 1:nbitems)]) for i in 1:nbstacks]...) .<= MG * (-S .+ 1))
 
-    @info "Adding cDL_S..."
+    # @info "Adding cDL_S..."
     @constraint(submodel, cDL_S, DL .<= S * MDL)
-    ## debug
-    @info "Adding cDL_SL..."
+    # @info "Adding cDL_SL..."
     @constraint(submodel, cDL_SLleft, -MDL * (-S .+ 1) .<= DL - hcat([SL for i in 1:size(DL)[2]]...))
     @constraint(submodel, cDL_SLright, DL - hcat([SL for i in 1:size(DL)[2]]...) .<= MDL * (-S .+ 1))
-    @info "Adding cDL_S_IL..."
+    # @info "Adding cDL_S_IL..."
     @constraint(submodel, cDL_S_IL, DL * vones(Int8, size(S, 1)) .== S * problem[:IL][filter(x -> x in icandidates, 1:nbitems)])
-    @info "Adding cDW_S..."
+    # @info "Adding cDW_S..."
     @constraint(submodel, cDW_S, DW .<= S * MDW)
-    ## debug
-    @info "Adding cDW_SW..."
+    # @info "Adding cDW_SW..."
     @constraint(submodel, cDW_SWleft, -MDW * (-S .+ 1) .<= DW - hcat([SW for i in 1:size(DW)[2]]...))
     @constraint(submodel, cDW_SWright, DW - hcat([SW for i in 1:size(DW)[2]]...) .<= MDW * (-S .+ 1))
-    @info "Adding cDW_S_IW..."
+    # @info "Adding cDW_S_IW..."
     @constraint(submodel, cDW_S_IW, DW * vones(Int8, size(S, 1)) .== S * problem[:IW][filter(x -> x in icandidates, 1:nbitems)])
 
-    ## debug
-    @info "Adding cSXe_SXo_SL_SO..."
+    # @info "Adding cSXe_SXo_SL_SO..."
     # @constraint(submodel, cSXe_SXo_SL_SO, SXe - SXo .== SL + SO * MTL)
     @constraint(submodel, cSXe_SXo_SL_SOleft, SXe - SXo - SL .<= SO * MTL)
     @constraint(submodel, cSXe_SXo_SL_SOright, SXe - SXo - SL .>= -SO * MTL)
-    @info "Adding cSYe_SYo_SW_SO..."
+    # @info "Adding cSYe_SYo_SW_SO..."
     # @constraint(submodel, cSYe_SYo_SW_SO, SYe - SYo .== SW + SO * MTW)
     @constraint(submodel, cSYe_SYo_SW_SOleft, SYe - SYo - SW .<= SO * MTW)
     @constraint(submodel, cSYe_SYo_SW_SOright, SYe - SYo - SW .>= -SO * MTW)
-    @info "Adding cSXe_SXo_SW_SO..."
+    # @info "Adding cSXe_SXo_SW_SO..."
     # @constraint(submodel, cSXe_SXo_SW_SO, SXe - SXo .== SW + (-SO .+ 1) * MTW)
     @constraint(submodel, cSXe_SXo_SW_SOleft, SXe - SXo - SW .<= (-SO .+ 1) * MTW)
     @constraint(submodel, cSXe_SXo_SW_SOright, SXe - SXo - SW .>= -(-SO .+ 1) * MTW)
-    @info "Adding cSYe_SYo_SL_SO..."
+    # @info "Adding cSYe_SYo_SL_SO..."
     # @constraint(submodel, cSYe_SYo_SL_SO, SYe - SYo .== SL + (-SO .+ 1) * MTL)
     @constraint(submodel, cSYe_SYo_SL_SOleft, SYe - SYo - SL .<= (-SO .+ 1) * MTL)
     @constraint(submodel, cSYe_SYo_SL_SOright, SYe - SYo - SL .>= -(-SO .+ 1) * MTL)
-    @info "Adding cSZe_S_IH..."
+    # @info "Adding cSZe_S_IH..."
     @constraint(submodel, cSZe_S_IH, SZe .== S* problem[:IH][filter(x -> x in icandidates, 1:nbitems)])
-    @info "Adding cSXe_ST_TL..."
-    @constraint(submodel, cSXe_ST_TL, SXe .<= problem[:TL][t])
-    @info "Adding cSYe_ST_TW..."
-    @constraint(submodel, cSYe_ST_TW, SYe .<= problem[:TW][t])
-    @info "Adding cSZe_ST_TH..."
-    @constraint(submodel, cSZe_ST_TH, SZe .<= problem[:TH][t])
+    # @info "Adding cSXe_ST_TL..."
+    @constraint(submodel, cSXe_ST_TL, SXe .<= problem[:TL][chosentrucks[t]])
+    # @info "Adding cSYe_ST_TW..."
+    @constraint(submodel, cSYe_ST_TW, SYe .<= problem[:TW][chosentrucks[t]])
+    # @info "Adding cSZe_ST_TH..."
+    @constraint(submodel, cSZe_ST_TH, SZe .<= problem[:TH][chosentrucks[t]])
     #####
 
-    @info "Adding cSXo_SXo..."
+    # @info "Adding cSXo_SXo..."
     # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
     #     @debug  "SXo[1:end-1]" SXo[1:end-1]
     #     @debug "SXo[2:end]" SXo[2:end]
@@ -1112,7 +1377,7 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     ## debug
     @constraint(submodel, cSXo_SXo, SXo[1:end-1] .<= SXo[2:end])
 
-    @info "Adding cXi2SXo_Xi1SXe_betaM_betaP..."
+    # @info "Adding cXi2SXo_Xi1SXe_betaM_betaP..."
     # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
     #     @debug "Xi2" Xi2
     #     @debug "SXo" SXo
@@ -1126,7 +1391,7 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     ## debug
     @constraint(submodel, cXi2SXo_Xi1SXe_betaM_betaP, (Xi2 * SXo) - (Xi1 * SXe) - betaM + betaP .== -epsilon * vones(Float64, size(Xi1, 1)))
 
-    @info "Adding cbetaM_lambda..."
+    # @info "Adding cbetaM_lambda..."
     # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
     #     @debug "betaM" betaM
     #     @debug "lambda" lambda
@@ -1136,110 +1401,110 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     ## debug
     @constraint(submodel, cbetaM_lambda, betaM .<= lambda .* Mlambda)
 
-    @info "Adding cbetaP_lambda..."
+    # @info "Adding cbetaP_lambda..."
 
     ## debug
     @constraint(submodel, cbetaP_lambda, betaP .<= (-lambda .+ 1)*Mlambda)
 
-    @info "Adding cmu_betaM..."
+    # @info "Adding cmu_betaM..."
 
     ## debug
     @constraint(submodel, cmu_betaM, (-mu .+ 1) .<= betaM * Mmu)
 
-    # @info "Adding cXi2ST_Xi1ST..."
+    # # @info "Adding cXi2ST_Xi1ST..."
     # @constraint(submodel, cXi2ST_Xi1ST, (Xi2 * ST - Xi1 * ST) * diagm([i for i in 1:size(nu)[2]]) == nu)
 
-    # @info "Adding ctau_phi..."
+    # # @info "Adding ctau_phi..."
     # @constraint(submodel, ctau_phi, tau - phi <= (nu - nbtrucks) * Mtau)
 
-    # @info "Adding ctau..."
+    # # @info "Adding ctau..."
     # @constraint(submodel, ctau, tau >= (nu-nbtrucks)*Mtau/10)
 
-    # @info "Adding ctau_eta..."
+    # # @info "Adding ctau_eta..."
     # @constraint(submodel, ctau_eta, tau <= eta * Meta)
 
-    # @info "Adding cphi_eta..."
+    # # @info "Adding cphi_eta..."
     # @constraint(submodel, cphi_eta, phi <= (1 - eta)*Meta)
 
-    @info "Adding cXi1SYe_Xi2SYo..."
+    # @info "Adding cXi1SYe_Xi2SYo..."
 
     ## debug
     @constraint(submodel, cXi1SYe_Xi2SYo, Xi1 * SYe .<= Xi2 * SYo + xi * MTW + (-mu .+ 1) * MTW)
-    @info "Adding cXi2SYe_Xi1SYo..."
+    # @info "Adding cXi2SYe_Xi1SYo..."
 
     ## debug
     @constraint(submodel, cXi2SYe_Xi1SYo, Xi2 * SYe .<= Xi1 * SYo + (-xi .+ 1) * MTW + (-mu .+ 1) * MTW)
 
-    @info "Adding cXi1SU_Xi2SU..."
+    # @info "Adding cXi1SU_Xi2SU..."
     # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
     #     @debug "Xi1" Xi1
     #     @debug "SU" SU
     #     @debug "problem[:TE]" problem[:TE]
-    #     @debug "problem[:TE][t, :]" problem[:TE][t, :]
+    #     @debug "problem[:TE][chosentrucks[t], :]" problem[:TE][chosentrucks[t], :]
     # end
-    notmissingTE = filter(x -> !ismissing(problem[:TE][t, x]), 1:nbsuppliers)
+    notmissingTE = filter(x -> !ismissing(problem[:TE][chosentrucks[t], x]), 1:nbsuppliers)
 
     ## debug
-    @constraint(submodel, cXi1SU_Xi2SU, Xi1 * SU[:, notmissingTE] * problem[:TE][t, notmissingTE] .<= Xi2 * SU[:, notmissingTE] * problem[:TE][t, notmissingTE])
+    @constraint(submodel, cXi1SU_Xi2SU, Xi1 * SU[:, notmissingTE] * problem[:TE][chosentrucks[t], notmissingTE] .<= Xi2 * SU[:, notmissingTE] * problem[:TE][chosentrucks[t], notmissingTE])
     # @debug begin
     #     @debug "cXi1SU_Xi2SU" cXi1SU_Xi2SU
     #     @debug "notmissingTE" notmissingTE
     #     @debug "Xi1" Xi1
     #     @debug "Xi2" Xi2
     #     @debug "SU[:, notmissingTE]" SU[:, notmissingTE]
-    #     @debug "problem[:TE][t, notmissingTE]" problem[:TE][t, notmissingTE]
+    #     @debug "problem[:TE][chosentrucks[t], notmissingTE]" problem[:TE][chosentrucks[t], notmissingTE]
     #     sleep(20)
     # end
     # error("Debug stop!!")
-    @info "Adding cXi1SU_Xi2SU_chi..."
+    # @info "Adding cXi1SU_Xi2SU_chi..."
 
     ## debug
     @constraint(submodel, cXi1SU_Xi2SU_chi, Xi1*SU - Xi2*SU .>= chi * epsilon - r*MTE - (-sigma1 .+ 1) * MTE)
 
-    @info "Adding cXi2SU_Xi1SU_chi..."
+    # @info "Adding cXi2SU_Xi1SU_chi..."
     ## debug
     @constraint(submodel, cXi2SU_Xi1SU_chi, Xi2*SU - Xi1*SU .>= (-chi .+ 1) * epsilon - r*MTE - (-sigma1 .+ 1) * MTE)
 
-    @info "Adding cXi2SK_Xi1SK..."
-    notmissingTKE = filter(x -> !ismissing(problem[:TKE][t, x]), 1:nbsupplierdocks)
+    # @info "Adding cXi2SK_Xi1SK..."
+    notmissingTKE = filter(x -> !ismissing(problem[:TKE][chosentrucks[t], x]), 1:nbsupplierdocks)
 
     ## debug
-    @constraint(submodel, cXi2SK_Xi1SK, Xi2*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] .>= Xi1*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] - (-r .+ 1) * MTKE)
+    @constraint(submodel, cXi2SK_Xi1SK, Xi2*SK[:, notmissingTKE]*problem[:TKE][chosentrucks[t], notmissingTKE] .>= Xi1*SK[:, notmissingTKE]*problem[:TKE][chosentrucks[t], notmissingTKE] - (-r .+ 1) * MTKE)
 
-    @info "Adding cXi1SK_Xi2SK_chi..."
+    # @info "Adding cXi1SK_Xi2SK_chi..."
     
     ## debug
-    @constraint(submodel, cXi1SK_Xi2SK_chi, Xi1*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] - Xi2*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] .>= chi*epsilon - (-sigma2 .+ 1)*MTKE)
-    @info "Adding cXi2SK_Xi1SK_chi..."
+    @constraint(submodel, cXi1SK_Xi2SK_chi, Xi1*SK[:, notmissingTKE]*problem[:TKE][chosentrucks[t], notmissingTKE] - Xi2*SK[:, notmissingTKE]*problem[:TKE][chosentrucks[t], notmissingTKE] .>= chi*epsilon - (-sigma2 .+ 1)*MTKE)
+    # @info "Adding cXi2SK_Xi1SK_chi..."
 
     ## debug
-    @constraint(submodel, cXi2SK_Xi1SK_chi, Xi2*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] - Xi1*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] .>= (-chi .+ 1)*epsilon - (-sigma2 .+ 1)*MTKE)
+    @constraint(submodel, cXi2SK_Xi1SK_chi, Xi2*SK[:, notmissingTKE]*problem[:TKE][chosentrucks[t], notmissingTKE] - Xi1*SK[:, notmissingTKE]*problem[:TKE][chosentrucks[t], notmissingTKE] .>= (-chi .+ 1)*epsilon - (-sigma2 .+ 1)*MTKE)
 
-    @info "Adding cXi2SG_Xi1SG..."
-    notmissingTGE = filter(x -> !ismissing(problem[:TGE][t, x]), 1:nbplantdocks)
+    # @info "Adding cXi2SG_Xi1SG..."
+    notmissingTGE = filter(x -> !ismissing(problem[:TGE][chosentrucks[t], x]), 1:nbplantdocks)
     # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
     #     @debug "SG[:, notmissingTGE]" SG[:, notmissingTGE]
-    #     @debug "problem[:TGE][t, notmissingTGE]" problem[:TGE][t, notmissingTGE]
+    #     @debug "problem[:TGE][chosentrucks[t], notmissingTGE]" problem[:TGE][chosentrucks[t], notmissingTGE]
     # end
 
     ## debug
-    @constraint(submodel, cXi2SG_Xi1SG, Xi2*SG[:, notmissingTGE]*problem[:TGE][t, notmissingTGE] .>= Xi1*SG[:, notmissingTGE]*problem[:TGE][t, notmissingTGE] - (-sigma3 .+ 1) * MTGE)
+    @constraint(submodel, cXi2SG_Xi1SG, Xi2*SG[:, notmissingTGE]*problem[:TGE][chosentrucks[t], notmissingTGE] .>= Xi1*SG[:, notmissingTGE]*problem[:TGE][chosentrucks[t], notmissingTGE] - (-sigma3 .+ 1) * MTGE)
 
-    @info "Adding csigma1_sigma2_sigma3..."
+    # @info "Adding csigma1_sigma2_sigma3..."
 
     ## debug
     @constraint(submodel, csigma1_sigma2_sigma3, sigma1 + sigma2 + sigma3 .>= 1)
 
     #### DEBUG end
     #### DEBUG begin
-    # @info "Adding IOV constraints..."
+    # # @info "Adding IOV constraints..."
     # for i in 1:nbitems
     #     if !ismissing(problem[:_IO][i])
     #         submodel[Symbol(string("cIOV[", i, "]"))] = @constraint(submodel, IOV[i] == problem[:_IO][i])
     #     end
     # end
     #### DEBUG end
-    # @info "Adding objective function..."
+    # # @info "Adding objective function..."
     # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
     #     @debug "problem[:costtransportation]" problem[:costtransportation]
     #     @debug "zetaT" zetaT
@@ -1262,13 +1527,13 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     # sum(problem[:costextratruck] * zetaE) + 
     # sum(problem[:costinventory] * (problem[:IDL] - transpose(TI) * problem[:TDA])))
 
-    @info "Done!"
+    # @info "Done!"
     # @debug "kappa[t]" kappa[t]
     # @debug "sum([kappa[t2] for t2 in 1:nbtrucks])" sum([kappa[t2] for t2 in 1:nbtrucks])
     # @objective(submodel, Min, kappa * (submodel[:TI] - TIbar))
-    # @info "Adding objective function 2..."
+    # # @info "Adding objective function 2..."
     # @objective(submodel, Min, problem[:costinventory] * (problem[:IDL] - transpose(TI) * problem[:TDA]))
-    # @info "Adding objective function 3..."
+    # # @info "Adding objective function 3..."
     # @objective(submodel, Min, problem[:costextratruck] * zetaE + problem[:costinventory] * (problem[:IDL] - transpose(TI) * problem[:TDA]))
 
     return subproblem
