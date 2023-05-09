@@ -1060,6 +1060,7 @@ function Subproblem(t, problem, optimizer, chosentrucks)
 
     @info "Adding cDL_S..."
     @constraint(submodel, cDL_S, DL .<= S * MDL)
+    ## debug
     @info "Adding cDL_SL..."
     @constraint(submodel, cDL_SLleft, -MDL * (-S .+ 1) .<= DL - hcat([SL for i in 1:size(DL)[2]]...))
     @constraint(submodel, cDL_SLright, DL - hcat([SL for i in 1:size(DL)[2]]...) .<= MDL * (-S .+ 1))
@@ -1067,31 +1068,39 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     @constraint(submodel, cDL_S_IL, DL * vones(Int8, size(S, 1)) .== S * problem[:IL][filter(x -> x in icandidates, 1:nbitems)])
     @info "Adding cDW_S..."
     @constraint(submodel, cDW_S, DW .<= S * MDW)
+    ## debug
     @info "Adding cDW_SW..."
     @constraint(submodel, cDW_SWleft, -MDW * (-S .+ 1) .<= DW - hcat([SW for i in 1:size(DW)[2]]...))
     @constraint(submodel, cDW_SWright, DW - hcat([SW for i in 1:size(DW)[2]]...) .<= MDW * (-S .+ 1))
     @info "Adding cDW_S_IW..."
     @constraint(submodel, cDW_S_IW, DW * vones(Int8, size(S, 1)) .== S * problem[:IW][filter(x -> x in icandidates, 1:nbitems)])
 
+    ## debug
     @info "Adding cSXe_SXo_SL_SO..."
-    @constraint(submodel, cSXe_SXo_SL_SO, SXe - SXo .== SL + SO * MTL)
+    # @constraint(submodel, cSXe_SXo_SL_SO, SXe - SXo .== SL + SO * MTL)
+    @constraint(submodel, cSXe_SXo_SL_SOleft, SXe - SXo - SL .<= SO * MTL)
+    @constraint(submodel, cSXe_SXo_SL_SOright, SXe - SXo - SL .>= -SO * MTL)
     @info "Adding cSYe_SYo_SW_SO..."
-    @constraint(submodel, cSYe_SYo_SW_SO, SYe - SYo .== SW + SO * MTW)
-
+    # @constraint(submodel, cSYe_SYo_SW_SO, SYe - SYo .== SW + SO * MTW)
+    @constraint(submodel, cSYe_SYo_SW_SOleft, SYe - SYo - SW .<= SO * MTW)
+    @constraint(submodel, cSYe_SYo_SW_SOright, SYe - SYo - SW .>= -SO * MTW)
     @info "Adding cSXe_SXo_SW_SO..."
-    @constraint(submodel, cSXe_SXo_SW_SO, SXe - SXo .== SW + (-SO .+ 1) * MTW)
+    # @constraint(submodel, cSXe_SXo_SW_SO, SXe - SXo .== SW + (-SO .+ 1) * MTW)
+    @constraint(submodel, cSXe_SXo_SW_SOleft, SXe - SXo - SW .<= (-SO .+ 1) * MTW)
+    @constraint(submodel, cSXe_SXo_SW_SOright, SXe - SXo - SW .>= -(-SO .+ 1) * MTW)
     @info "Adding cSYe_SYo_SL_SO..."
-    @constraint(submodel, cSYe_SYo_SL_SO, SYe - SYo .== SL + (-SO .+ 1) * MTL)
-
+    # @constraint(submodel, cSYe_SYo_SL_SO, SYe - SYo .== SL + (-SO .+ 1) * MTL)
+    @constraint(submodel, cSYe_SYo_SL_SOleft, SYe - SYo - SL .<= (-SO .+ 1) * MTL)
+    @constraint(submodel, cSYe_SYo_SL_SOright, SYe - SYo - SL .>= -(-SO .+ 1) * MTL)
     @info "Adding cSZe_S_IH..."
     @constraint(submodel, cSZe_S_IH, SZe .== S* problem[:IH][filter(x -> x in icandidates, 1:nbitems)])
-
     @info "Adding cSXe_ST_TL..."
     @constraint(submodel, cSXe_ST_TL, SXe .<= problem[:TL][t])
     @info "Adding cSYe_ST_TW..."
     @constraint(submodel, cSYe_ST_TW, SYe .<= problem[:TW][t])
     @info "Adding cSZe_ST_TH..."
     @constraint(submodel, cSZe_ST_TH, SZe .<= problem[:TH][t])
+    #####
 
     @info "Adding cSXo_SXo..."
     # with_logger(ConsoleLogger(stdout, Logging.Debug, show_limited=true)) do
@@ -1099,6 +1108,8 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     #     @debug "SXo[2:end]" SXo[2:end]
     # end
     # @constraint(submodel, cSXo_SXo, (vcat(hcat([1], falses(1, size(SXo)[1]-1)), I(size(SXo)[1])) * SXo)[2:end] .<= SXo)
+    
+    ## debug
     @constraint(submodel, cSXo_SXo, SXo[1:end-1] .<= SXo[2:end])
 
     @info "Adding cXi2SXo_Xi1SXe_betaM_betaP..."
@@ -1111,6 +1122,8 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     #     @debug "betaP" betaP
     #     @debug "-epsilon * vones(Float64, size(Xi1, 1))" -epsilon * vones(Float64, size(Xi1, 1))
     # end
+
+    ## debug
     @constraint(submodel, cXi2SXo_Xi1SXe_betaM_betaP, (Xi2 * SXo) - (Xi1 * SXe) - betaM + betaP .== -epsilon * vones(Float64, size(Xi1, 1)))
 
     @info "Adding cbetaM_lambda..."
@@ -1119,12 +1132,18 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     #     @debug "lambda" lambda
     #     @debug "Mlambda" Mlambda 
     # end
+
+    ## debug
     @constraint(submodel, cbetaM_lambda, betaM .<= lambda .* Mlambda)
 
     @info "Adding cbetaP_lambda..."
+
+    ## debug
     @constraint(submodel, cbetaP_lambda, betaP .<= (-lambda .+ 1)*Mlambda)
 
     @info "Adding cmu_betaM..."
+
+    ## debug
     @constraint(submodel, cmu_betaM, (-mu .+ 1) .<= betaM * Mmu)
 
     # @info "Adding cXi2ST_Xi1ST..."
@@ -1143,8 +1162,12 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     # @constraint(submodel, cphi_eta, phi <= (1 - eta)*Meta)
 
     @info "Adding cXi1SYe_Xi2SYo..."
+
+    ## debug
     @constraint(submodel, cXi1SYe_Xi2SYo, Xi1 * SYe .<= Xi2 * SYo + xi * MTW + (-mu .+ 1) * MTW)
     @info "Adding cXi2SYe_Xi1SYo..."
+
+    ## debug
     @constraint(submodel, cXi2SYe_Xi1SYo, Xi2 * SYe .<= Xi1 * SYo + (-xi .+ 1) * MTW + (-mu .+ 1) * MTW)
 
     @info "Adding cXi1SU_Xi2SU..."
@@ -1155,6 +1178,8 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     #     @debug "problem[:TE][t, :]" problem[:TE][t, :]
     # end
     notmissingTE = filter(x -> !ismissing(problem[:TE][t, x]), 1:nbsuppliers)
+
+    ## debug
     @constraint(submodel, cXi1SU_Xi2SU, Xi1 * SU[:, notmissingTE] * problem[:TE][t, notmissingTE] .<= Xi2 * SU[:, notmissingTE] * problem[:TE][t, notmissingTE])
     # @debug begin
     #     @debug "cXi1SU_Xi2SU" cXi1SU_Xi2SU
@@ -1167,18 +1192,27 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     # end
     # error("Debug stop!!")
     @info "Adding cXi1SU_Xi2SU_chi..."
+
+    ## debug
     @constraint(submodel, cXi1SU_Xi2SU_chi, Xi1*SU - Xi2*SU .>= chi * epsilon - r*MTE - (-sigma1 .+ 1) * MTE)
 
     @info "Adding cXi2SU_Xi1SU_chi..."
+    ## debug
     @constraint(submodel, cXi2SU_Xi1SU_chi, Xi2*SU - Xi1*SU .>= (-chi .+ 1) * epsilon - r*MTE - (-sigma1 .+ 1) * MTE)
 
     @info "Adding cXi2SK_Xi1SK..."
     notmissingTKE = filter(x -> !ismissing(problem[:TKE][t, x]), 1:nbsupplierdocks)
+
+    ## debug
     @constraint(submodel, cXi2SK_Xi1SK, Xi2*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] .>= Xi1*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] - (-r .+ 1) * MTKE)
 
     @info "Adding cXi1SK_Xi2SK_chi..."
+    
+    ## debug
     @constraint(submodel, cXi1SK_Xi2SK_chi, Xi1*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] - Xi2*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] .>= chi*epsilon - (-sigma2 .+ 1)*MTKE)
     @info "Adding cXi2SK_Xi1SK_chi..."
+
+    ## debug
     @constraint(submodel, cXi2SK_Xi1SK_chi, Xi2*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] - Xi1*SK[:, notmissingTKE]*problem[:TKE][t, notmissingTKE] .>= (-chi .+ 1)*epsilon - (-sigma2 .+ 1)*MTKE)
 
     @info "Adding cXi2SG_Xi1SG..."
@@ -1187,9 +1221,13 @@ function Subproblem(t, problem, optimizer, chosentrucks)
     #     @debug "SG[:, notmissingTGE]" SG[:, notmissingTGE]
     #     @debug "problem[:TGE][t, notmissingTGE]" problem[:TGE][t, notmissingTGE]
     # end
+
+    ## debug
     @constraint(submodel, cXi2SG_Xi1SG, Xi2*SG[:, notmissingTGE]*problem[:TGE][t, notmissingTGE] .>= Xi1*SG[:, notmissingTGE]*problem[:TGE][t, notmissingTGE] - (-sigma3 .+ 1) * MTGE)
 
     @info "Adding csigma1_sigma2_sigma3..."
+
+    ## debug
     @constraint(submodel, csigma1_sigma2_sigma3, sigma1 + sigma2 + sigma3 .>= 1)
 
     #### DEBUG end
