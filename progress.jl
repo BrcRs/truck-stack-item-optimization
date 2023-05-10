@@ -16,9 +16,12 @@ function clearnlines(n)
     print("\u1b[", "$n", "F", "\u1b[J")
 end
 
-function display_progress(i, total; n=10)
+function display_progress(i, total; n=10, name="", margin=20)
     if i == 1
         println()
     end
-    overprint("[", ["=" for j in 1:round(n*(i/total))]..., (i == total ? "=" : ">"), [" " for j in 1:n - round(n*(i/total))]...,  "] ", round(100*i/total, digits=2), " %")
+    print("\u1b[1F")
+    printstyled(repeat(" ", margin - length(name))..., name, " ", color=:green)
+    print("[", repeat("=", convert(Int64, round(n*(i/total)))), (i == total ? "=" : ">"), repeat(" ", n - convert(Int64, round(n*(i/total)))),  "] $i/$total")
+    print("\u1b[0K\n") 
 end
