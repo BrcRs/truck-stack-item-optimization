@@ -14,6 +14,8 @@ using ArgParse
 include("instance_loader.jl")
 include("model.jl")
 include("column_generation.jl")
+include("tsiproblem.jl")
+include("uzawa.jl")
 
 function parse_commandline()
     s = ArgParseSettings()
@@ -80,8 +82,15 @@ function main()
 
     @info "Solving problem..."
     @time begin 
-        optsol = columngeneration(solve_uzawa!, problem, 10, 100, 1)
+        optsol = columngeneration(solve_uzawa!, problem, 10, 10, 1)
     end
-    display(optsol)
+    display(optsol[:TI])
+    selectedtrucks = filter(x -> sum(optsol[:TI][x, :]) >= 1, 1:size(optsol[:TI], 1))
+    printstyled("Selected trucks:\n", color=:green)
+    display([t <= plannedtrucks ? string("P", t) : string("E", t), selectedtrucks])
+    for t in selectedtrucks
+        print(t, ":")
+        display(optsol[:variables][t])
+    end
 end
     main()
