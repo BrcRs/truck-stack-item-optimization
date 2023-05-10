@@ -1,6 +1,6 @@
 using LinearAlgebra
 
-function columngeneration(solvefun!, problem, args...)
+function columngeneration(solvefun!, problem, args...; eps=0.1)
 
     nbplannedtrucks = problem[:nbplannedtrucks]
     truckindices = problem[:truckindices]
@@ -24,6 +24,8 @@ function columngeneration(solvefun!, problem, args...)
     # end
     chosentrucks = [truckindices[t][j] for t in 1:nbplannedtrucks for j in filter(x -> x in 1:length(truckindices[t]), 1:2)]
     firstextratrucks = [truckindices[t][end] + 1 for t in 1:nbplannedtrucks]
+    printstyled("Column Generation\n", color=:light_green)
+    printstyled("Solving with ", length(chosentrucks), " trucks\n", color=:light_blue)
     TIbar, optsolpertruck = solvefun!(problem, args..., chosentrucks)
 
     optsol = Dict{Any, Any}(:TI => copy(TIbar))
@@ -57,7 +59,9 @@ function columngeneration(solvefun!, problem, args...)
         printstyled(optsol[:value] - oldvalue, "\n")
         printstyled("Number of unaffected items: \n", color=:light_green)
         printstyled(nbitems - sum(optsol[:TI]), "\n")
-        printstyled("Solving with ", length(chosentrucks), " trucks\n", color=:light_blue)
+        printstyled("Solving with ", length(chosentrucks), " trucks ($nbitems items)\n", color=:light_blue)
+        oldTI = copy(optsol[:TI])
+        oldvalue = optsol[:value]
         # @debug "sort(chosentrucks)" sort(chosentrucks)
         # @debug "optsol[:TI]" optsol[:TI]
         # Upd chosen trucks
@@ -80,7 +84,7 @@ function columngeneration(solvefun!, problem, args...)
 
 
         TIbar, optsolpertruck = solvefun!(problem, args..., chosentrucks)
-        optsol[:TI] = copy(TIbar)
+        optsol[:TI] = round.(copy(TIbar))
         optsol[:variables] = copy(optsolpertruck)
 
         # @debug begin
@@ -93,6 +97,8 @@ function columngeneration(solvefun!, problem, args...)
         problem[:costinventory] * sum(problem[:IDL] - transpose(optsol[:TI]) * problem[:TDA][chosentrucks])
         
        
+        clearnlines(1)
+        printstyled("Solved with ", length(chosentrucks), " trucks\n", color=:light_blue)
         # If no unaffected item:
         if sum(optsol[:TI]) == nbitems
             # remove empty unused useless trucks
@@ -104,19 +110,24 @@ function columngeneration(solvefun!, problem, args...)
             filter!(x -> !(x in deadtrucks), chosentrucks)
         end
 
-        improvement = optsol[:value] < oldvalue || optsol[:TI] != oldTI
-        @debug begin
-            @debug "improvement" improvement
-            @debug "optsol[:value]" optsol[:value]
-            @debug "oldvalue" oldvalue
-            @debug "optsol[:TI] != oldTI" optsol[:TI] != oldTI
-            sleep(10)
-        end
-        oldTI = copy(optsol[:TI])
-        oldvalue = optsol[:value]
+        # improvement = optsol[:value] < oldvalue || optsol[:TI] != oldTI
+        improvement = optsol[:value] < oldvalue + eps
+        # @debug begin
+        #     @debug "improvement" improvement
+        #     @debug "optsol[:value]" optsol[:value]
+        #     @debug "oldvalue" oldvalue
+        #     @debug "optsol[:TI] != oldTI" optsol[:TI] != oldTI
+        #     sleep(10)
+        # end
 
 
     end
+    printstyled("End of Column Generation\n", color=:light_green)
+    printstyled("Value change: \n", color=:light_green)
+    printstyled(optsol[:value] - oldvalue, "\n")
+    printstyled("Number of unaffected items: \n", color=:light_green)
+    printstyled(nbitems - sum(optsol[:TI]), "\n")
+    printstyled("Solved with ", length(chosentrucks), " trucks ($nbitems items)\n", color=:light_blue)
 
     return optsol
 
