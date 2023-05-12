@@ -1,9 +1,11 @@
 # ROADEF 2022 Modelisation
 
-Minimize nb of trucks used and inventory of the plants.
+This file explains the method we set up to solve the truck stack item affectation problem described in the ROADEF 2022 challenge.
 
 
 ## The full model
+
+In this section we try to describe a mixed integer linear program valid for the truck stack item affectation problem. Because of time constraints, we ignored some kinds of constraints from the formulation, and simplified others. Notably, we ignored all weight related constraints.
 
 **Minimize:**
 
@@ -12,14 +14,11 @@ $$\alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^
 **Subject to:**
 
 
-$$-\zeta^T \geq -\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^T_1)}$$  
-
-$$-\zeta^T \geq -TI^T\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^T_2)}$$
+$$-(1 - \zeta^T) \times M^\zeta + 1 \leq TI^T \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\leq \zeta^T \times M^\zeta$$
 
 
-$$-\zeta^E \geq -\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^E_1)}$$  
+$$-(1 - \zeta^E) \times M^\zeta + 1 \leq TI^E \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\leq \zeta^E \times M^\zeta$$
 
-$$-\zeta^E \geq -TI^E\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^E_2)}$$
 
 
 $$TI \leq TR\quad \bold{(TI_1)}$$
@@ -370,19 +369,10 @@ $$\alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^
 
 **Subject to:**
 
-
-<!-- $$-\zeta^{tT} \geq -1\quad \bold{(\zeta^T_1)}$$  
-
-$$-\zeta^{tT} \geq -TI^{tT}\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^T_2)}$$
+$$-(1 - \zeta^T) \times M^\zeta + 1 \leq TI^T \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\leq \zeta^T \times M^\zeta$$
 
 
-$$-\zeta^{tE} \geq -1\quad \bold{(\zeta^E_1)}$$  
-
-$$-\zeta^{tE} \geq -TI^{tE}\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\quad \bold{(\zeta^E_2)}$$ -->
-
-$$\zeta M^\zeta \geq TI\times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ]$$
-
-$$-(1 - \zeta)M^\zeta + 1 \leq TI\times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ]$$
+$$-(1 - \zeta^E) \times M^\zeta + 1 \leq TI^E \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\leq \zeta^E \times M^\zeta$$
 
 $$TI^t \leq TR\quad \bold{(TI_1)}$$
 
@@ -417,11 +407,11 @@ $$S\times IU = Q\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]
 $$Q\leq SU\times M^Q\quad \bold{(Q_1)}$$  
 <!-- $$S\times IU = Q\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(Q_2)}$$ -->
 <!-- $$S\times IU = SU^\top \cdot\left (S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\right ) \quad \bold{(Q_2)}$$ -->
-$$S\times IU = SU \circ \left [S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \dots S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\right ] \quad \bold{(Q_2)}$$
+<!-- $$S\times IU = SU \circ \left [S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \dots S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\right ] \quad \bold{(Q_2)}$$ -->
 $$S\times IU = Q \quad \bold{(Q_2)}$$
 
 
-$$-M^Q(1-SU^\top) \leq Q - \left [S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \dots S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\right ] \leq M^Q(1-SU^\top)\quad \bold{(Q_3)}$$ 
+$$-M^Q(1-SU) \leq Q - \left [S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \dots S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\right ] \leq M^Q(1-SU)\quad \bold{(Q_3)}$$ 
 
 <!-- The following are unnecessary because the stacks naturally have the same plant as the truck, and since items of the stack must be in the truck, the item also have the same plant -->
 <!-- $$H\leq S\times M^H\quad \bold{(H_1)}$$  
@@ -429,15 +419,15 @@ $$S\times IP = H\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]
 
 $$-M^H(1-S) \leq H - \left [  SP  \cdots  SP  \right ] \leq M^H(1-S)\quad \bold{(H_3)}$$ -->
 
-$$V\leq S\times M^V\quad \bold{(V_1)}$$  
-$$S\times IK = V\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(V_2)}$$
+$$V\leq SK\times M^V\quad \bold{(V_1)}$$  
+$$S\times IK = V\quad \bold{(V_2)}$$
 
-$$-M^V(1-S) \leq V - \left [  SK  \cdots  SK  \right ] \leq M^V(1-S)\quad \bold{(V_3)}$$
+$$-M^V(1-SK) \leq V - \left [  S \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \cdots  S \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \right ] \leq M^V(1-SK)\quad \bold{(V_3)}$$
 
-$$W\leq S\times M^{W}\quad \bold{(W_1)}$$  
-$$\displaystyle S\times IPD = W\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(W_2)}$$
+$$W\leq SG\times M^{W}\quad \bold{(W_1)}$$  
+$$\displaystyle S\times IPD = W\quad \bold{(W_2)}$$
 
-$$-M^{W}(1-S) \leq W - \left [  SPD  \cdots  SPD  \right ] \leq M^{W}(1-S)\quad \bold{(W_3)}$$
+$$-M^{W}(1-SG) \leq W - \left [  S \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \cdots  S \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \right ] \leq M^{W}(1-SG)\quad \bold{(W_3)}$$
 
 
 $$G^l\leq S\times M^G$$  
@@ -445,7 +435,7 @@ $$G^r \leq S\times M^G$$
 $$G^l\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = G^r\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]$$
 
 $$-M^G(1-S) \leq G^r - \left [  SO  \cdots  SO  \right ] \leq M^G(1-S)$$  
-$$-M^G(1-S) \leq G^l - \left [  IOV  \cdots  IOV  \right ] \leq M^G(1-S)$$
+$$-M^G(1-S) \leq G^l - \left [  \begin{matrix}IOV^\top \\ \vdots \\ IOV^\top \end{matrix} \right ] \leq M^G(1-S)$$
 
 Define $SL$ and $SW$
 
@@ -454,24 +444,24 @@ $$SW\times S\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = S\
 
 $$D^L \leq S \times M^{D^L}$$
 
-$$-M^{D^L}(1 - S) \leq D^L - SL \leq M^{D^L}(1 - S)$$
+$$-M^{D^L}(1 - S) \leq D^L - \left [ SL \cdots SL\right ] \leq M^{D^L}(1 - S)$$
 
 $$D^L\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = S\times IL$$
 
 $$D^W \leq S \times M^{D^W}$$
 
-$$-M^{D^W}(1 - S) \leq D^W - SW \leq M^{D^W}(1 - S)$$
+$$-M^{D^W}(1 - S) \leq D^W - \left [ SW \cdots SW\right ] \leq M^{D^W}(1 - S)$$
 
 $$D^W\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = S\times IW$$
 
 
-$$SX^e - SX^o = SL + SO\cdot M^{TL}$$
+$$SO\cdot M^{TL} \leq SX^e - SX^o - SL \leq SO\cdot M^{TL}$$
 
-$$SY^e - SY^o = SW + SO\cdot M^{TW}$$
+$$SO\cdot M^{TW} \leq SY^e - SY^o - SL \leq SO\cdot M^{TW}$$
 
-$$SX^e - SX^o = SW + (1-SO)\cdot M^{TW}$$
+$$-(1-SO)\cdot M^{TW} \leq SX^e - SX^o - SW \leq (1-SO)\cdot M^{TW}$$
 
-$$SY^e - SY^o = SL + (1-SO)\cdot M^{TL}$$
+$$-(1-SO)\cdot M^{TL} \leq SY^e - SY^o - SW \leq (1-SO)\cdot M^{TL}$$
 
 $$SZ^o = 0$$
 
@@ -486,7 +476,7 @@ $$SZ^e \leq  TH[t]$$
 
 $$\left [ \begin{matrix} 1 & 0 & \dots & 0\\ & I & &  \end{matrix} \right ]\times SX^o \leq  SX^o$$
 
-$$\Xi^2 SX^o - \Xi^1 SX^{e} - \beta^- + \beta^+ =  - 0.0001\quad \bold{(\Xi_a)}$$
+$$\Xi^2 SX^o - \Xi^1 SX^{e} - \beta^- + \beta^+ =  - \epsilon\quad \bold{(\Xi_a)}$$
 
 $$\beta^- \leq \lambda M^\lambda$$  
 $$\beta^+ \leq (1-\lambda)M^\lambda$$  
@@ -497,17 +487,17 @@ $$\Xi^1SY^e \leq \Xi^2SY^o +  \xi M^{TW} + (1-\mu)M^{TW}\quad \bold{(\Xi_b)}$$
 
 $$\Xi^2SY^e \leq \Xi^1SY^o + (1 - \xi)M^{TW} + (1-\mu)M^{TW}\quad \bold{(\Xi_c)}$$
 
-$$\Xi^1SU\cdot TE \leq \Xi^2 SU \cdot TE\quad \bold{(\Xi_d)}$$
+$$\Xi^1SU\cdot TE[t] \leq \Xi^2 SU \cdot TE[t]\quad \bold{(\Xi_d)}$$
 
 $$\Xi^1SU - \Xi^2SU \geq \chi\epsilon - rM^{TE} - (1 - \sigma^1)M^{TE}\quad \bold{(\Xi_e)}$$  
 $$\Xi^2SU - \Xi^1SU \geq (1 - \chi)\epsilon - rM^{TE} - (1 - \sigma^1)M^{TE}\quad \bold{(\Xi_f)}$$
 
-$$\Xi^2SK \cdot TKE \geq \Xi^1SK \cdot TKE - (1-r)M^{TKE}\quad \bold{(\Xi_g)}$$
+$$\Xi^2SK \cdot TKE[t] \geq \Xi^1SK \cdot TKE[t] - (1-r)M^{TKE}\quad \bold{(\Xi_g)}$$
 
-$$\Xi^1SK \cdot TKE - \Xi^2SK \cdot TKE \geq \chi\epsilon - (1 - \sigma^2)M^{TKE}\quad \bold{(\Xi_h)}$$  
-$$\Xi^2SK \cdot TKE - \Xi^1SK \cdot TKE \geq (1 - \chi)\epsilon - (1 - \sigma^2)M^{TKE}\quad \bold{(\Xi_i)}$$
+$$\Xi^1SK \cdot TKE[t] - \Xi^2SK \cdot TKE[t] \geq \chi\epsilon - (1 - \sigma^2)M^{TKE}\quad \bold{(\Xi_h)}$$  
+$$\Xi^2SK \cdot TKE[t] - \Xi^1SK \cdot TKE[t] \geq (1 - \chi)\epsilon - (1 - \sigma^2)M^{TKE}\quad \bold{(\Xi_i)}$$
 
-$$\Xi^2SG\cdot TGE \geq \Xi^1SG\cdot TGE - (1 - \sigma^3)M^{TGE}\quad \bold{(\Xi_j)}$$
+$$\Xi^2SG\cdot TGE[t] \geq \Xi^1SG\cdot TGE[t] - (1 - \sigma^3)M^{TGE}\quad \bold{(\Xi_j)}$$
 
 $$\sigma^1 + \sigma^2 + \sigma^3 \geq 1$$  
 

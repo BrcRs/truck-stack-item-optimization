@@ -247,7 +247,7 @@ function buildTSImodel!(submodel::Model, problem::TSIProblem, t::Integer, chosen
             suppr!(submodel, :cZetaE3)
         end
     end
-    if t <= nbplannedtrucks
+    if t <= nbplannedtrucks # TODO something is wrong here. Why the condition? Is not dependent on t.
         # sum(TI[t, :]) implies zeta[t] = 1. Else since we minimize, zeta = 0 
         @constraint(submodel, cZetaT2, submodel[:zetaT] * Mzeta .>= submodel[:TI][1:nbplannedtrucks, :] * vones(Int8, nbitems))
         @constraint(submodel, cZetaT3, -(1 .- submodel[:zetaT]) * Mzeta .+ 1 .<= submodel[:TI][1:nbplannedtrucks, :] * vones(Int8, nbitems))
@@ -295,7 +295,7 @@ function buildTSImodel!(submodel::Model, problem::TSIProblem, t::Integer, chosen
     end
 
     if !replace
-        # There is exactly one truck per item, relaxed with GI
+        # There is at most one truck per item, relaxed with GI # TODO shouldn't it be ==?
         @constraint(submodel, cTI_1_1, transpose(submodel[:TI])[filter(x -> x in icandidates, 1:nbitems), :] * vones(Int8, nbchosentrucks) + submodel[:GI][filter(x -> x in icandidates, 1:nbitems)] .<= vones(Int8, size(transpose(submodel[:TI])[filter(x -> x in icandidates, 1:nbitems), :], 1)))
         if nbcandidateitems > 0
             # All items from a stack have same stackability code
