@@ -11,12 +11,45 @@ using CSV
 
 # using ArgParse
 
+"""
+    expandTruckMatrices!(nbplannedtrucks, [...])
 
+Return extended matrix of data of planned trucks + extra trucks based on given planned 
+trucks data (`_P` matrices).
 
+# Arguments
+- `TE`: nbtrucks * nbsuppliers matrix of truck-supplier loading order.
+- `TL`: Lengths of each truck.
+- `TW`: Width of each truck.
+- `TH`: Height of each truck.
+- `TKE`: nbtrucks * nbsupplierdocks matrix of truck-supplier dock loading order.
+- `TGE`: nbtrucks * nbplants Truck-plant dock loading order matrix.
+- `TDA`: Arrival time of each truck.
+- `TDE`: ? TODO
+- `TU`: nbtrucks * nbsuppliers matrix of candidate suppliers picked-up by each truck.
+- `TP`: nbtrucks * nbplants matrix of plant of each truck.
+- `TG`: Plant docks of each truck.
+- `TK`: nbtrucks * nbsupplierdocks matrix of supplier docks delivered by each truck.
+- `TID`: ? TODO
+- `TR`: nbtrucks * nbitems matrix of compatible items for each truck.
+- `TE_P`: nbplannedtrucks * nbsuppliers matrix of planned truck-supplier loading order.
+- `TL_P`: Lengths of each planned truck.
+- `TW_P`: Width of each planned truck.
+- `TH_P`: Height of each planned truck.
+- `TKE_P`: nbplannedtrucks * nbsupplierdocks matrix of planned truck-supplier dock loading order.
+- `TGE_P`: nbplannedtrucks * nbplants Truck-plant dock loading order matrix.
+- `TDA_P`: Arrival time of each planned truck.
+- `TDE_P`: ? TODO
+- `TU_P`: nbplannedtrucks * nbsuppliers matrix of candidate suppliers picked-up by each planned truck.
+- `TP_P`: nbplannedtrucks * nbplants matrix of plant of each planned truck.
+- `TG_P`: Plant docks of each planned truck.
+- `TK_P`: nbplannedtrucks * nbsupplierdocks matrix of supplier docks delivered by each planned truck.
+- `TR_P`: nbplannedtrucks * nbitems matrix of compatible items for each planned truck.
+- `reverse_truckdict`: gives mapping of truck index => planned truck original identifier
+- `truckindices`: stores for each planned truck the index of the planned trucks
+and indices of corresponding extra trucks.
 
-
-
-
+"""
 function expandTruckMatrices!(nbplannedtrucks,
      TE,
      TL,
@@ -48,12 +81,12 @@ function expandTruckMatrices!(nbplannedtrucks,
      reverse_truckdict,
      truckindices
     )
-
-    # For each planned truck
+    # j: index of extra trucks
     j = nbplannedtrucks
+    # For each planned truck
     for p in 1:nbplannedtrucks
         push!(truckindices[p], p)
-        # Get planned truck as first lines of the bunch
+        # Get planned truck as first lines of the final matrices
         TE[p, :] .= TE_P[p, :]
         TL[p] = TL_P[p]
         TW[p] = TW_P[p]
@@ -76,6 +109,8 @@ function expandTruckMatrices!(nbplannedtrucks,
             push!(truckindices[p], j)
 
             # Fill relevant truck information
+            # Extra trucks have the same data than corresponding planned trucks
+            # TODO reduce memory footprint using only `_P` matrices
             tail = "_E" * string(e)
             TID[j] = reverse_truckdict[p] * tail
             TE[j, :] .= TE_P[p, :]
@@ -104,22 +139,53 @@ function expandTruckMatrices!(nbplannedtrucks,
 
 end
 
+"""
+    fillItems!([...])
+
+Given matrices of item data, fill these given item data file `"input_items.csv"`
+found in `instancepath` folder.
+
+# Arguments
+
+- `IU`: nbitems * nbsuppliers matrix of supplier of each item.
+- `IP`: nbitems * nbplants matrix of plant of each item.
+- `IK`: nbitems * nbsupplierdocks matrix of supplier docks of each item.
+- `IPD`: nbitems * nbplantdocks matrix of plant docks of each item.
+- `IDL`: latest arrival time of each item.
+- `IDE`: earliest arrival time of each item.
+- `IS`: stackability code index of each item.
+- `_IO`: forced orientation of each item.
+- `IL`: length of each item.
+- `IW`: width of each item.
+- `IH`: height of each item.
+- `stackabilitycodedict`: assigns an index to each stackability code
+- `supplierdict`: assigns an index to each supplier's id.
+- `plantdict`: assigns an index to each plant's id.
+- `supplierdockdict`: assigns an index to each supplier dock's id.
+- `plantdockdict`: assigns an index to each plant dock's id.
+- `itemdict`: assigns an index to each item's id.
+- `instancepath`: path to the folder containing the item data file.
+"""
 function fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, _IO, IL, IW, IH, stackabilitycodedict, supplierdict, plantdict, supplierdockdict, plantdockdict, itemdict, instancepath)
     nbstackabilitycodes = 0
     open(*(instancepath, "input_items.csv")) do input_itemsfile
-
+        # fill lines of data for each data type and each item.
         for (i, row) in enumerate(CSV.File(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String))
             IU[i, supplierdict[row[:Supplier_code]]] = 1.0
             IP[i, plantdict[row[:Plant_code]]] = 1.0
+            # sometimes supplier and plant docks are not given which is not a bug
             IK[i, supplierdockdict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])]] = 1.0
-            IPD[i, plantdockdict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = 1.0
+            IPD[i, plantdockdict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = 1.0 # TODO since plant docks are unique, no need of plants?
             IDL[i] = parse(Float64, row[:Latest_arrival_time])
             IDE[i] = parse(Float64, row[:Earliest_arrival_time])
+            # No given orientation means no constraint
             _IO[i] = row[:Forced_orientation] == "none" ? missing : row[:Forced_orientation] == "widthwise" ? 1 : 0
+            # we assign an index to each unique stackability code
             if !haskey(stackabilitycodedict, row[:Stackability_code])
                 nbstackabilitycodes = nbstackabilitycodes + 1.0
                 stackabilitycodedict[row[:Stackability_code]] = nbstackabilitycodes
             end
+            # we use the index of stackability codes in the problem data
             IS[i] = stackabilitycodedict[row[:Stackability_code]]
             itemdict[i] = row[:Item_ident]
             IL[i] = parse(Float64, row[:Length])
@@ -130,7 +196,14 @@ function fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, _IO, IL, IW, IH, stackability
     return nbstackabilitycodes
 end
 
-function count!(d, nb, rowvalue)
+"""
+    count!(d::Dict{String, Integer}, nb::Integer, rowvalue::String)
+
+Is used to map an index by order of appearance to each `rowvalue` in `d`.
+
+See also [`countTrucks!`](@ref) which makes use of it.
+"""
+function count!(d::Dict{String, Integer}, nb::Integer, rowvalue::String)
     if !haskey(d, rowvalue)
         nb = nb + 1
 
@@ -140,6 +213,15 @@ function count!(d, nb, rowvalue)
     return nb
 end
 
+"""
+    countTrucks!(truckdict, supplierdict, supplierdockdict, plantdict, plantdockdict, instancepath)
+
+Map an index by order of appearance to each supplier's id, supplier dock id's, 
+plant id's and plant dock id's, in given initially empty dictionaries.
+Count and return nbplannedtrucks, nbsuppliers, nbsupplierdocks, nbplants, nbplantdocks.
+
+See also [`count!`](@ref).
+"""
 function countTrucks!(
     truckdict,
     supplierdict,
@@ -171,32 +253,68 @@ function countTrucks!(
     return nbplannedtrucks, nbsuppliers, nbsupplierdocks, nbplants, nbplantdocks
 end
 
+"""
+    fillPlannedTruckMatrices!([...])
+
+Given data folder `instancepath`, fill data matrices for each planned truck.
+
+# Arguments
+
+- `TE_P`: nbplannedtrucks * nbsuppliers matrix of planned truck-supplier loading order.
+- `TL_P`: Lengths of each planned truck.
+- `TW_P`: Width of each planned truck.
+- `TH_P`: Height of each planned truck.
+- `TKE_P`: nbplannedtrucks * nbsupplierdocks matrix of planned truck-supplier dock loading order.
+- `TGE_P`: nbplannedtrucks * nbplants Truck-plant dock loading order matrix.
+- `TDA_P`: Arrival time of each planned truck.
+- `TDE_P`: ? TODO
+- `TU_P`: nbplannedtrucks * nbsuppliers matrix of candidate suppliers picked-up by each planned truck.
+- `TP_P`: nbplannedtrucks * nbplants matrix of plant of each planned truck.
+- `TG_P`: Plant docks of each planned truck.
+- `TK_P`: nbplannedtrucks * nbsupplierdocks matrix of supplier docks delivered by each planned truck.
+- `TR_P`: nbplannedtrucks * nbitems matrix of compatible items for each planned truck.
+- `instancepath`: path to the folder containing ` "input_trucks.csv"`.
+- `nbitems`: number of items.
+- `truckdict`: assigns an index to each truck's id.
+- `supplierdict`: assigns an index to each supplier's id.
+- `supplierdockdict`: assigns an index to each supplier dock's id.
+- `plantdict`: assigns an index to each plant's id.
+- `plantdockdict`: assigns an index to each plant dock's id.
+- `item_productcodes`: stores for each item's index its product code.
+"""
 function fillPlannedTruckMatrices!(TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TDE_P, 
     TU_P, TP_P, TG_P, TK_P, TR_P, instancepath, nbitems, truckdict, supplierdict, 
     supplierdockdict, plantdict, plantdockdict, item_productcodes)
+
     # For each line of input_trucks:
     open(*(instancepath, "input_trucks.csv")) do input_trucksfile
         for row in CSV.File(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String)
             
             # Fill relevant truck information
             TE_P[truckdict[row[:Id_truck]], supplierdict[row[:Supplier_code]]] = parse(Float64, row[:Supplier_loading_order])
+
             TL_P[truckdict[row[:Id_truck]]] = parse(Float64, row[:Length])
             TW_P[truckdict[row[:Id_truck]]] = parse(Float64, row[:Width])
             TH_P[truckdict[row[:Id_truck]]] = parse(Float64, row[:Height])
-            TKE_P[truckdict[row[:Id_truck]], supplierdockdict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])]] = parse(Float64, row[:Supplier_dock_loading_order])
-            TGE_P[truckdict[row[:Id_truck]], plantdockdict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = parse(Float64, row[:Plant_dock_loading_order])
+
+            custom_supplierdock_code = row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])
+            TKE_P[truckdict[row[:Id_truck]], supplierdockdict[custom_supplierdock_code]] = parse(Float64, row[:Supplier_dock_loading_order])
+
+            custom_plantdock_code = row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])
+            TGE_P[truckdict[row[:Id_truck]], plantdockdict[custom_plantdock_code]] = parse(Float64, row[:Plant_dock_loading_order])
+
             TDA_P[truckdict[row[:Id_truck]]] = parse(Float64, row[:Arrival_time])
-            TDE_P[truckdict[row[:Id_truck]]] = parse(Float64, row[:Arrival_time])
+            TDE_P[truckdict[row[:Id_truck]]] = parse(Float64, row[:Arrival_time]) # ? TODO
+
             TU_P[truckdict[row[:Id_truck]], supplierdict[row[:Supplier_code]]] = 1.0
             TP_P[truckdict[row[:Id_truck]], plantdict[row[:Plant_code]]] = 1.0
-
 
             TG_P[truckdict[row[:Id_truck]], plantdockdict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = 1.0
             TK_P[truckdict[row[:Id_truck]], supplierdockdict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])]] = 1.0
             
             
             # For each line of input trucks, retrieve Product code. For all items, get 
-            # indices of item of same product code, and use it to fill TR
+            # indices of items of same product code, and use it to fill TR
             product_code = row[:Product_code]
             for i in 1:nbitems
                 TR_P[truckdict[row[:Id_truck]], i] = item_productcodes[i] == product_code ? 1.0 : TR_P[truckdict[row[:Id_truck]], i]
@@ -213,6 +331,12 @@ function fillPlannedTruckMatrices!(TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, 
     end
 end
 
+"""
+    loadinstance(instancepath)
+
+Return all relevant data of truck stack item assignment problem defined in data files found in folder 
+`instancepath`.
+"""
 function loadinstance(instancepath)
 
     """
@@ -238,12 +362,16 @@ function loadinstance(instancepath)
     
     # Make list of trucks with corresponding dictionary
     truckdict = Dict{String, Int64}()
+
     # Make list of suppliers with corresponding dictionary
     supplierdict = Dict{String, Int64}()
+
     # Make list of supplier docks with corresponding dictionary
     supplierdockdict = Dict{String, Int64}()
+
     # Make list of plants with corresponding dictionary
     plantdict = Dict{String, Int64}()
+
     # Make list of plant docks with corresponding dictionary
     plantdockdict = Dict{String, Int64}()
     
@@ -276,7 +404,7 @@ function loadinstance(instancepath)
     TG_P = falses(nbplannedtrucks, nbplantdocks)
     
     
-    TR_P = falses(nbplannedtrucks, nbitems) # TR is expanded, it will contain also only items which docks are stopped by by the truck
+    TR_P = falses(nbplannedtrucks, nbitems) # TR is expanded, it will contain also only items which docks are delivered by the truck
     
     ## Fill planned truck matrices with info in input_trucksfile
     fillPlannedTruckMatrices!(TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TDE_P, 
@@ -306,12 +434,12 @@ function loadinstance(instancepath)
     
     # Expand TR with information about docks
     # For each truck, for each item, if the truck doesn't stop at the supplier & supplier dock of the item or 
-    # it doesn't stop by the plant & plant dock of the item: replace with 0
+    # if it doesn't stop by the plant & plant dock of the item: replace with 0
     @debug "sum(TR_P)" sum(TR_P)
     
     ## Adjust TR with additional information
     # This loop might be useless or too restrictive, because it seems that the candidate list of 
-    # each truck already includes this type of info 
+    # each truck already includes this type of info TODO
     for t in 1:nbplannedtrucks
         for i in 1:nbitems
             # if item `i` is compatible with truck `t` according to the candidate list
@@ -376,11 +504,11 @@ function loadinstance(instancepath)
     TG = falses(nbtrucks, nbplantdocks)
     
     
-    TR = falses(nbtrucks, nbitems) # TR is expanded, it will contain also only items which docks are stopped by by the truck
+    TR = falses(nbtrucks, nbitems) # TR is expanded, it will contain also only items which docks are delivered by the truck
     TID = Vector{Union{String, Missing}}(missing, nbtrucks)
     reverse_truckdict = Dict(value => key for (key, value) in truckdict)
     
-    # Associates to each planned truck, the indices of the planned truck + extra trucks
+    # Associate to each planned truck, the indices of the planned truck + extra trucks
     truckindices = [Vector{Integer}() for p in 1:nbplannedtrucks]
 
     ## Fill the actual truck matrices from the planned trucks (expand the planned 

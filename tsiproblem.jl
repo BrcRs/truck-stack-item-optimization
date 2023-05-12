@@ -9,14 +9,23 @@ include("matrix_ops.jl")
 # include("linear_infeasibilities.jl")
 # include("progress.jl")
 
+"""
+    TSIProblem(opt, obj_dict::Dict{Symbol,Any})
+
+Problem data of a truck stack item affectation problem.
+`opt` is an optimizer. `obj_dict` holds all problem data.
+
+You can directly access the dictionary with problem[:something].
+"""
 mutable struct TSIProblem
     opt::Any # Optimizer
     obj_dict::Dict{Symbol,Any}
-    
 end
+
 object_dictionary(pb::TSIProblem) = pb.obj_dict
 
 optimizer(pb::TSIProblem) = pb.opt
+
 function JuMP.unregister(pb::TSIProblem, key::Symbol)
     return JuMP.JuMP.unregister(pb.model, key)
 end

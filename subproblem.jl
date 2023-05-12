@@ -8,7 +8,15 @@ using Base.Threads
 include("matrix_ops.jl")
 # include("linear_infeasibilities.jl")
 # include("progress.jl")
+"""
+    Subproblem(t::Integer, problem::TSIProblem, submodel::Union{Model, Nothing}, valueTI::Matrix{Union{Missing, Bool}})
 
+Store the data of a subproblem tied to truck `t`. Problem data is accessible in `problem`.
+`valueTI` stores the truck-item solution matrix of the subproblem.
+
+Data from `problem` can be accessed via the Subproblem. For instance, you can 
+retrieve `problem[:TL]` via `subproblem[:TL]`.
+"""
 mutable struct Subproblem
     t::Integer
     problem::TSIProblem
@@ -21,6 +29,7 @@ model(sub::Subproblem) = sub.submodel
 optimizer(sub::Subproblem) = sub.optimizer
 truck(sub::Subproblem) = sub.t
 getproblem(sub::Subproblem) = sub.problem
+
 function Base.getindex(sub::Subproblem, name::Symbol)
     obj_dict = object_dictionary(sub.problem)
     if !haskey(obj_dict, name)
@@ -41,35 +50,42 @@ function setvalueTI!(subpb::Subproblem, value::BitMatrix)
     subpb.valueTI .= value
 end
 
+"""
+    upd_valueTI!(subpb::Subproblem)
+
+Updates subpb.valueTI with `TI` of subpb.model. To do after solving the model.
+"""
 function upd_valueTI!(subpb::Subproblem)
     setvalueTI!(subpb, value.(model(subpb)[:TI]))
 end
 
-function suppr!(model, key::Symbol)
+function suppr!(model::Model, key::Symbol)
     delete.(model, model[key])
     JuMP.unregister.(model, key)
 end
 
-function add_var!(model, key::Symbol, len::Integer; replace=false)
-    return add_var!(model, key::Symbol, (len); replace)
-end
-function add_var!(model, key::Symbol, lens::Tuple; replace=false)
-    if replace
-        delete.(model, model[key])
-        JuMP.unregister.(model, key)
-    end
-    if length(lens) == 1
-        model[key] = @variable(model, [1:lens[1]]; base_name=key)
-    elseif length(lens) == 2
-        model[key] = @variable(model, [1:lens[1], 1:lens[2]]; base_name=key)
-    elseif length(lens) == 3
-        model[key] = @variable(model, [1:lens[1], 1:lens[2], 1:lens[3]]; base_name=key)
-    else
-        error("length of $length(lens) for lens is not supported.")
-    end
+## add_var! is unused
+# function add_var!(model, key::Symbol, len::Integer; replace=false)
+#     return add_var!(model, key::Symbol, (len); replace)
+# end
+
+# function add_var!(model, key::Symbol, lens::Tuple; replace=false)
+#     if replace
+#         delete.(model, model[key])
+#         JuMP.unregister.(model, key)
+#     end
+#     if length(lens) == 1
+#         model[key] = @variable(model, [1:lens[1]]; base_name=key)
+#     elseif length(lens) == 2
+#         model[key] = @variable(model, [1:lens[1], 1:lens[2]]; base_name=key)
+#     elseif length(lens) == 3
+#         model[key] = @variable(model, [1:lens[1], 1:lens[2], 1:lens[3]]; base_name=key)
+#     else
+#         error("length of $length(lens) for lens is not supported.")
+#     end
     
-    return model[key]
-end
+#     return model[key]
+# end
 
 # function doif(cond, f1, f2, args...)
 #     if cond
@@ -79,14 +95,25 @@ end
 #     end
 # end
 
-# build_model(Model(optimizer(problem)), problem, t, changeS=true)
-function buildTSImodel!(submodel, problem::TSIProblem, t, chosentrucks; replace=false)
+"""
+    buildTSImodel!(submodel::Model, problem::TSIProblem, t::Integer, chosentrucks::Vector{Integer}; replace=false)
+
+Build a JuMP model to solve the truck stack item affectation subproblem for 
+truck t to solve the larger problem the ROADEF challenge of 2022, only using `chosentrucks`.
+Modify the model in place. If `replace=true`, will delete some constraints exclusive to `t` to replace them.
+You want to keep all stack related constraints when the given submodel to update had a 
+compatible truck with the new one.
+"""
+function buildTSImodel!(submodel::Model, problem::TSIProblem, t::Integer, chosentrucks::Vector{Integer}; replace=false)
 
     set_silent(submodel)
+    # index in subproblem might differ from global indexing used in chosentrucks.
+    # chosentrucks holds indices based on all planned trucks + extra trucks, while
+    # here we have a mixture of non-contiguous planned trucks + extra trucks
     i_t = findfirst(==(t), chosentrucks)
-    nbcandidateitems = sum(problem[:TR][t, :])
+    nbcandidateitems = sum(problem[:TR][t, :]) # TR is global matrix of all planned trucks + extra trucks, hence t is used
     # nbcandidateitems = max([sum(problem[:TR][t2, :]) for t2 in 1:nbtrucks]...)
-    nbstacks =nbcandidateitems # 1 in case no candidate items
+    nbstacks =nbcandidateitems
     nbitems = problem[:nbitems]
     nbtrucks = problem[:nbtrucks]
     nbchosentrucks = length(chosentrucks)
@@ -100,36 +127,61 @@ function buildTSImodel!(submodel, problem::TSIProblem, t, chosentrucks; replace=
     # # @info "Creating variables..."
     # @info "Adding zetaT..."
     if !replace
+        # zeta is used to determine if a truck is used or not
         @variable(submodel, zetaT[1:nbplannedtrucks] >= 0) 
         @variable(submodel, zetaE[1:nbextratrucks] >= 0)
+        # TI: truck-item binary matrix
         @variable(submodel, TI[1:nbchosentrucks, 1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
+        # GI: binary vector of unaffected items
+        # necessary relaxation for use of column generation
         @variable(submodel, GI[1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
+        # R: linearization variable
         @variable(submodel, R[1:nbitems, 1:nbsuppliers], lower_bound = 0, upper_bound = 1, Bin)
         @variable(submodel, Theta[1:nbitems, 1:nbsuppliers], lower_bound = 0, upper_bound = 1, Bin)
+        # variable orientations of items, sometimes fixed when forced orientation is provided
         @variable(submodel, IOV[1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
     end
+    # Here we only replace some variables when the new truck is not of the same kind as the previous one
+    # When we deal with an extra truck and the previous truck was of the same kind, some variables don't need to be replaced
     if !replace || !haskey(submodel, :S)
+        # We don't add those variables when there are no candidate items for the truck
         if nbcandidateitems > 0
+            # stackability code of each stack
             @variable(submodel, SS[1:nbstacks] >= 0)
+            # plant of each stack 
             @variable(submodel, SP[1:nbstacks], lower_bound = 0)
+            # plant dock of each stack
             @variable(submodel, SK[1:nbstacks, 1:nbsupplierdocks], lower_bound = 0, upper_bound = 1) # No need for Bin because it is constrained to be equal to their items' which are integer
+            # Supplier (dock?) of each stack
             @variable(submodel, SU[1:nbstacks, 1:nbsuppliers], lower_bound = 0, upper_bound = 1)
+            # orientation of each stack
             @variable(submodel, SO[1:nbstacks] >= 0)
+            # X extremity of each stack
             @variable(submodel, SXe[1:nbstacks] >= 0)
+            # X origin of each stack
             @variable(submodel, SXo[1:nbstacks] >= 0)
+            # Y extremity of each stack
             @variable(submodel, SYe[1:nbstacks] >= 0)
+            # etc
             @variable(submodel, SYo[1:nbstacks] >= 0)
             @variable(submodel, SZe[1:nbstacks] >= 0)
+            # those are linearization variables
             @variable(submodel, betaM[1:convert(Int, nbstacks*(nbstacks+1)/2)] >= 0)
             @variable(submodel, betaP[1:convert(Int, nbstacks*(nbstacks+1)/2)] >= 0)
             # @variable(submodel, nu[1:nbstacks] >= 0)
             # @variable(submodel, tau[1:nbstacks] >= 0)
             # @variable(submodel, phi[1:nbstacks] >= 0)
+            # Supplier dock of each stack
             @variable(submodel, SG[1:nbstacks, 1:nbplantdocks] >= 0, upper_bound = 1)
+            # Length and width
             @variable(submodel, SL[1:nbstacks] >= 0)
             @variable(submodel, SW[1:nbstacks] >= 0)
+            # stack-item affectation
             @variable(submodel, S[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, upper_bound = 1, Bin)
+
             @variable(submodel, Z[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, upper_bound = 1, Bin)
+
+            ## many linearization variables
             @variable(submodel, mu[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
             # @variable(submodel, eta[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
             @variable(submodel, xi[1:convert(Int, nbstacks*(nbstacks+1)/2)], lower_bound = 0, upper_bound = 1, Bin)
@@ -150,6 +202,8 @@ function buildTSImodel!(submodel, problem::TSIProblem, t, chosentrucks; replace=
         end
     end
     ### begin
+
+    ## Big M constants used in many linearizations
     MZ = max(problem[:IS]...) + 1.0
     MQ = max(problem[:IU]...) + 1.0
     MV = max(problem[:IK]...) + 1.0
@@ -167,14 +221,18 @@ function buildTSImodel!(submodel, problem::TSIProblem, t, chosentrucks; replace=
     Mzeta = nbitems
     Mmu = 2.0
     # MS = 2.0
+
+    # Those matrices help selecting every couple of stack
+    # Xi1 is the first stack and Xi2 the second
     Xi1 = falses(convert(Int, nbstacks*(nbstacks+1)/2), nbstacks)
     Xi2 = falses(convert(Int, nbstacks*(nbstacks+1)/2), nbstacks)
-    epsilon = 0.001
     fillXi1!(Xi1)
     fillXi2!(Xi2)
-
+    
+    epsilon = 0.001
 
     ## Add constraints
+    # When t changes and we reuse a model, some constraints need to be replaced
     if replace
         if haskey(JuMP.object_dictionary(submodel), :cZetaT2)
             suppr!(submodel, :cZetaT2)
@@ -190,6 +248,7 @@ function buildTSImodel!(submodel, problem::TSIProblem, t, chosentrucks; replace=
         end
     end
     if t <= nbplannedtrucks
+        # sum(TI[t, :]) implies zeta[t] = 1. Else since we minimize, zeta = 0 
         @constraint(submodel, cZetaT2, submodel[:zetaT] * Mzeta .>= submodel[:TI][1:nbplannedtrucks, :] * vones(Int8, nbitems))
         @constraint(submodel, cZetaT3, -(1 .- submodel[:zetaT]) * Mzeta .+ 1 .<= submodel[:TI][1:nbplannedtrucks, :] * vones(Int8, nbitems))
     else
@@ -214,7 +273,10 @@ function buildTSImodel!(submodel, problem::TSIProblem, t, chosentrucks; replace=
             suppr!(submodel, :cSZe_ST_TH)
         end
     end
+    # Only add constraint for not all but only candidate items of truck t
     icandidates = findall((x) -> x == 1, problem[:TR][t, :])
+
+    # Filter out non-candidate items from the solution
     @constraint(submodel, cTI_TR, submodel[:TI][i_t, :] .<= problem[:TR][t, :])
     # @debug begin
     #     @debug "i_t" i_t
@@ -224,32 +286,43 @@ function buildTSImodel!(submodel, problem::TSIProblem, t, chosentrucks; replace=
 
     # end
     if nbcandidateitems > 0
+        # If an item is in a stack, the item is in the truck, and vice-versa
         @constraint(submodel, cS_TI, transpose(submodel[:S]) * vones(Int8, nbstacks) .== submodel[:TI][i_t, filter(x -> x in icandidates, 1:nbitems)])
+        # stack dimensions don't exceed truck's dimensions
         @constraint(submodel, cSXe_ST_TL, submodel[:SXe] .<= problem[:TL][t])
         @constraint(submodel, cSYe_ST_TW, submodel[:SYe] .<= problem[:TW][t])
         @constraint(submodel, cSZe_ST_TH, submodel[:SZe] .<= problem[:TH][t])
     end
 
     if !replace
-        
+        # There is exactly one truck per item, relaxed with GI
         @constraint(submodel, cTI_1_1, transpose(submodel[:TI])[filter(x -> x in icandidates, 1:nbitems), :] * vones(Int8, nbchosentrucks) + submodel[:GI][filter(x -> x in icandidates, 1:nbitems)] .<= vones(Int8, size(transpose(submodel[:TI])[filter(x -> x in icandidates, 1:nbitems), :], 1)))
         if nbcandidateitems > 0
+            # All items from a stack have same stackability code
             @constraint(submodel, cZ_S_MZ, submodel[:Z] .<= submodel[:S] * MZ)
             @constraint(submodel, cS_IS_Z, submodel[:S] * problem[:IS][filter(x -> x in icandidates, 1:nbitems)] .== submodel[:Z] * vones(Int8, size(submodel[:Z])[1]))
             @constraint(submodel, cZ_SS_Sleft, -MZ * (-submodel[:S] .+ 1) .<= submodel[:Z] .- hcat([submodel[:SS] for i in 1:size(submodel[:Z])[2]]...))
             @constraint(submodel, cZ_SS_Sright, submodel[:Z] .- hcat([submodel[:SS] for i in 1:size(submodel[:Z])[2]]...) .<= MZ * (-submodel[:S] .+ 1))
+            
+            # All items from a stack have same supplier
             @constraint(submodel, cQ_SU, submodel[:Q] .<= submodel[:SU] * MQ)
             @constraint(submodel, cS_IU_Q, submodel[:S] * problem[:IU][filter(x -> x in icandidates, 1:nbitems)] .== submodel[:Q])
             @constraint(submodel, cQ_SU_Sleft, -MQ * (1 .- submodel[:SU]) .<= submodel[:Q] .- hcat([submodel[:S] * vones(Int8, size(submodel[:S], 2)) for i in 1:size(submodel[:Q], 2)]...))
             @constraint(submodel, cQ_SU_Sright, submodel[:Q] .- hcat([submodel[:S] * vones(Int8, size(submodel[:S], 2)) for i in 1:size(submodel[:Q], 2)]...) .<= MQ * (1 .- submodel[:SU]))
+
+            # All items from a stack must have the same supplier dock
             @constraint(submodel, cV_SK, submodel[:V] .<= submodel[:SK] * MV)
             @constraint(submodel, cS_IK_V, submodel[:S] * problem[:IK][filter(x -> x in icandidates, 1:nbitems)] .== submodel[:V])
             @constraint(submodel, cV_SK_Sleft, -MV * (-submodel[:SK] .+ 1) .<= submodel[:V] .- hcat([submodel[:S] * vones(Int8, size(submodel[:S], 2)) for i in 1:size(submodel[:V], 2)]...))
             @constraint(submodel, cV_SK_Sright, submodel[:V] .- hcat([submodel[:S] * vones(Int8, size(submodel[:S], 2)) for i in 1:size(submodel[:V], 2)]...) .<= MV * (-submodel[:SK] .+ 1))
+
+            # Same with plant dock
             @constraint(submodel, cW_SG, submodel[:W] .<= submodel[:SG] * MW)
             @constraint(submodel, cS_IPD_W, submodel[:S] * problem[:IPD][filter(x -> x in icandidates, 1:nbitems)] .== submodel[:W])
             @constraint(submodel, cW_SPD_Sleft, -MW * (-submodel[:SG] .+ 1) .<= submodel[:W] .- hcat([submodel[:S] * vones(Int8, size(submodel[:S], 2)) for i in 1:size(submodel[:W], 2)]...))
             @constraint(submodel, cW_SPD_Sright, submodel[:W] .- hcat([submodel[:S] * vones(Int8, size(submodel[:S], 2)) for i in 1:size(submodel[:W], 2)]...) .<= MW * (-submodel[:SG] .+ 1))
+
+            # Same with orientation. More complicated because orientation is a variable.
             @constraint(submodel, cGl_S, submodel[:Gl] .<= submodel[:S] * MG)
             @constraint(submodel, cGr_S, submodel[:Gr] .<= submodel[:S] * MG)
             @constraint(submodel, cGl_Gr, submodel[:Gl] .== submodel[:Gr])
@@ -257,8 +330,9 @@ function buildTSImodel!(submodel, problem::TSIProblem, t, chosentrucks; replace=
             @constraint(submodel, cGr_SO_Sright, submodel[:Gr] .- hcat([submodel[:SO] for i in 1:nbcandidateitems]...) .<= MG * (-submodel[:S] .+ 1))
             @constraint(submodel, cGl_IOV_Sleft, -MG * (-submodel[:S] .+ 1) .<= submodel[:Gl] .- vcat([transpose(submodel[:IOV][filter(x -> x in icandidates, 1:nbitems)]) for i in 1:nbstacks]...))
             @constraint(submodel, cGl_IOV_Sright, submodel[:Gl] .- vcat([transpose(submodel[:IOV][filter(x -> x in icandidates, 1:nbitems)]) for i in 1:nbstacks]...) .<= MG * (-submodel[:S] .+ 1))
-            @constraint(submodel, cDL_S, submodel[:DL] .<= submodel[:S] * MDL)
 
+            # All items of a stack have same length and width
+            @constraint(submodel, cDL_S, submodel[:DL] .<= submodel[:S] * MDL)
             @constraint(submodel, cDL_SLleft, -MDL * (-submodel[:S] .+ 1) .<= submodel[:DL] - hcat([submodel[:SL] for i in 1:size(submodel[:DL])[2]]...))
             @constraint(submodel, cDL_SLright, submodel[:DL] - hcat([submodel[:SL] for i in 1:size(submodel[:DL])[2]]...) .<= MDL * (-submodel[:S] .+ 1))
             @constraint(submodel, cDL_S_IL, submodel[:DL] * vones(Int8, size(submodel[:S], 1)) .== submodel[:S] * problem[:IL][filter(x -> x in icandidates, 1:nbitems)])
@@ -266,6 +340,8 @@ function buildTSImodel!(submodel, problem::TSIProblem, t, chosentrucks; replace=
             @constraint(submodel, cDW_SWleft, -MDW * (-submodel[:S] .+ 1) .<= submodel[:DW] - hcat([submodel[:SW] for i in 1:size(submodel[:DW])[2]]...))
             @constraint(submodel, cDW_SWright, submodel[:DW] - hcat([submodel[:SW] for i in 1:size(submodel[:DW])[2]]...) .<= MDW * (-submodel[:S] .+ 1))
             @constraint(submodel, cDW_S_IW, submodel[:DW] * vones(Int8, size(submodel[:S], 1)) .== submodel[:S] * problem[:IW][filter(x -> x in icandidates, 1:nbitems)])
+
+            # Define coordinates of each stack based on dimension and orientation
             @constraint(submodel, cSXe_SXo_SL_SOleft, submodel[:SXe] - submodel[:SXo] - submodel[:SL] .<= submodel[:SO] * MTL)
             @constraint(submodel, cSXe_SXo_SL_SOright, submodel[:SXe] - submodel[:SXo] - submodel[:SL] .>= -submodel[:SO] * MTL)
             @constraint(submodel, cSYe_SYo_SW_SOleft, submodel[:SYe] - submodel[:SYo] - submodel[:SW] .<= submodel[:SO] * MTW)
@@ -274,25 +350,40 @@ function buildTSImodel!(submodel, problem::TSIProblem, t, chosentrucks; replace=
             @constraint(submodel, cSXe_SXo_SW_SOright, submodel[:SXe] - submodel[:SXo] - submodel[:SW] .>= -(-submodel[:SO] .+ 1) * MTW)
             @constraint(submodel, cSYe_SYo_SL_SOleft, submodel[:SYe] - submodel[:SYo] - submodel[:SL] .<= (-submodel[:SO] .+ 1) * MTL)
             @constraint(submodel, cSYe_SYo_SL_SOright, submodel[:SYe] - submodel[:SYo] - submodel[:SL] .>= -(-submodel[:SO] .+ 1) * MTL)
-            @constraint(submodel, cSZe_S_IH, submodel[:SZe] .== submodel[:S]* problem[:IH][filter(x -> x in icandidates, 1:nbitems)])
-            @constraint(submodel, cSXo_SXo, submodel[:SXo][1:end-1] .<= submodel[:SXo][2:end])
-            @constraint(submodel, cXi2SXo_Xi1SXe_betaM_betaP, (Xi2 * submodel[:SXo]) - (Xi1 * submodel[:SXe]) - submodel[:betaM] + submodel[:betaP] .== -epsilon * vones(Float64, size(Xi1, 1)))
-            @constraint(submodel, cbetaM_lambda, submodel[:betaM] .<= submodel[:lambda] .* Mlambda)
 
+            # Compute height of stack
+            @constraint(submodel, cSZe_S_IH, submodel[:SZe] .== submodel[:S]* problem[:IH][filter(x -> x in icandidates, 1:nbitems)])
+
+            # Set an order between all stacks, making placement constraints simpler
+            @constraint(submodel, cSXo_SXo, submodel[:SXo][1:end-1] .<= submodel[:SXo][2:end])
+
+            # Determine which of two stacks precedes the other
+            # If they overlap on X, they won't overlap on Y due to betaM which determines mu which determines Y constraints further down
+            @constraint(submodel, cXi2SXo_Xi1SXe_betaM_betaP, (Xi2 * submodel[:SXo]) - (Xi1 * submodel[:SXe]) - submodel[:betaM] + submodel[:betaP] .== -epsilon * vones(Float64, size(Xi1, 1)))
+
+            @constraint(submodel, cbetaM_lambda, submodel[:betaM] .<= submodel[:lambda] .* Mlambda)
             @constraint(submodel, cbetaP_lambda, submodel[:betaP] .<= (-submodel[:lambda] .+ 1)*Mlambda)
             @constraint(submodel, cmu_betaM, (-submodel[:mu] .+ 1) .<= submodel[:betaM] * Mmu)
+
+            # Stacks overlap on Y axis if and only if these aren't overlapping on X axis (variable mu)
+            # xi implies only one of two constraints must be satisfied
             @constraint(submodel, cXi1SYe_Xi2SYo, Xi1 * submodel[:SYe] .<= Xi2 * submodel[:SYo] + submodel[:xi] * MTW + (-submodel[:mu] .+ 1) * MTW)
+            @constraint(submodel, cXi2SYe_Xi1SYo, Xi2 * submodel[:SYe] .<= Xi1 * submodel[:SYo] + (-submodel[:xi] .+ 1) * MTW + (-submodel[:mu] .+ 1) * MTW)
+
+            ## Determine pick-up/loading orders for supplier, supplier dock, plant dock
             notmissingTE = filter(x -> !ismissing(problem[:TE][t, x]), 1:nbsuppliers)
             @constraint(submodel, cXi1SU_Xi2SU, Xi1 * submodel[:SU][:, notmissingTE] * problem[:TE][t, notmissingTE] .<= Xi2 * submodel[:SU][:, notmissingTE] * problem[:TE][t, notmissingTE])
-            @constraint(submodel, cXi2SYe_Xi1SYo, Xi2 * submodel[:SYe] .<= Xi1 * submodel[:SYo] + (-submodel[:xi] .+ 1) * MTW + (-submodel[:mu] .+ 1) * MTW)
             @constraint(submodel, cXi1SU_Xi2SU_chi, Xi1*submodel[:SU] - Xi2*submodel[:SU] .>= submodel[:chi] * epsilon - submodel[:r]*MTE - (-submodel[:sigma1] .+ 1) * MTE)
             @constraint(submodel, cXi2SU_Xi1SU_chi, Xi2*submodel[:SU] - Xi1*submodel[:SU] .>= (-submodel[:chi] .+ 1) * epsilon - submodel[:r]*MTE - (-submodel[:sigma1] .+ 1) * MTE)
+
             notmissingTKE = filter(x -> !ismissing(problem[:TKE][t, x]), 1:nbsupplierdocks)
             @constraint(submodel, cXi2SK_Xi1SK, Xi2*submodel[:SK][:, notmissingTKE]*problem[:TKE][t, notmissingTKE] .>= Xi1*submodel[:SK][:, notmissingTKE]*problem[:TKE][t, notmissingTKE] - (-submodel[:r] .+ 1) * MTKE)
             @constraint(submodel, cXi1SK_Xi2SK_chi, Xi1*submodel[:SK][:, notmissingTKE]*problem[:TKE][t, notmissingTKE] - Xi2*submodel[:SK][:, notmissingTKE]*problem[:TKE][t, notmissingTKE] .>= submodel[:chi]*epsilon - (-submodel[:sigma2] .+ 1)*MTKE)
             @constraint(submodel, cXi2SK_Xi1SK_chi, Xi2*submodel[:SK][:, notmissingTKE]*problem[:TKE][t, notmissingTKE] - Xi1*submodel[:SK][:, notmissingTKE]*problem[:TKE][t, notmissingTKE] .>= (-submodel[:chi] .+ 1)*epsilon - (-submodel[:sigma2] .+ 1)*MTKE)
+
             notmissingTGE = filter(x -> !ismissing(problem[:TGE][t, x]), 1:nbplantdocks)
             @constraint(submodel, cXi2SG_Xi1SG, Xi2*submodel[:SG][:, notmissingTGE]*problem[:TGE][t, notmissingTGE] .>= Xi1*submodel[:SG][:, notmissingTGE]*problem[:TGE][t, notmissingTGE] - (-submodel[:sigma3] .+ 1) * MTGE)
+
             @constraint(submodel, csigma1_sigma2_sigma3, submodel[:sigma1] + submodel[:sigma2] + submodel[:sigma3] .>= 1)
         end
     end

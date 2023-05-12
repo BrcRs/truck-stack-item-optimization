@@ -6,8 +6,14 @@ const MOI = MathOptInterface
 using Clp # Only for debug
 using CDDLib # Only debug
 
+"""
+    find_problematic_constraint!(originalmodel::Model)
 
-function find_problematic_constraint!(originalmodel)
+Find and return each constraint without which `originalmodel` is feasible.
+
+To be debugged TODO.
+"""
+function find_problematic_constraint!(originalmodel::Model)
     @info "Let's find infeasible constraints!"
     @warn "The model's constraints are going to be changed"
     model, referencemap = copy_model(originalmodel)

@@ -1,3 +1,8 @@
+"""
+    overprint(str...; nblines=1)  
+
+Print `str` over previous line.
+"""
 function overprint(str...; nblines=1)  
     for i in 1:nblines-1
         overprint(str...)
@@ -12,11 +17,20 @@ function overprint(str...; nblines=1)
    #If n is 2, clear entire line. 
    #Cursor position does not change. 
 end
+
+"""Clear `n` previous lines in terminal."""
 function clearnlines(n)
     print("\u1b[", "$n", "F", "\u1b[J")
 end
 
-function display_progress(i, total; n=10, name="", margin=20)
+"""
+    display_progress(i::Number, total::Number; n=10, name="", margin=20)
+
+Display a nice progress bar based on `i / total`. Can be prefaced with `name`.
+`margin` is the size of the left part area for the message.
+`n` is the size of the bar in number of characters.
+"""
+function display_progress(i::Number, total::Number; n=10, name="", margin=20)
     if i == 1
         println()
     end
