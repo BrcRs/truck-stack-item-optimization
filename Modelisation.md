@@ -1547,7 +1547,7 @@ $IP \in \bold{N}^{|items|}$
 
 Good news is we have very 'few' variables (arguable), but these are all integers. $\widehat{TI}$ is the fractional solution found by solving the master problem of the Benders decomposition.
 
-Actually, this might be easier than I thought. We can compute beforehand which items are compatible with which trucks, an $O(nm)$ operation (n: nb of items, m: nb of trucks). There are at most $n$ trucks, which makes it a $O(n^2)$ operation. We then filter $\widehat{TI}$ based on the result to get rid of impossible affectations in $O(n^2)$. Then, for each item, we take the truck with the maximum affectation value and replace with 1, the rest of the line becomes 0, in $O(n^2)$. In the worst case, there are some trucks with too many items. When that happens, the value of the objective function is penalized in the sub-problems and the optimality cut will guide towards a better solution.
+Actually, this might be easier than I thought. We can compute beforehand which items are compatible with which trucks, an $O(nm)$ operation (n: nb of items, m: nb of trucks). There are at most $n$ trucks, which makes it a $O(n^2)$ operation. We then filter $\widehat{TI}$ based on the result to get rid of impossible assignations in $O(n^2)$. Then, for each item, we take the truck with the maximum assignation value and replace with 1, the rest of the line becomes 0, in $O(n^2)$. In the worst case, there are some trucks with too many items. When that happens, the value of the objective function is penalized in the sub-problems and the optimality cut will guide towards a better solution.
 
 ## In Summary
 

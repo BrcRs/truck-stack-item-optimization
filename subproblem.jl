@@ -98,7 +98,7 @@ end
 """
     buildTSImodel!(submodel::Model, problem::TSIProblem, t::Integer, chosentrucks::Vector{Integer}; replace=false)
 
-Build a JuMP model to solve the truck stack item affectation subproblem for 
+Build a JuMP model to solve the truck stack item assignation subproblem for 
 truck t to solve the larger problem the ROADEF challenge of 2022, only using `chosentrucks`.
 Modify the model in place. If `replace=true`, will delete some constraints exclusive to `t` to replace them.
 You want to keep all stack related constraints when the given submodel to update had a 
@@ -132,7 +132,7 @@ function buildTSImodel!(submodel::Model, problem::TSIProblem, t::Integer, chosen
         @variable(submodel, zetaE[1:nbextratrucks] >= 0)
         # TI: truck-item binary matrix
         @variable(submodel, TI[1:nbchosentrucks, 1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
-        # GI: binary vector of unaffected items
+        # GI: binary vector of unassigned items
         # necessary relaxation for use of column generation
         @variable(submodel, GI[1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
         # R: linearization variable
@@ -176,7 +176,7 @@ function buildTSImodel!(submodel::Model, problem::TSIProblem, t::Integer, chosen
             # Length and width
             @variable(submodel, SL[1:nbstacks] >= 0)
             @variable(submodel, SW[1:nbstacks] >= 0)
-            # stack-item affectation
+            # stack-item assignment
             @variable(submodel, S[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, upper_bound = 1, Bin)
 
             @variable(submodel, Z[1:nbstacks, 1:nbcandidateitems], lower_bound = 0, upper_bound = 1, Bin)

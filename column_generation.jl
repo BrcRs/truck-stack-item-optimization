@@ -43,7 +43,7 @@ function columngeneration(solvefun!, problem, args...; eps=0.1)
     # retrieve intial solution via solvefun!, a function of your choice
     TIbar, optsolpertruck = solvefun!(problem, args..., chosentrucks)
 
-    # optsol will store the optimal truck-item (TI) affectation for the global
+    # optsol will store the optimal truck-item (TI) assignment for the global
     # problem, as well as particular solutions for each subproblem (one for each
     # truck)
     optsol = Dict{Any, Any}(:TI => copy(TIbar))
@@ -75,12 +75,12 @@ function columngeneration(solvefun!, problem, args...; eps=0.1)
 
     # while transpose(optsol[:TI]) * vones(Int8, nbtrucks) != vones(Int8, nbitems) || improvement
 
-    # Iterate until all objects are affected and there is no more improvement made
+    # Iterate until all objects are assigned and there is no more improvement made
     while sum(optsol[:TI]) != nbitems || improvement
         printstyled("Column Generation\n", color=:light_green)
         printstyled("Value change: \n", color=:light_green)
         printstyled(optsol[:value] - oldvalue, "\n")
-        printstyled("Number of unaffected items: \n", color=:light_green)
+        printstyled("Number of unassigned items: \n", color=:light_green)
         printstyled(nbitems - sum(optsol[:TI]), "\n")
         printstyled("Solving with ", length(chosentrucks), " trucks ($nbitems items)\n", color=:light_blue)
         oldTI = copy(optsol[:TI])
@@ -124,7 +124,7 @@ function columngeneration(solvefun!, problem, args...; eps=0.1)
        
         clearnlines(1)
         printstyled("Solved with ", length(chosentrucks), " trucks\n", color=:light_blue)
-        # If no unaffected item:
+        # If no unassigned item:
         if sum(optsol[:TI]) == nbitems
             # remove empty unused useless trucks
             for (i, t) in enumerate(chosentrucks)
@@ -150,7 +150,7 @@ function columngeneration(solvefun!, problem, args...; eps=0.1)
     printstyled("End of Column Generation\n", color=:light_green)
     printstyled("Value change: \n", color=:light_green)
     printstyled(optsol[:value] - oldvalue, "\n")
-    printstyled("Number of unaffected items: \n", color=:light_green)
+    printstyled("Number of unassigned items: \n", color=:light_green)
     printstyled(nbitems - sum(optsol[:TI]), "\n")
     printstyled("Solved with ", length(chosentrucks), " trucks ($nbitems items)\n", color=:light_blue)
 

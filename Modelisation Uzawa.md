@@ -1,11 +1,11 @@
 # ROADEF 2022 Modelisation
 
-This file explains the method we set up to solve the truck stack item affectation problem described in the ROADEF 2022 challenge.
+This file explains the method we set up to solve the truck stack item assignation problem described in the ROADEF 2022 challenge.
 
 
 ## The full model
 
-In this section we try to describe a mixed integer linear program valid for the truck stack item affectation problem. Because of time constraints, we ignored some kinds of constraints from the formulation, and simplified others. Notably, we ignored all weight related constraints.
+In this section we try to describe a mixed integer linear program valid for the truck stack item assignation problem. Because of time constraints, we ignored some kinds of constraints from the formulation, and simplified others. Notably, we ignored all weight related constraints.
 
 **Minimize:**
 

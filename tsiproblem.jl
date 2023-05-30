@@ -12,7 +12,7 @@ include("matrix_ops.jl")
 """
     TSIProblem(opt, obj_dict::Dict{Symbol,Any})
 
-Problem data of a truck stack item affectation problem.
+Problem data of a truck stack item assignation problem.
 `opt` is an optimizer. `obj_dict` holds all problem data.
 
 You can directly access the dictionary with problem[:something].
