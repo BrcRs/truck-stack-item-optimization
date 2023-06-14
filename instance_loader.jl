@@ -197,13 +197,13 @@ function fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, _IO, IL, IW, IH, stackability
 end
 
 """
-    count!(d::Dict{String, Integer}, nb::Integer, rowvalue::String)
+    count!(d::Dict{String, <:Integer}, nb::Integer, rowvalue::String)
 
 Is used to map an index by order of appearance to each `rowvalue` in `d`.
 
 See also [`countTrucks!`](@ref) which makes use of it.
 """
-function count!(d::Dict{String, Integer}, nb::Integer, rowvalue::String)
+function count!(d::Dict{String, <:Integer}, nb::Integer, rowvalue::String)
     if !haskey(d, rowvalue)
         nb = nb + 1
 

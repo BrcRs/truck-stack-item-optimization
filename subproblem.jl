@@ -96,7 +96,7 @@ end
 # end
 
 """
-    buildTSImodel!(submodel::Model, problem::TSIProblem, t::Integer, chosentrucks::Vector{Integer}; replace=false)
+    buildTSImodel!(submodel::Model, problem::TSIProblem, t::Integer, chosentrucks::Vector{<:Integer}; replace=false)
 
 Build a JuMP model to solve the truck stack item assignation subproblem for 
 truck t to solve the larger problem the ROADEF challenge of 2022, only using `chosentrucks`.
@@ -104,7 +104,7 @@ Modify the model in place. If `replace=true`, will delete some constraints exclu
 You want to keep all stack related constraints when the given submodel to update had a 
 compatible truck with the new one.
 """
-function buildTSImodel!(submodel::Model, problem::TSIProblem, t::Integer, chosentrucks::Vector{Integer}; replace=false)
+function buildTSImodel!(submodel::Model, problem::TSIProblem, t::Integer, chosentrucks::Vector{<:Integer}; replace=false)
 
     set_silent(submodel)
     # index in subproblem might differ from global indexing used in chosentrucks.
@@ -287,6 +287,7 @@ function buildTSImodel!(submodel::Model, problem::TSIProblem, t::Integer, chosen
     # end
     if nbcandidateitems > 0
         # If an item is in a stack, the item is in the truck, and vice-versa
+        # TODO ERROR: LoadError: DimensionMismatch: matrix A has dimensions (2,2), matrix B has dimensions (1,1) (add_mul)
         @constraint(submodel, cS_TI, transpose(submodel[:S]) * vones(Int8, nbstacks) .== submodel[:TI][i_t, filter(x -> x in icandidates, 1:nbitems)])
         # stack dimensions don't exceed truck's dimensions
         @constraint(submodel, cSXe_ST_TL, submodel[:SXe] .<= problem[:TL][t])
