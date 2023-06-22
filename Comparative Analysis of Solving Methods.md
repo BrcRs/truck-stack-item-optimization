@@ -170,7 +170,128 @@ Variables and constraints are in $O(n^2)$. However we face memory issues when it
 In this method the subproblems are easier to solve and of reduced size compared to the Uzawa algorithm. However memory issues have to be dealt with.
 
 ## Placement subproblem analysis
+
+The placement subproblem consists in optimizing the placement of items into stacks and stacks into a truck, satisfying specific constraints on volume, load order, etc...
+
+
 ### Description
+
+Formulation:
+
+**Minimize:**
+
+$$\alpha_T c^\top_{{T}_1} \zeta^T + \alpha_E c^\top_{{T}_2} \zeta^E + \alpha_Ic^\top_{I} (IDL - TI^{t\top} \times TDA) + \kappa^t(TI^t - \overline{TI})$$
+
+**Subject to:**
+
+$$-(1 - \zeta^T) \times M^\zeta + 1 \leq TI^T \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\leq \zeta^T \times M^\zeta$$
+
+
+$$-(1 - \zeta^E) \times M^\zeta + 1 \leq TI^E \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix}\right ]\leq \zeta^E \times M^\zeta$$
+
+$$TI^t \leq TR\quad \bold{(TI_1)}$$
+
+$$TI^{t\top}\times \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] = \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right]\quad \bold{(TI_2)}$$
+
+$$S^\top \cdot \left [ \begin{matrix}1\\\vdots\\1 \end{matrix} \right ] = TI^t[t]$$
+
+$$Z\leq S\times M^{Z}\quad \bold{(Z_1)}$$  
+
+$$S\times IS = Z\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\quad \bold{(S_1)}$$
+
+
+$$-M^{Z}(1-S) \leq Z - \left [  SS  \cdots  SS  \right ] \leq M^{Z}(1-S)\quad \bold{(Z_2)}$$
+
+
+$$Q\leq SU\times M^Q\quad \bold{(Q_1)}$$  
+$$S\times IU = Q \quad \bold{(Q_2)}$$
+
+
+$$-M^Q(1-SU) \leq Q - \left [S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \dots S\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]\right ] \leq M^Q(1-SU)\quad \bold{(Q_3)}$$ 
+
+
+$$V\leq SK\times M^V\quad \bold{(V_1)}$$  
+$$S\times IK = V\quad \bold{(V_2)}$$
+
+$$-M^V(1-SK) \leq V - \left [  S \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \cdots  S \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \right ] \leq M^V(1-SK)\quad \bold{(V_3)}$$
+
+$$W\leq SG\times M^{W}\quad \bold{(W_1)}$$  
+$$\displaystyle S\times IPD = W\quad \bold{(W_2)}$$
+
+$$-M^{W}(1-SG) \leq W - \left [  S \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \cdots  S \times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] \right ] \leq M^{W}(1-SG)\quad \bold{(W_3)}$$
+
+
+$$G^l\leq S\times M^G$$  
+$$G^r \leq S\times M^G$$  
+$$G^l\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = G^r\times \left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ]$$
+
+$$-M^G(1-S) \leq G^r - \left [  SO  \cdots  SO  \right ] \leq M^G(1-S)$$  
+$$-M^G(1-S) \leq G^l - \left [  \begin{matrix}IOV^\top \\ \vdots \\ IOV^\top \end{matrix} \right ] \leq M^G(1-S)$$
+
+Define $SL$ and $SW$
+
+
+$$D^L \leq S \times M^{D^L}$$
+
+$$-M^{D^L}(1 - S) \leq D^L - \left [ SL \cdots SL\right ] \leq M^{D^L}(1 - S)$$
+
+$$D^L\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = S\times IL$$
+
+$$D^W \leq S \times M^{D^W}$$
+
+$$-M^{D^W}(1 - S) \leq D^W - \left [ SW \cdots SW\right ] \leq M^{D^W}(1 - S)$$
+
+$$D^W\times\left [ \begin{matrix} 1\\\vdots\\1 \end{matrix} \right ] = S\times IW$$
+
+
+$$SO\cdot M^{TL} \leq SX^e - SX^o - SL \leq SO\cdot M^{TL}$$
+
+$$SO\cdot M^{TW} \leq SY^e - SY^o - SL \leq SO\cdot M^{TW}$$
+
+$$-(1-SO)\cdot M^{TW} \leq SX^e - SX^o - SW \leq (1-SO)\cdot M^{TW}$$
+
+$$-(1-SO)\cdot M^{TL} \leq SY^e - SY^o - SW \leq (1-SO)\cdot M^{TL}$$
+
+$$SZ^o = 0$$
+
+$$SZ^e = S\cdot IH$$
+
+$$SX^e \leq  TL[t]$$  
+
+
+$$SY^e \leq  TW[t]$$  
+$$SZ^e \leq  TH[t]$$
+
+$$\left [ \begin{matrix} 1 & 0 & \dots & 0\\ & I & &  \end{matrix} \right ]\times SX^o \leq  SX^o$$
+
+$$\Xi^2 SX^o - \Xi^1 SX^{e} - \beta^- + \beta^+ =  - \epsilon\quad \bold{(\Xi_a)}$$
+
+$$\beta^- \leq \lambda M^\lambda$$  
+$$\beta^+ \leq (1-\lambda)M^\lambda$$  
+
+$$(1 - \mu) \leq \beta^- M^\mu$$
+
+$$\Xi^1SY^e \leq \Xi^2SY^o +  \xi M^{TW} + (1-\mu)M^{TW}\quad \bold{(\Xi_b)}$$
+
+$$\Xi^2SY^e \leq \Xi^1SY^o + (1 - \xi)M^{TW} + (1-\mu)M^{TW}\quad \bold{(\Xi_c)}$$
+
+$$\Xi^1SU\cdot TE[t] \leq \Xi^2 SU \cdot TE[t]\quad \bold{(\Xi_d)}$$
+
+$$\Xi^1SU - \Xi^2SU \geq \chi\epsilon - rM^{TE} - (1 - \sigma^1)M^{TE}\quad \bold{(\Xi_e)}$$  
+$$\Xi^2SU - \Xi^1SU \geq (1 - \chi)\epsilon - rM^{TE} - (1 - \sigma^1)M^{TE}\quad \bold{(\Xi_f)}$$
+
+$$\Xi^2SK \cdot TKE[t] \geq \Xi^1SK \cdot TKE[t] - (1-r)M^{TKE}\quad \bold{(\Xi_g)}$$
+
+$$\Xi^1SK \cdot TKE[t] - \Xi^2SK \cdot TKE[t] \geq \chi\epsilon - (1 - \sigma^2)M^{TKE}\quad \bold{(\Xi_h)}$$  
+$$\Xi^2SK \cdot TKE[t] - \Xi^1SK \cdot TKE[t] \geq (1 - \chi)\epsilon - (1 - \sigma^2)M^{TKE}\quad \bold{(\Xi_i)}$$
+
+$$\Xi^2SG\cdot TGE[t] \geq \Xi^1SG\cdot TGE[t] - (1 - \sigma^3)M^{TGE}\quad \bold{(\Xi_j)}$$
+
+$$\sigma^1 + \sigma^2 + \sigma^3 \geq 1$$  
+
+
 ### Analysis
+
 ### Pros and Cons
+
 ## Comparison
