@@ -6,38 +6,57 @@ using Random
 struct Dim
     le
     wi
+    Dim(a, b) = a == 0 || b == 0 ? throw(ArgumentError("Dim($a, $b): Dimension can't be of size zero")) : new(a, b)
 end
 
+# function Dim(le, wi)
+#     if le == 0 || wi == 0
+#         throw(ArgumentError("Dimension can't be of size zero"))
+#     end
+#     return Dim(le, wi)
+# end
 struct Pos
     x
     y
 end
 
-function findboxesabove(pos, dim, r)
-    return filter(b -> r[b][1].y >= pos.y && r[b][1].x < pos.x + dim.le && r[b][1].x + r[b][2].le > pos.x, keys(r))
+function findboxesabove(pos, dim, r, precision=3)
+    # return filter(b -> r[b][1].y >= pos.y && r[b][1].x < pos.x + dim.le && r[b][1].x + r[b][2].le > pos.x, keys(r))
+    # return filter(b -> geqtol(r[b][1].y, pos.y, precision) && lessertol(r[b][1].x, pos.x + dim.le, precision) && greatertol(r[b][1].x + r[b][2].le, pos.x, precision), keys(r))
+    return filter(b -> geqtol(r[b][1].y, pos.y, precision), keys(r))
 end
 
-function findboxesright(pos, dim, r)
-    return filter(b -> r[b][1].x >= pos.x && r[b][1].y < pos.y + dim.wi && r[b][1].y + r[b][2].wi > pos.y, keys(r))
+function findboxesright(pos, dim, r, precision=3)
+    # return filter(b -> geqtol(r[b][1].x, pos.x, precision) && lessertol(r[b][1].y, pos.y + dim.wi, precision) && greatertol(r[b][1].y + r[b][2].wi, pos.y, precision), keys(r))
+    return filter(b -> geqtol(r[b][1].x, pos.x, precision), keys(r))
 end
 
-function collision(pos, dim, r)
+leqtol(a, b, decimals=3) = round(a, digits=decimals) <= round(b, digits=decimals)
+
+greatertol(a, b, decimals=3) = !eqtol(a, b, decimals) && geqtol(a, b, decimals)
+lessertol(a, b, decimals=3) = !eqtol(a, b, decimals) && leqtol(a, b, decimals)
+
+geqtol(a, b, decimals=3) = round(a, digits=decimals) >= round(b, digits=decimals)
+
+eqtol(a, b, decimals=3) = round(a, digits=decimals) == round(b, digits=decimals)
+
+function collision(pos, dim, r, precision=3)
     """Return true if considered box overlaps with existing one"""
 
     # Find boxes with corresponding x
     # tocheck = filter(b -> r[b][1].x < pos.x + dim.le && r[b][1].x + r[b][2].le > pos.x, keys(r))
-    tocheck = findboxesabove(pos, dim, r)
+    tocheck = findboxesabove(pos, dim, r, precision)
     # check each one
     for k in tocheck
-        if pos.y + dim.wi > r[k][1].y + 0.001
+        if greatertol(pos.y + dim.wi, r[k][1].y, precision) && lessertol(r[k][1].x, pos.x + dim.le, precision) && greatertol(r[k][1].x + r[k][2].le, pos.x, precision)
             return true
         end
     end
 
-    tocheck = findboxesright(pos, dim, r)
+    tocheck = findboxesright(pos, dim, r, precision)
     # check each one
     for k in tocheck
-        if pos.x + dim.le > r[k][1].x + 0.001
+        if greatertol(pos.x + dim.le, r[k][1].x, precision) && lessertol(r[k][1].y, pos.y + dim.wi, precision) && greatertol(r[k][1].y + r[k][2].wi, pos.y, precision)
             return true
         end
     end
@@ -45,11 +64,11 @@ function collision(pos, dim, r)
     return false
 end
 
-function outofbound(pos, dim, W)
-    return pos.y + dim.wi > W
+function outofbound(pos, dim, W, precision=3)
+    return greatertol(pos.y + dim.wi, W, precision)
 end
 
-function place(S, W)
+function place(S, W, precision=3)
     """Lengths must be greater than widths"""
     # TODO pretreatment
     """One of the two dimensions must be lesser than W"""
@@ -70,24 +89,24 @@ function place(S, W)
             #     println(!collision(Pos(o.x, o.y), Dim(s.wi, s.le), r))
             #     println(!collision(Pos(o.x, o.y), Dim(s.le, s.wi), r))
             # end
-            if o.y + s.le <= W && !collision(Pos(o.x, o.y), Dim(s.wi, s.le), r)
+            if leqtol(o.y + s.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.wi, s.le), r, precision)
                 push!(torem, o)
                 r[i] = Pos(o.x, o.y), Dim(s.wi, s.le)
                 push!(toadd, Pos(o.x, o.y + s.le), Pos(o.x + s.wi, o.y))
                 # remove covered starting points
                 for o2 in O
-                    if o.x <= o2.x < o.x + s.wi && o.y <= o2.y < o.y + s.le
+                    if leqtol(o.x,  o2.x, precision) && lessertol(o2.x, o.x + s.wi, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.y, o.y + s.le, precision)
                         push!(torem, o2)
                     end
                 end
                 break
-            elseif o.y + s.wi <= W && !collision(Pos(o.x, o.y), Dim(s.le, s.wi), r)
+            elseif leqtol(o.y + s.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.le, s.wi), r, precision)
                 push!(torem, o)
                 r[i] = Pos(o.x, o.y), Dim(s.le, s.wi)
                 push!(toadd, Pos(o.x, o.y + s.wi), Pos(o.x + s.le, o.y))
                 # remove covered starting points
                 for o2 in O
-                    if o.x <= o2.x < o.x + s.le && o.y <= o2.y < o.y + s.wi
+                    if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.wi, precision)
                         push!(torem, o2)
                     end
                 end
@@ -103,7 +122,7 @@ function place(S, W)
     return r
 
 end
-function genS3(W, L, eps)
+function genS3(W, L, eps, precision=3)
     """Lengths must be greater than widths"""
     """One of the two dimensions must be lesser than W"""
     # println("Entering place")
@@ -115,44 +134,61 @@ function genS3(W, L, eps)
     i = 0
     while !isempty(O)
         i += 1
-        println()
-        print("#")
+        # println()
+        # print("#")
         for o in O
-            print("=")
+            push!(torem, o)
+            # print("=")
             # ro = (ywi = o.y + s.wi, yle =  o.y + s.le, xle = o.x + s.le, xwi = o.x + s.wi)
-            wi, le = 0.0, 0.0
-            above = findboxesabove(o, Dim(0, 0), r)
-            right = findboxesright(o, Dim(0, 0), r)
+            wi, le = missing, missing
+            above = findboxesabove(o, Dim(0.001, 0.001), r, precision)
+            right = findboxesright(o, Dim(0.001, 0.001), r, precision)
             lowestyabove = isempty(above) ? W : min([r[k][1].y for k in above]...)
             # generate width
-            if lowestyabove - o.y < eps
-                print(".")
+            if lessertol(lowestyabove - o.y, eps, precision)
+                # print(".")
                 wi = lowestyabove - o.y
             else
                 # Find lowest limit among already placed boxes
-                wi = rand() * (lowestyabove - o.y)
-                while o.y + wi > lowestyabove || collision(Pos(o.x, o.y), Dim(0.0, wi), r)
-                    print("-")
-                    print(lowestyabove-o.y)
-                    wi = rand() * (lowestyabove - o.y)
-                    print(wi)
+                wi = rand() * (lowestyabove - o.y - eps) + eps
+                while greatertol(o.y + wi, lowestyabove, precision) || collision(Pos(o.x, o.y), Dim(0.001, wi), r, precision)
+                    # print("-")
+                    # print(lowestyabove-o.y)
+                    wi = rand() * (lowestyabove - o.y - eps) + eps
+                    # print(wi)
                     # sleep(1)
                 end
             end
-            print("|")
+            if leqtol(wi, 0, precision)
+                continue
+            end
+            # print("|")
             closestxright = isempty(right) ? L : min([r[k][1].x for k in right]...)
             # generate length
-            if closestxright - o.x < eps
-                print(".")
+            if lessertol(closestxright - o.x, eps, precision)
+                # print(".")
                 le = closestxright - o.x
             else
-                le = rand() * (closestxright - o.x)
-                println(collision(Pos(o.x, o.y), Dim(0.0, wi), r))
-                println(collision(Pos(o.x, o.y), Dim(le, wi), r))
-                while o.x + le > closestxright || collision(Pos(o.x, o.y), Dim(le, wi), r)
-                    print("+")
+                le = rand() * (closestxright - o.x - eps) + eps
+                # println(collision(Pos(o.x, o.y), Dim(0.0, wi), r))
+                # println(collision(Pos(o.x, o.y), Dim(le, wi), r))
+                cpt = 0
+                while greatertol(o.x + le, closestxright, precision) || collision(Pos(o.x, o.y), Dim(le, wi), r, precision)
+                    cpt += 1
+                    if cpt >= 10
+                        display(o.x + le)
+                        display(closestxright)
+                        display(Pos(o.x, o.y))
+                        display(Dim(le, wi))
+                        display(r)
+                        display(collision(Pos(o.x, o.y), Dim(le, wi), r, precision))
+                        display(right)
+                        display(above)
+                        sleep(10)
+                    end
+                    # print("+")
                     # print(closestxright - o.x)
-                    le = rand() * (closestxright - o.x)
+                    le = rand() * (closestxright - o.x - eps) + eps
                     # print(":", le)
                     # println(";", o.x + le)
                     # println("In S:", S)
@@ -164,7 +200,13 @@ function genS3(W, L, eps)
                 end
             end
             
-            push!(torem, o)
+            
+            if leqtol(le, 0, precision)
+                continue
+            end
+            # if leqtol(le, 0, precision) || leqtol(wi, 0, precision)
+            #     continue
+            # end
             push!(toadd, Pos(o.x, o.y + wi), Pos(o.x + le, o.y))
             push!(S, Dim(le, wi))
             r[i] = Pos(o.x, o.y), Dim(le, wi)
@@ -174,7 +216,7 @@ function genS3(W, L, eps)
         toadd = []
     end
 
-    return S
+    return S, r
 
 end
 
@@ -306,23 +348,39 @@ function genS(W, L, n)
     return filter(x -> x[1] * x[2] > 0, S)
 end
 
-function eval(maxW, maxL)
+function eval(maxW, maxL, shuffleS=false)
     W = rand(1:maxW)
     L = rand(1:maxL)
-    S = rndgenS(W, L, rand(1:min(W, L)))
+    S, genr = genS3(W, L, rand(1:min(W, L)))
+    if shuffleS
+        shuffle!(S)
+    end
     r = place(S, W)
-    println(W, " ", L)
-    println(S)
-    println(r)
-    foundL = max([r[k][1][1] + r[k][2][1] for k in keys(r)]...)
+    # println(W, " ", L)
+    # println(S)
+    # println(r)
+    foundL = max([r[k][1].x + r[k][2].le for k in keys(r)]...)
+    if foundL <= L
+        println("Singularity")
+        println(S)
+        println(genr)
+        println(r)
+        println(L)
+        println(foundL)
+    end
     return foundL/L
 end
 
-function evals(nbiter)
+function evals(nbiter, shuffleS=false)
     sum = 0
+    best = 9999
+    worst = 1
     for i in 1:nbiter
-        sum += eval(20, 20)
+        e = eval(20, 20, shuffleS)
+        sum += eval(20, 20, shuffleS)
+        best = min(best, e)
+        worst = max(worst, e)
     end
-    return sum/nbiter
+    return sum/nbiter, best, worst
 end
 

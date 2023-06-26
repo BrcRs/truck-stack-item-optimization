@@ -6,17 +6,18 @@ function main()
     # r = place([Dim(1, 1), Dim(1, 1), Dim(2, 1), Dim(1, 2)], W)
     # display(r)
     # printplacement(r, W)
-    W = 3
+    # W = 3
 
-    r = place([Dim(1, 1), Dim(1, 1), Dim(3, 3), Dim(2, 1), Dim(1, 1)], W)
-    display(r)
-    begin
-        for k in keys(r)
-            println("$k ", !collision(r[k][1], r[k][2], filter(p -> p[1] != k, r)))
-        end
-    end
+    # r = place([Dim(1, 1), Dim(1, 1), Dim(3, 3), Dim(2, 1), Dim(1, 1)], W)
+    # display(r)
+    # begin
+    #     for k in keys(r)
+    #         println("$k ", !collision(r[k][1], r[k][2], filter(p -> p[1] != k, r)))
+    #     end
+    # end
 
-    # evals(100)
+    println(evals(100000))
+    println(evals(100000, true))
     # S = genS(3, 17, 2)
     # println(S)
     # println(3 * 17)
