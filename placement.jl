@@ -20,16 +20,41 @@ struct Pos
     y
 end
 
-function findboxesabove(pos, dim, r, precision=3)
+function findboxesabove(pos, r, precision=3)
     # return filter(b -> r[b][1].y >= pos.y && r[b][1].x < pos.x + dim.le && r[b][1].x + r[b][2].le > pos.x, keys(r))
     # return filter(b -> geqtol(r[b][1].y, pos.y, precision) && lessertol(r[b][1].x, pos.x + dim.le, precision) && greatertol(r[b][1].x + r[b][2].le, pos.x, precision), keys(r))
-    return filter(b -> geqtol(r[b][1].y, pos.y, precision), keys(r))
+    return filter(b -> geqtol(r[b][1].y, pos.y, precision) && leqtol(r[b][1].x, pos.x, precision) && greatertol(r[b][1].x + r[b][2].le, pos.x, precision), keys(r))
+end
+
+function findboxesright(pos, r, precision=3)
+    # return filter(b -> geqtol(r[b][1].x, pos.x, precision) && lessertol(r[b][1].y, pos.y + dim.wi, precision) && greatertol(r[b][1].y + r[b][2].wi, pos.y, precision), keys(r))
+    return filter(
+        b -> geqtol(r[b][1].x, pos.x, precision) && 
+        leqtol(r[b][1].y, pos.y, precision) && 
+        greatertol(r[b][1].y + r[b][2].wi, pos.y, precision), 
+        keys(r))
 end
 
 function findboxesright(pos, dim, r, precision=3)
-    # return filter(b -> geqtol(r[b][1].x, pos.x, precision) && lessertol(r[b][1].y, pos.y + dim.wi, precision) && greatertol(r[b][1].y + r[b][2].wi, pos.y, precision), keys(r))
-    return filter(b -> geqtol(r[b][1].x, pos.x, precision), keys(r))
+    return filter(b -> geqtol(r[b][1].x, pos.x, precision) && lessertol(r[b][1].y, pos.y + dim.wi, precision) && greatertol(r[b][1].y + r[b][2].wi, pos.y, precision), keys(r))
+    # return filter(
+    #     b -> geqtol(r[b][1].x, pos.x, precision) && 
+    #     leqtol(r[b][1].y, pos.y, precision) && 
+    #     greatertol(r[b][1].y + r[b][2].wi, pos.y, precision), 
+    #     keys(r))
 end
+
+"""Return wether the two boxes overlap on X"""
+function overlapX(apos, adim, bpos, bdim; precision=3)
+    return greatertol(apos.x + adim.le, bpos.x, precision) && lessertol(apos.x, bpos.x + bdim.le, precision)
+end
+
+
+"""Return wether the two boxes overlap on X"""
+function overlapY(apos, adim, bpos, bdim; precision=3)
+    return greatertol(apos.y + adim.wi, bpos.y, precision) && lessertol(apos.y, bpos.y + bdim.wi, precision)
+end
+
 
 leqtol(a, b, decimals=3) = round(a, digits=decimals) <= round(b, digits=decimals)
 
@@ -40,23 +65,21 @@ geqtol(a, b, decimals=3) = round(a, digits=decimals) >= round(b, digits=decimals
 
 eqtol(a, b, decimals=3) = round(a, digits=decimals) == round(b, digits=decimals)
 
-function collision(pos, dim, r, precision=3)
+function collision(pos, dim, r; precision=3, verbose=false)
     """Return true if considered box overlaps with existing one"""
 
     # Find boxes with corresponding x
     # tocheck = filter(b -> r[b][1].x < pos.x + dim.le && r[b][1].x + r[b][2].le > pos.x, keys(r))
-    tocheck = findboxesabove(pos, dim, r, precision)
+    # tocheck = findboxesabove(pos, dim, r, precision)
     # check each one
-    for k in tocheck
-        if greatertol(pos.y + dim.wi, r[k][1].y, precision) && lessertol(r[k][1].x, pos.x + dim.le, precision) && greatertol(r[k][1].x + r[k][2].le, pos.x, precision)
-            return true
-        end
-    end
+    for k in keys(r)
 
-    tocheck = findboxesright(pos, dim, r, precision)
-    # check each one
-    for k in tocheck
-        if greatertol(pos.x + dim.le, r[k][1].x, precision) && lessertol(r[k][1].y, pos.y + dim.wi, precision) && greatertol(r[k][1].y + r[k][2].wi, pos.y, precision)
+        if overlapX(pos, dim, r[k][1], r[k][2]; precision) && overlapY(pos, dim, r[k][1], r[k][2]; precision)
+            if verbose
+                println(k)
+                println("overlapX($pos, $dim, $(r[k][1]), $(r[k][2]); $precision) = ", overlapX(pos, dim, r[k][1], r[k][2]; precision))
+                println("overlapY($pos, $dim, $(r[k][1]), $(r[k][2]); $precision) = ", overlapY(pos, dim, r[k][1], r[k][2]; precision))
+            end
             return true
         end
     end
@@ -89,7 +112,7 @@ function place(S, W, precision=3)
             #     println(!collision(Pos(o.x, o.y), Dim(s.wi, s.le), r))
             #     println(!collision(Pos(o.x, o.y), Dim(s.le, s.wi), r))
             # end
-            if leqtol(o.y + s.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.wi, s.le), r, precision)
+            if leqtol(o.y + s.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.wi, s.le), r; precision)
                 push!(torem, o)
                 r[i] = Pos(o.x, o.y), Dim(s.wi, s.le)
                 push!(toadd, Pos(o.x, o.y + s.le), Pos(o.x + s.wi, o.y))
@@ -100,7 +123,7 @@ function place(S, W, precision=3)
                     end
                 end
                 break
-            elseif leqtol(o.y + s.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.le, s.wi), r, precision)
+            elseif leqtol(o.y + s.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.le, s.wi), r; precision)
                 push!(torem, o)
                 r[i] = Pos(o.x, o.y), Dim(s.le, s.wi)
                 push!(toadd, Pos(o.x, o.y + s.wi), Pos(o.x + s.le, o.y))
@@ -122,6 +145,30 @@ function place(S, W, precision=3)
     return r
 
 end
+
+"""Given a position and a the position of the lowest box above it, return the maximum width possible 
+of a box placed at that position."""
+function genWidth(o, lowestyabove, eps, precision=3)
+    if greatertol(eps, lowestyabove - o.y, precision)
+        throw(ArgumentError("Space between $(o.y) and $lowestyabove is less than minimum eps=$eps width."))
+    end
+    wi = rand() * (lowestyabove - o.y - eps) + eps
+    return wi
+end
+
+function genLength(o, closestxright, eps; precision=3)
+    if greatertol(eps, closestxright - o.x)
+        throw(ArgumentError("Space between $(o.x) and $closestxright is less than minimum eps=$eps width."))
+    end
+    le = rand() * (closestxright - o.x - eps) + eps
+    return le
+end
+
+"""Return wether position o is illegal with already placed boxes."""
+function illegalpos(o, r; precision=3)
+    return collision(o, Dim(1/(10^precision), 1/(10^precision)), r)
+end
+
 function genS3(W, L, eps, precision=3)
     """Lengths must be greater than widths"""
     """One of the two dimensions must be lesser than W"""
@@ -137,67 +184,40 @@ function genS3(W, L, eps, precision=3)
         # println()
         # print("#")
         for o in O
+            if o in torem
+                continue
+            end
             push!(torem, o)
+            if illegalpos(o, r; precision)
+                continue
+            end
             # print("=")
             # ro = (ywi = o.y + s.wi, yle =  o.y + s.le, xle = o.x + s.le, xwi = o.x + s.wi)
             wi, le = missing, missing
-            above = findboxesabove(o, Dim(0.001, 0.001), r, precision)
-            right = findboxesright(o, Dim(0.001, 0.001), r, precision)
+            # First draw a vertical line until box is found
+            above = findboxesabove(o, r, precision)
+            # Find lowest limit among already placed boxes
             lowestyabove = isempty(above) ? W : min([r[k][1].y for k in above]...)
             # generate width
             if lessertol(lowestyabove - o.y, eps, precision)
                 # print(".")
                 wi = lowestyabove - o.y
             else
-                # Find lowest limit among already placed boxes
-                wi = rand() * (lowestyabove - o.y - eps) + eps
-                while greatertol(o.y + wi, lowestyabove, precision) || collision(Pos(o.x, o.y), Dim(0.001, wi), r, precision)
-                    # print("-")
-                    # print(lowestyabove-o.y)
-                    wi = rand() * (lowestyabove - o.y - eps) + eps
-                    # print(wi)
-                    # sleep(1)
-                end
+                wi = genWidth(o, lowestyabove, eps, precision)
             end
             if leqtol(wi, 0, precision)
                 continue
             end
+            # Sweep to the right to determine closest right box
+            right = findboxesright(Pos(o.x, o.y), Dim(precision, wi), r, precision)
             # print("|")
             closestxright = isempty(right) ? L : min([r[k][1].x for k in right]...)
             # generate length
-            if lessertol(closestxright - o.x, eps, precision)
+            if leqtol(closestxright - o.x, eps, precision)
                 # print(".")
                 le = closestxright - o.x
             else
-                le = rand() * (closestxright - o.x - eps) + eps
-                # println(collision(Pos(o.x, o.y), Dim(0.0, wi), r))
-                # println(collision(Pos(o.x, o.y), Dim(le, wi), r))
-                cpt = 0
-                while greatertol(o.x + le, closestxright, precision) || collision(Pos(o.x, o.y), Dim(le, wi), r, precision)
-                    cpt += 1
-                    if cpt >= 10
-                        display(o.x + le)
-                        display(closestxright)
-                        display(Pos(o.x, o.y))
-                        display(Dim(le, wi))
-                        display(r)
-                        display(collision(Pos(o.x, o.y), Dim(le, wi), r, precision))
-                        display(right)
-                        display(above)
-                        sleep(10)
-                    end
-                    # print("+")
-                    # print(closestxright - o.x)
-                    le = rand() * (closestxright - o.x - eps) + eps
-                    # print(":", le)
-                    # println(";", o.x + le)
-                    # println("In S:", S)
-                    # println("W=", W)
-                    # println("L=", L)
-                    # display(o)
-                    # println("($le, $wi)")
-                    # sleep(10)
-                end
+                le = genLength(o, closestxright, eps; precision)
             end
             
             
@@ -212,8 +232,12 @@ function genS3(W, L, eps, precision=3)
             r[i] = Pos(o.x, o.y), Dim(le, wi)
         end
         filter!(x -> !(x in torem), O)
+        torem = []
         push!(O, toadd...)
         toadd = []
+        # display(r)
+        # display(O)
+        # sleep(10)
     end
 
     return S, r
