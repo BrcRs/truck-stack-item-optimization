@@ -16,8 +16,10 @@ This is an online algorithm which places boxes going from the cabin to the openi
 
 ```Text
 
-Let be O a list of available positions. The list will be updated and is made up of corners created by adjacent stacks.
-Initially, there is only one corner considered (or two), in position (0, 0) (or (0, W)), which is adjactent to the cabin and to the left side of the truck.
+Let be O a list of available positions. The list will be updated and is made up 
+of corners created by adjacent stacks.
+Initially, there is only one corner considered (or two), in position (0, 0) 
+(or (0, W)), which is adjactent to the cabin and to the left side of the truck.
 
 As long as there are stacks to place:
     Put the stack in the corner the closest to the cabin and orient the stack in order to minimize the total length of items.
@@ -71,9 +73,15 @@ What it does concretely is exhausting all permutations of the list within what i
 
 Does the algorithm allows all possible solutions? Can the algorithm get stuck on incorrect solutions while not exploring valid solutions due to its design? This question did not occur until we tackled the weight constraints, although it can also be detrimental to optimality. Is a stack always in a corner? Well normaly, placing stacks in corners does not prevent the algorithm from testing feasible conditions. However, all corners should be considered, not only the (0, 0) one but also the (0,W) one and all similar corners which correspond not to the origin of the stack but also to its upper left corner. There are also cases in which a stack could be placed adjacent to a side, but with no side touching above, and a stack touching below but which have a starting coordinate greater than the current stack. In this particular case, the current stack is not placed in a corner, but this configuration could be part of a solution. So we need to adapt the algorithm to take into account other types of corners, like this "floating" one.
 
+> Bottom-Left Placement Theorem for Rectangle Packing, W. Huang, T. Ye, D. Chen, 22 juil. 2011, arXiv:1107.4463v1
+
+The corner based algorithm resembles a lot the Bottom-Left algorithm presented in this article.
+
+The Bottom-Left algorithm has the benefits of providing bottom-left stable packings, ensuring stacks are always adjacent to stacks or side horizontally.
+
 ## Local search algorithm
 
-??
+I can't think of any local search based algorithm for this problem considering our constraints.
 
 ## Most constraints first
 
@@ -81,9 +89,8 @@ Put the stacks with most constraints and then play around as you add new stacks.
 
 ## The ARC Project
 
-[The ARC project](https://intranet.csc.liv.ac.uk/~epa/surveyhtml.html).
-
-The ARC project contains a survey on two dimensional packing algorithms.
+[The ARC project](https://intranet.csc.liv.ac.uk/~epa/surveyhtml.html)
+contains a survey on two dimensional packing algorithms.
 
 - First-Fit Decreasing Height (FFDH) algorithm
 - Next-Fit Decreasing Height (NFDH) algorithm
@@ -95,6 +102,12 @@ The ARC project contains a survey on two dimensional packing algorithms.
 - Split-Fit algorithm (SF)  
 - Sleator's algorithm  
 
+However these algorithms might be difficult to adapt to the context of the loading order constraints and the weight constraints.
+
 ## Best fitting space
 
-The idea is, at each iteration, to segment the remaining available space into rectangles, and then choosing the item to place into it which fits the best.
+The idea is, at each iteration, to segment the remaining available space into largest rectangles, and then choosing the item to place into it which fits the best.
+
+## Those algorithms
+
+The algorithms seen so far don't consider modifying stacks composition to accomodate weight constraints.
