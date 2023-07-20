@@ -10,7 +10,7 @@ Given a truck's width, and a list of stacks or items, place the stacks/items as
 to satisfy dimension, weight, loading order and other constraints and so, minimizing 
 the total length of the objects, in order to make them fit into the dimensions of the truck.
 
-## Corner based algorithm
+## Bottom Left inspired algorithm
 
 This is an online algorithm which places boxes going from the cabin to the opening of the truck.
 
@@ -101,13 +101,13 @@ The corner based algorithm resembles a lot the Bottom-Left algorithm presented i
 
 The Bottom-Left algorithm has the benefits of providing bottom-left stable packings, ensuring stacks are always adjacent to stacks or side horizontally.
 
-An implementation of the BL algorithm can be found in [The Bottomn-Left Bin-Packing Heuristic: An Efficient Implementation, Chazelle, August 1983, doi:10.1109/TC.1983.1676307]. However access is paywalled.
+<!-- An implementation of the BL algorithm can be found in [The Bottomn-Left Bin-Packing Heuristic: An Efficient Implementation, Chazelle, August 1983, doi:10.1109/TC.1983.1676307]. However access is paywalled. -->
 
 Adaptation to weight and loading order constraints:
 
 ```Text
 
-Make stacks by maximizing the number of items per stack. The making of stack should be relatively easy: group items per stackability code, supplier, supplier dock, plant dock. Watch out for density constraints.
+Make stacks by maximizing the number of items per stack. The making of stack should be relatively easy: group and sort items based on stackability code, supplier, supplier dock, plant dock. Watch out for density constraints.
 
 Let be O a list of available positions. The list will be updated and is made up 
 of corners created by adjacent stacks.
@@ -126,6 +126,24 @@ As long as there are stacks to place:
 ```
 
 A variant doesn't split first the stack but tries other corners instead when weight is an issue.
+
+### Time complexity
+
+Making stacks is done in $O(n)$.
+
+In the worst case, there are as many stacks than there are items. Let's thus consider $n$ stacks to place. A stack is placed at each iteration, thus there are at most $n$ iterations. Each iteration, the algorithm first checks every already placed stack. Initially, there are 0, and at the last iteration, there are $n-1$. Then, it explores every possible corner. Initially, there are 2, and in the worst case, 2 are added each iteration. Thus, at the last iteration, there would be $n+1$ corners to consider. If we sum the number of operations, we get the following expression:
+
+$(0 + 2) + (1 + 3) + (2 + 4) + (3 + 5) + \dots + (n-1 + n+1)$
+
+which can be rewritten as:
+
+$\displaystyle\sum^n_{i=1} 2i = 2\sum^n_{i=1} i = 2 \frac{n(n+1)}{2} = n(n+1)$
+
+Hence the algorithm is in $O(n^2)$.
+
+### Space complexity
+
+The space complexity is estimated to be $O(n)$, since there would be at most $n+1$ corners to keep track of, $n$ stacks to place, $n$ placed stacks.
 
 ## Local search algorithm
 
@@ -154,8 +172,4 @@ However these algorithms might be difficult to adapt to the context of the loadi
 
 ## Best fitting space
 
-The idea is, at each iteration, to segment the remaining available space into largest rectangles, and then choosing the item to place into it which fits the best.
-
-## Those algorithms
-
-The algorithms seen so far don't consider modifying stacks composition to accomodate weight constraints.
+The idea is, at each iteration, to segment the remaining available space into largest rectangles, and then choosing the stack to place into it which fits the best.
