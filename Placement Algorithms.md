@@ -1,6 +1,6 @@
 # Placement Algorithms
 
-The 2023 ROADEF challenge presents an affectation problem for the logistic chain of Renault.
+The 2022 ROADEF challenge presents an affectation problem for the logistic chain of Renault.
 One key component of the problem is to be able to place optimaly stacks made up of items
 into trucks which have predetermined dimensions and constraints.
 
