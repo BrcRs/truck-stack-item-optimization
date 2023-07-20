@@ -47,37 +47,85 @@ or prove that and instance i with value > 2 is impossible.
 Even if we can prove this, this doesn't tell us if the algorithm adapts well with new constraints such as those of loading order, etc.
 
 Proof:
-Let's suppose that we indeed have an instance for which the algorithm finds a solution of value greater than 2-OPT. It means that we are in one of two cases:
+Let's suppose that we indeed have an instance for which the algorithm finds a solution of value greater than 2-OPT. It means that we are initially in one of two cases:
 
 - Case 1: the algorithm returns a solution in which there is one item of greatest length that is greater than 2-OPT. It is not possible because the optimum is of value at least the length of this item.
 - Case 2: the algorithm returns a solution in which there are a number m of items adjacent aligned in the length axis which have a sumed size in the length axis greater than 2-OPT.
   - Case 2.1: the m items are all oriented length wise. In this case, the algorithm wasn't able to orient them width wise. It means the remaining space when these items were placed did not allow for orienting these width wise.
     - Case 2.1.1: the m items have a length greater than W.
-      - Case 2.1.1.1: the m items have a width that allows some of them to be placed side to side width wise.
-        - Case 2.1.1.1.1: the width of the truck W is less than the sum of the widths of two of these items.
-          - Case 2.1.1.1.1.1: the width of the truck is exactly equal to the width of one item of the queue. In this case the optimal solution is equal to the solution found by the algrithm because there is no other way of placing the stacks.
-          - Case 2.1.1.1.1.2: the width of the truck allows some space along side these items. But these items will always be stacked lengthwise anyways because none can be placed side to side. So the optimal solution has the same value than the one returned by the algorithm.
-        - Case 2.1.1.1.2: at least two of these items can be placed side to side. Since the algorithm did not do so, it means some other items were already taking that space. These items have a width which is less than the width of the trucks minus the width of one long item. The algorithm always places stacks as to minimize the total length. It means the difference in length between the long queue and the blocking queue can't be greater than the length of the last item added to the long queue. Since the total length of this solution is more than two times the length of the optimal solution... etc
-
-Or we could prove that the instance we found earlier is the worse.
+      - Case 2.1.1.1: the width of the truck W is less than the sum of the widths of two of these items.
+        - Case 2.1.1.1.1: the width of the truck is exactly equal to the width of one item of the queue. In this case the optimal solution is equal to the solution found by the algrithm because there is no other way of placing the stacks.
+        - Case 2.1.1.1.2: the width of the truck allows some space along side these items. But these items will always be stacked lengthwise anyways because none can be placed side to side. So the optimal solution has the same value than the one returned by the algorithm.
+      - Case 2.1.1.2: at least two of these items can be placed side to side. Since the algorithm did not do so, it means some other items were already taking that space. These items have a width which is less than the width of the trucks minus the width of one long item. The algorithm always places stacks as to minimize the total length. It means the difference in length between the long queue and the blocking queue can't be greater than the length of the last item added to the long queue. In the worst case, the difference is exactly the length of the last added item. The total length of this solution is more than two times the length of the optimal solution.
+      Let be x the size of the last item added and y the length of the long queue without it. We have $y + x \geq 2-OPT$, thus $(y + x)/2 \geq OPT$. We know for sure that $OPT \geq x$.
+      We thus have
+      $$\frac{y + x}{2} \geq \text{OPT} \geq x$$
+      $$\iff y + x \geq 2\text{OPT} \geq 2x$$
+      $$\iff y \geq 2\text{OPT} - x \geq x$$
+      $$\iff y \geq x$$
+      The length y of the long queue without the last item added is longer or the same than the one of the last item added x.
+        - Case 2.1.1.2.1: x and y are of same size. We have:
+        $$\frac{y + y}{2} \geq \text{OPT} \geq y$$
+        $$\iff y \geq \text{OPT} \geq y$$
+        $$\iff \text{OPT} = y$$
+        It means the algorithm returns a solution of value equal to 2-OPT and not greater. Impossible.
+        - Case 2.1.1.2.2: y is infinitely greater than x, or x equals 0. In this case we have:
+        $$\frac{y}{2} \geq \text{OPT} \geq 0$$
+        $$\iff y \geq 2\text{OPT} \geq 0$$
+        It means the optimal solution is of value less than half the length of the long queue. It means the queues can be rearranged in order to achieve a shorter global length. In particular, some items from the longest queue can be moved to the blocking queue. However, since the two queues are of same length, it is impossible to swap two items one from each queue in order to reduce the length of the solution. Impossible
+    - Case 2.1.2: the m items don't necessarily have a length greater than W, but the way the items were given to the algorithm has made them get the length wise orientation. Same as 2.1.1.2.
+  - Case 2.2: the m items are all oriented width wise. It means the lengths of these items is less than W.
+  Not a different situation than 2.1 it seems.
+  - Case 2.3: some of the m items are oriented width wise, the other length wise.
+  It doesn't change anything I think.
 
 
 If we adapt this algorithm to the loading order constraint, it requires to order the input list of stacks first by supplier, then by supplier dock for each supplier, and finally by plant dock for each supplier dock. The algorithm then builds a valid solution because it always tries to place stacks in positions the closest to the cabin. To be proved.
 
 What about weight constraints?
 
-The algorithm is not deterministic. Actually, the order in which stacks are provided can change the solution. Similarly, the way new corner positions are added to the list can affect the result of the algorithm. We can thus consider a tree that represents the different paths the algorithm can take to build its solution. The different branching possibilities are means to adapt a solution in regards to the weight constraints.
+The algorithm is not deterministic. Actually, the order in which stacks are provided can change the solution. Similarly, the way new corner positions are added to the list can affect the result of the algorithm. We can thus consider a tree that represents the different paths the algorithm can take to build its solution. The different branching possibilities are means to adapt a solution in regard to the weight constraints.
 We can extend the algorithm to, when given a current stack, first explore the different available corner options and if none satisfies the constraint, try to place the following stack in the input list, hoping the constraint will be satisfied. If no similar stack is better to consider, rollback to the last stack placed, remove it and the previous one and try to place them in inverted order. If it still doesn't work, repeat the rollback process.
+
 
 What it does concretely is exhausting all permutations of the list within what is allowed to satisfy the loading order. The permutations thus only affect stacks of same supplier, supplier dock and plant dock. Let's say there are k groups of similar stacks in terms of supplier, supplier dock and plant dock, for n stacks. In the worst case there are k-1 groups of exactly one stack and one group containing n-k-1 stacks. We thus have (n-k-1)! combinations to examine in the worst case.
 
 Does the algorithm allows all possible solutions? Can the algorithm get stuck on incorrect solutions while not exploring valid solutions due to its design? This question did not occur until we tackled the weight constraints, although it can also be detrimental to optimality. Is a stack always in a corner? Well normaly, placing stacks in corners does not prevent the algorithm from testing feasible conditions. However, all corners should be considered, not only the (0, 0) one but also the (0,W) one and all similar corners which correspond not to the origin of the stack but also to its upper left corner. There are also cases in which a stack could be placed adjacent to a side, but with no side touching above, and a stack touching below but which have a starting coordinate greater than the current stack. In this particular case, the current stack is not placed in a corner, but this configuration could be part of a solution. So we need to adapt the algorithm to take into account other types of corners, like this "floating" one.
 
+However, another simpler solution for weight constraints consists in removing items from the current stack, thus creating a new stack, as to accomodate the weight constraint.
+
 > Bottom-Left Placement Theorem for Rectangle Packing, W. Huang, T. Ye, D. Chen, 22 juil. 2011, arXiv:1107.4463v1
+[The article.](https://arxiv.org/abs/1107.4463)
 
 The corner based algorithm resembles a lot the Bottom-Left algorithm presented in this article.
 
 The Bottom-Left algorithm has the benefits of providing bottom-left stable packings, ensuring stacks are always adjacent to stacks or side horizontally.
+
+An implementation of the BL algorithm can be found in [The Bottomn-Left Bin-Packing Heuristic: An Efficient Implementation, Chazelle, August 1983, doi:10.1109/TC.1983.1676307]. However access is paywalled.
+
+Adaptation to weight and loading order constraints:
+
+```Text
+
+Make stacks by maximizing the number of items per stack. The making of stack should be relatively easy: group items per stackability code, supplier, supplier dock, plant dock. Watch out for density constraints.
+
+Let be O a list of available positions. The list will be updated and is made up 
+of corners created by adjacent stacks.
+Initially, there is only one corner considered (or two), in position (0, 0) 
+(or (0, W)), which is adjactent to the cabin and to the left side of the truck.
+
+As long as there are stacks to place:
+    Check if the stack can be placed onto another compatible already placed stack, weight constraints should be considered.
+    Else, put the stack in the corner the closest to the cabin and orient the stack in order to minimize the total length of items.
+    If the corner is not valid, iterate over corners.
+    Check for weight constraints. If weight is an issue, remove items from the stack, thus creating a new stack, until weight constraint is satisfied.
+    Placing the stack creates new available corners and removes covered corners.
+    A corner should then always be placed the most to the left as possible, until a side is met.
+    Placing a stack always removes at least one corner, and adds at most 2 corners.
+
+```
+
+A variant doesn't split first the stack but tries other corners instead when weight is an issue.
 
 ## Local search algorithm
 
