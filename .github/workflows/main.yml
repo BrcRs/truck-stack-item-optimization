@@ -6,8 +6,8 @@ on:
     branches:
       - main
   workflow_dispatch: # Put here!!
-  schedule:
-  - cron: "*/8 * * * *" # run every 8 minutes
+  # schedule:
+  # - cron: "*/8 * * * *" # run every 8 minutes
   
 jobs:
   build:
@@ -26,5 +26,5 @@ jobs:
     - uses: julia-actions/setup-julia@v1
       with:
           version: '1.8.1'
-    - uses: julia-actions/julia-buildpkg@master
+    - uses: julia-actions/julia-buildpkg@v1
     - run: julia --project src/validation.jl
