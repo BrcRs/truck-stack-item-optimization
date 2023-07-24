@@ -2,6 +2,9 @@ name: CI
 
 # on: [push]
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch: # Put here!!
   schedule:
   - cron: "*/8 * * * *" # run every 8 minutes
