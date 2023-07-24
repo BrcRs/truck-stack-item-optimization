@@ -7,5 +7,7 @@ using Test
 begin @testset "Testing tests"
     @test 1 < 2
     @test 2 < 3
-    @test 2 + 2 = 4
+    @test 2 + 2 == 4
 end
+
+@test 5 - 2 == 3
