@@ -1,6 +1,6 @@
 import Pkg
 # Pkg.add(["Test", "HTTP", "JSON"])
-Pkg.add(["Test"])
+Pkg.add(["Test", "Coverage"])
 # using OAuth, HTTP, JSON
 using Test
 
