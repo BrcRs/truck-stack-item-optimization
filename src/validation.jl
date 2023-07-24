@@ -4,7 +4,7 @@ Pkg.add(["Test"])
 # using OAuth, HTTP, JSON
 using Test
 
-begin @testset "Testing tests"
+@testset "Testing tests" begin
     @test 1 < 2
     @test 2 < 3
     @test 2 + 2 == 4
