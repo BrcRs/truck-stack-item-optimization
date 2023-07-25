@@ -4,10 +4,9 @@ Pkg.add(["Test", "Coverage"])
 # using OAuth, HTTP, JSON
 using Test
 
-@testset "Testing tests" begin
-    @test 1 < 2
-    @test 2 < 3
-    @test 2 + 2 == 4
+@testset "testplacement.jl" begin
+
+    include("testplacement.jl")
 end
 
 @test 5 - 2 == 3

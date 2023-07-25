@@ -656,4 +656,39 @@ end
 #   2 => (Pos(0.809869, 0), Dim(0.190131, 0.311604))
 #   3 => (Pos(0.809869, 0.311604), Dim(0.190131, 0.422517))
 #   1 => (Pos(0, 0), Dim(0.809869, 0.813025))
+
+## Functional BLtruck tests
+@testset "BLtruck" begin
+    ratios = []
+    instances_solutions = []
+    for i in 1:1000
+        instance = generate_placement_instance()
+        ratio, solution = eval_placement_function(BLtruck, instance)
+        push!(ratios, ratio)
+        push!(instances_solutions, (ins=instance, sol=solution))
+    end
+
+    # Test solution is valid
+    @testset "BLtruck is valid" begin
+        for i in 1:length(instance_solutions)
+            # check overlapping and out of bounds
+            @testset "No overlapping and out of bounds" begin
+                instance, solution = instances_solutions[i]
+                for stack in solution[:stacks]
+                    @test !isoverlapping(stack, solution, instance)
+                    @test !isoutofbounds(stack, solution, instance)
+                end
+            end
+        end 
+    end
+    
+    # Test optimality is 2-OPT
+    @testset "BLtruck is 2-OPT" begin
+        for r in ratios
+            @test r <= 2.0
+        end
+    end
+
+end
+
 end
