@@ -1,6 +1,6 @@
 using Test
 
-include("placement.jl")
+include("../src/placement.jl")
 
 
 @testset "comparisons with rounding" begin
