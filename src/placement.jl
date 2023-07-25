@@ -26,38 +26,38 @@ struct Stack
 end
 
 function findboxesabove(pos, r, precision=3)
-    # return filter(b -> r[b][:pos].y >= pos.y && r[b][:pos].x < pos.x + dim.le && r[b][:pos].x + r[b][:dim].le > pos.x, keys(r))
-    # return filter(b -> geqtol(r[b][:pos].y, pos.y, precision) && lessertol(r[b][:pos].x, pos.x + dim.le, precision) && greatertol(r[b][:pos].x + r[b][:dim].le, pos.x, precision), keys(r))
-    return filter(b -> geqtol(r[b][:pos].y, pos.y, precision) && leqtol(r[b][:pos].x, pos.x, precision) && greatertol(r[b][:pos].x + r[b][:dim].le, pos.x, precision), keys(r))
+    # return filter(b -> r[b].pos.y >= pos.y && r[b].pos.x < pos.x + dim.le && r[b].pos.x + r[b].dim.le > pos.x, keys(r))
+    # return filter(b -> geqtol(r[b].pos.y, pos.y, precision) && lessertol(r[b].pos.x, pos.x + dim.le, precision) && greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
+    return filter(b -> geqtol(r[b].pos.y, pos.y, precision) && leqtol(r[b].pos.x, pos.x, precision) && greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
 end
 
 function findboxesright(pos, r, precision=3)
-    # return filter(b -> geqtol(r[b][:pos].x, pos.x, precision) && lessertol(r[b][:pos].y, pos.y + dim.wi, precision) && greatertol(r[b][:pos].y + r[b][:dim].wi, pos.y, precision), keys(r))
+    # return filter(b -> geqtol(r[b].pos.x, pos.x, precision) && lessertol(r[b].pos.y, pos.y + dim.wi, precision) && greatertol(r[b].pos.y + r[b].dim.wi, pos.y, precision), keys(r))
     return filter(
-        b -> geqtol(r[b][:pos].x, pos.x, precision) && 
-        leqtol(r[b][:pos].y, pos.y, precision) && 
-        greatertol(r[b][:pos].y + r[b][:dim].wi, pos.y, precision), 
+        b -> geqtol(r[b].pos.x, pos.x, precision) && 
+        leqtol(r[b].pos.y, pos.y, precision) && 
+        greatertol(r[b].pos.y + r[b].dim.wi, pos.y, precision), 
         keys(r))
 end
 
 function findboxesright(pos, dim, r, precision=3)
     return filter(
-        b -> geqtol(r[b][:pos].x, pos.x, precision) && 
-        lessertol(r[b][:pos].y, pos.y + dim.wi, precision) && 
-        greatertol(r[b][:pos].y + r[b][:dim].wi, pos.y, precision), 
+        b -> geqtol(r[b].pos.x, pos.x, precision) && 
+        lessertol(r[b].pos.y, pos.y + dim.wi, precision) && 
+        greatertol(r[b].pos.y + r[b].dim.wi, pos.y, precision), 
         keys(r))
     # return filter(
-    #     b -> geqtol(r[b][:pos].x, pos.x, precision) && 
-    #     leqtol(r[b][:pos].y, pos.y, precision) && 
-    #     greatertol(r[b][:pos].y + r[b][:dim].wi, pos.y, precision), 
+    #     b -> geqtol(r[b].pos.x, pos.x, precision) && 
+    #     leqtol(r[b].pos.y, pos.y, precision) && 
+    #     greatertol(r[b].pos.y + r[b].dim.wi, pos.y, precision), 
     #     keys(r))
 end
 
 function findboxesleft(pos, dim, r, precision=3)
     return filter(
-        b -> leqtol(r[b][:pos].x, pos.x, precision) && 
-        lessertol(r[b][:pos].y, pos.y + dim.wi, precision) && 
-        greatertol(r[b][:pos].y + r[b][:dim].wi, pos.y, precision),
+        b -> leqtol(r[b].pos.x, pos.x, precision) && 
+        lessertol(r[b].pos.y, pos.y + dim.wi, precision) && 
+        greatertol(r[b].pos.y + r[b].dim.wi, pos.y, precision),
         keys(r))
 end
 
@@ -86,16 +86,16 @@ function collision(pos, dim, r; precision=3, verbose=false)
     """Return true if considered box overlaps with existing one"""
 
     # Find boxes with corresponding x
-    # tocheck = filter(b -> r[b][:pos].x < pos.x + dim.le && r[b][:pos].x + r[b][:dim].le > pos.x, keys(r))
+    # tocheck = filter(b -> r[b].pos.x < pos.x + dim.le && r[b].pos.x + r[b].dim.le > pos.x, keys(r))
     # tocheck = findboxesabove(pos, dim, r, precision)
     # check each one
     for k in keys(r)
 
-        if overlapX(pos, dim, r[k][:pos], r[k][:dim]; precision) && overlapY(pos, dim, r[k][:pos], r[k][:dim]; precision)
+        if overlapX(pos, dim, r[k].pos, r[k].dim; precision) && overlapY(pos, dim, r[k].pos, r[k].dim; precision)
             if verbose
                 println(k)
-                println("overlapX($pos, $dim, $(r[k][:pos]), $(r[k][:dim]); $precision) = ", overlapX(pos, dim, r[k][:pos], r[k][:dim]; precision))
-                println("overlapY($pos, $dim, $(r[k][:pos]), $(r[k][:dim]); $precision) = ", overlapY(pos, dim, r[k][:pos], r[k][:dim]; precision))
+                println("overlapX($pos, $dim, $(r[k].pos), $(r[k].dim); $precision) = ", overlapX(pos, dim, r[k].pos, r[k].dim; precision))
+                println("overlapY($pos, $dim, $(r[k].pos), $(r[k].dim); $precision) = ", overlapY(pos, dim, r[k].pos, r[k].dim; precision))
             end
             return true
         end
@@ -170,7 +170,7 @@ function totheleft(pos, solution; precision=3)
     boxesleft = findboxesleft(pos, Dim(10.0^-precision, 10.0^-precision), solution, precision)
 
     # Find the stack which extends the most to the right
-    leftbound = max([solution[k][:pos].x + solution[k][:dim].le for k in boxesleft])    
+    leftbound = max([solution[k].pos.x + solution[k].dim.le for k in boxesleft])    
 
     # return the x position of the right side of the stack
     return leftbound
@@ -328,7 +328,7 @@ function genS3(W, L, eps, precision=3)
             # First draw a vertical line until box is found
             above = findboxesabove(o, r, precision)
             # Find lowest limit among already placed boxes
-            lowestyabove = isempty(above) ? W : min([r[k][:pos].y for k in above]...)
+            lowestyabove = isempty(above) ? W : min([r[k].pos.y for k in above]...)
             # generate width
             if lessertol(lowestyabove - o.y, eps, precision)
                 # print(".")
@@ -342,7 +342,7 @@ function genS3(W, L, eps, precision=3)
             # Sweep to the right to determine closest right box
             right = findboxesright(Pos(o.x, o.y), Dim(precision, wi), r, precision)
             # print("|")
-            closestxright = isempty(right) ? L : min([r[k][:pos].x for k in right]...)
+            closestxright = isempty(right) ? L : min([r[k].pos.x for k in right]...)
             # generate length
             if leqtol(closestxright - o.x, eps, precision)
                 # print(".")
@@ -429,14 +429,14 @@ end
 
 function printplacement(r, W, L=nothing)
     if isnothing(L)
-        L = max([r[k][:pos][1] + r[k][:dim][1] for k in keys(r)]...)
+        L = max([r[k].pos[1] + r[k].dim[1] for k in keys(r)]...)
     end
-        # println([r[k][:pos][1] + r[k][:dim][1] for k in keys(r)])
+        # println([r[k].pos[1] + r[k].dim[1] for k in keys(r)])
     A = Matrix{String}(undef, W, L)
     A .= " "
 
     for k in keys(r)
-        A[r[k][:pos][2]+1:r[k][:pos][2]+r[k][:dim][2], r[k][:pos][1]+1:r[k][:pos][1]+r[k][:dim][1]] .= string(k)
+        A[r[k].pos[2]+1:r[k].pos[2]+r[k].dim[2], r[k].pos[1]+1:r[k].pos[1]+r[k].dim[1]] .= string(k)
     end
 
     # display(A)
@@ -482,7 +482,7 @@ function eval(maxW, maxL, shuffleS=false)
     # println(W, " ", L)
     # println(S)
     # println(r)
-    foundL = max([r[k][:pos].x + r[k][:dim].le for k in keys(r)]...)
+    foundL = max([r[k].pos.x + r[k].dim.le for k in keys(r)]...)
     if foundL <= L
         println("Singularity")
         println(S)

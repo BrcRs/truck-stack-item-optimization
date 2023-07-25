@@ -458,7 +458,7 @@ end
     | 1 |
     +---p
     """
-    solution = Dict(1 => StackStack(Pos(0, 0), Dim(1, 1)))
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(1.0, 0.0)
     @test totheleft(p, solution; precision=3) == 1
 
@@ -467,7 +467,7 @@ end
     | 1 |   
     +---+   p
     """
-    solution = Dict(1 => StackStack(Pos(0, 0), Dim(1, 1)))
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(2.0, 0.0)
     @test totheleft(p, solution; precision=3) == 1
 
@@ -476,7 +476,7 @@ end
     | 1 |   p
     +---+   
     """
-    solution = Dict(1 => StackStack(Pos(0, 0), Dim(1, 1)))
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(2.0, 0.5)
     @test totheleft(p, solution; precision=3) == 1
 
@@ -485,7 +485,7 @@ end
     | 1 |   
     +---+   
     """
-    solution = Dict(1 => StackStack(Pos(0, 0), Dim(1, 1)))
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(2.0, 1)
     @test totheleft(p, solution; precision=3) == 0
 
@@ -494,7 +494,7 @@ end
          | 1 |   
          +---+   
     """
-    solution = Dict(1 => StackStack(Pos(1, 0), Dim(1, 1)))
+    solution = Dict(1 => Stack(Pos(1, 0), Dim(1, 1)))
     p = Pos(0.0, 1)
     @test totheleft(p, solution; precision=3) == 0
 
@@ -503,7 +503,7 @@ end
          | 1 |   
     p    +---+   
     """
-    solution = Dict(1 => StackStack(Pos(1, 0), Dim(1, 1)))
+    solution = Dict(1 => Stack(Pos(1, 0), Dim(1, 1)))
     p = Pos(0.0, 0.0)
     @test totheleft(p, solution; precision=3) == 0
 
@@ -546,7 +546,7 @@ end
 
 @testset "collision function" begin
     
-    r = Dict(1 => StackStack(Pos(0, 1), Dim(5, 1)), 2 => Stack(Pos(7, 0), Dim(2, 2)))
+    r = Dict(1 => Stack(Pos(0, 1), Dim(5, 1)), 2 => Stack(Pos(7, 0), Dim(2, 2)))
     
     
     
@@ -807,7 +807,7 @@ end
             # check overlapping and out of bounds
             @testset "No overlapping and out of bounds" begin
                 instance, solution = instances_solutions[i]
-                for stack in solution[:stacks]
+                for stack in values(solution)
                     @test !isoverlapping(stack, solution, instance)
                     @test !isoutofbounds(stack, solution, instance)
                 end
