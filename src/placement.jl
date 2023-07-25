@@ -26,30 +26,30 @@ struct Stack
 end
 
 function findboxesabove(pos, r, precision=3)
-    # return filter(b -> r[b][1].y >= pos.y && r[b][1].x < pos.x + dim.le && r[b][1].x + r[b][2].le > pos.x, keys(r))
-    # return filter(b -> geqtol(r[b][1].y, pos.y, precision) && lessertol(r[b][1].x, pos.x + dim.le, precision) && greatertol(r[b][1].x + r[b][2].le, pos.x, precision), keys(r))
-    return filter(b -> geqtol(r[b][1].y, pos.y, precision) && leqtol(r[b][1].x, pos.x, precision) && greatertol(r[b][1].x + r[b][2].le, pos.x, precision), keys(r))
+    # return filter(b -> r[b][:pos].y >= pos.y && r[b][:pos].x < pos.x + dim.le && r[b][:pos].x + r[b][:dim].le > pos.x, keys(r))
+    # return filter(b -> geqtol(r[b][:pos].y, pos.y, precision) && lessertol(r[b][:pos].x, pos.x + dim.le, precision) && greatertol(r[b][:pos].x + r[b][:dim].le, pos.x, precision), keys(r))
+    return filter(b -> geqtol(r[b][:pos].y, pos.y, precision) && leqtol(r[b][:pos].x, pos.x, precision) && greatertol(r[b][:pos].x + r[b][:dim].le, pos.x, precision), keys(r))
 end
 
 function findboxesright(pos, r, precision=3)
-    # return filter(b -> geqtol(r[b][1].x, pos.x, precision) && lessertol(r[b][1].y, pos.y + dim.wi, precision) && greatertol(r[b][1].y + r[b][2].wi, pos.y, precision), keys(r))
+    # return filter(b -> geqtol(r[b][:pos].x, pos.x, precision) && lessertol(r[b][:pos].y, pos.y + dim.wi, precision) && greatertol(r[b][:pos].y + r[b][:dim].wi, pos.y, precision), keys(r))
     return filter(
-        b -> geqtol(r[b][1].x, pos.x, precision) && 
-        leqtol(r[b][1].y, pos.y, precision) && 
-        greatertol(r[b][1].y + r[b][2].wi, pos.y, precision), 
+        b -> geqtol(r[b][:pos].x, pos.x, precision) && 
+        leqtol(r[b][:pos].y, pos.y, precision) && 
+        greatertol(r[b][:pos].y + r[b][:dim].wi, pos.y, precision), 
         keys(r))
 end
 
 function findboxesright(pos, dim, r, precision=3)
     return filter(
-        b -> geqtol(r[b][1].x, pos.x, precision) && 
-        lessertol(r[b][1].y, pos.y + dim.wi, precision) && 
-        greatertol(r[b][1].y + r[b][2].wi, pos.y, precision), 
+        b -> geqtol(r[b][:pos].x, pos.x, precision) && 
+        lessertol(r[b][:pos].y, pos.y + dim.wi, precision) && 
+        greatertol(r[b][:pos].y + r[b][:dim].wi, pos.y, precision), 
         keys(r))
     # return filter(
-    #     b -> geqtol(r[b][1].x, pos.x, precision) && 
-    #     leqtol(r[b][1].y, pos.y, precision) && 
-    #     greatertol(r[b][1].y + r[b][2].wi, pos.y, precision), 
+    #     b -> geqtol(r[b][:pos].x, pos.x, precision) && 
+    #     leqtol(r[b][:pos].y, pos.y, precision) && 
+    #     greatertol(r[b][:pos].y + r[b][:dim].wi, pos.y, precision), 
     #     keys(r))
 end
 
@@ -86,16 +86,16 @@ function collision(pos, dim, r; precision=3, verbose=false)
     """Return true if considered box overlaps with existing one"""
 
     # Find boxes with corresponding x
-    # tocheck = filter(b -> r[b][1].x < pos.x + dim.le && r[b][1].x + r[b][2].le > pos.x, keys(r))
+    # tocheck = filter(b -> r[b][:pos].x < pos.x + dim.le && r[b][:pos].x + r[b][:dim].le > pos.x, keys(r))
     # tocheck = findboxesabove(pos, dim, r, precision)
     # check each one
     for k in keys(r)
 
-        if overlapX(pos, dim, r[k][1], r[k][2]; precision) && overlapY(pos, dim, r[k][1], r[k][2]; precision)
+        if overlapX(pos, dim, r[k][:pos], r[k][:dim]; precision) && overlapY(pos, dim, r[k][:pos], r[k][:dim]; precision)
             if verbose
                 println(k)
-                println("overlapX($pos, $dim, $(r[k][1]), $(r[k][2]); $precision) = ", overlapX(pos, dim, r[k][1], r[k][2]; precision))
-                println("overlapY($pos, $dim, $(r[k][1]), $(r[k][2]); $precision) = ", overlapY(pos, dim, r[k][1], r[k][2]; precision))
+                println("overlapX($pos, $dim, $(r[k][:pos]), $(r[k][:dim]); $precision) = ", overlapX(pos, dim, r[k][:pos], r[k][:dim]; precision))
+                println("overlapY($pos, $dim, $(r[k][:pos]), $(r[k][:dim]); $precision) = ", overlapY(pos, dim, r[k][:pos], r[k][:dim]; precision))
             end
             return true
         end
@@ -114,7 +114,7 @@ function place(S, W, precision=3)
     """One of the two dimensions must be lesser than W"""
     # println("Entering place")
     O = [Pos(0, 0)]
-    r = Dict{Any, Any}()
+    r = Dict{Int, Stack}()
     torem = []
     toadd = []
     for (i, s) in enumerate(S)
@@ -142,7 +142,7 @@ function place(S, W, precision=3)
                 break
             elseif leqtol(o.y + s.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.le, s.wi), r; precision)
                 push!(torem, o)
-                r[i] = Pos(o.x, o.y), Dim(s.le, s.wi)
+                r[i] = Stack(Pos(o.x, o.y), Dim(s.le, s.wi))
                 push!(toadd, Pos(o.x, o.y + s.wi), Pos(o.x + s.le, o.y))
                 # remove covered starting points
                 for o2 in O
@@ -228,7 +228,7 @@ function BLtruck(instance, precision=3)
                 
                 if orientation == Tag(:Perpendicular)
                     # Add the stack to this corner in solution
-                    solution[i] = Pos(o.x, o.y), Dim(s.wi, s.le)
+                    solution[i] = Stack(Pos(o.x, o.y), Dim(s.wi, s.le))
                     
                     # Add new corners
                     # TODO floating corners: corners must be placed as much to the left as possible
@@ -238,11 +238,13 @@ function BLtruck(instance, precision=3)
 
                 if orientation == Tag(:Parallel)
                     # add to solution
-                    solution[i] = Pos(o.x, o.y), Dim(s.le, s.wi)
+                    solution[i] = Stack(Pos(o.x, o.y), Dim(s.le, s.wi))
 
                     # add new corners
                     # TODO add floating corners
-                    push!(toadd, Pos(o.x, o.y + s.wi), Pos(o.x + s.le, o.y))
+                    push!(toadd, 
+                                    totheleft(Pos(o.x, o.y + s.wi), solution), 
+                                    totheleft(Pos(o.x + s.le, o.y), solution))
                 end
 
                 # remove corner
@@ -326,7 +328,7 @@ function genS3(W, L, eps, precision=3)
             # First draw a vertical line until box is found
             above = findboxesabove(o, r, precision)
             # Find lowest limit among already placed boxes
-            lowestyabove = isempty(above) ? W : min([r[k][1].y for k in above]...)
+            lowestyabove = isempty(above) ? W : min([r[k][:pos].y for k in above]...)
             # generate width
             if lessertol(lowestyabove - o.y, eps, precision)
                 # print(".")
@@ -340,7 +342,7 @@ function genS3(W, L, eps, precision=3)
             # Sweep to the right to determine closest right box
             right = findboxesright(Pos(o.x, o.y), Dim(precision, wi), r, precision)
             # print("|")
-            closestxright = isempty(right) ? L : min([r[k][1].x for k in right]...)
+            closestxright = isempty(right) ? L : min([r[k][:pos].x for k in right]...)
             # generate length
             if leqtol(closestxright - o.x, eps, precision)
                 # print(".")
@@ -427,14 +429,14 @@ end
 
 function printplacement(r, W, L=nothing)
     if isnothing(L)
-        L = max([r[k][1][1] + r[k][2][1] for k in keys(r)]...)
+        L = max([r[k][:pos][1] + r[k][:dim][1] for k in keys(r)]...)
     end
-        # println([r[k][1][1] + r[k][2][1] for k in keys(r)])
+        # println([r[k][:pos][1] + r[k][:dim][1] for k in keys(r)])
     A = Matrix{String}(undef, W, L)
     A .= " "
 
     for k in keys(r)
-        A[r[k][1][2]+1:r[k][1][2]+r[k][2][2], r[k][1][1]+1:r[k][1][1]+r[k][2][1]] .= string(k)
+        A[r[k][:pos][2]+1:r[k][:pos][2]+r[k][:dim][2], r[k][:pos][1]+1:r[k][:pos][1]+r[k][:dim][1]] .= string(k)
     end
 
     # display(A)
@@ -480,7 +482,7 @@ function eval(maxW, maxL, shuffleS=false)
     # println(W, " ", L)
     # println(S)
     # println(r)
-    foundL = max([r[k][1].x + r[k][2].le for k in keys(r)]...)
+    foundL = max([r[k][:pos].x + r[k][:dim].le for k in keys(r)]...)
     if foundL <= L
         println("Singularity")
         println(S)
