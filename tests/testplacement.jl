@@ -154,25 +154,25 @@ end
     # @test !isempty(aboxes)#?
 
     aboxes = findboxesabove(Pos(0.0, 3), Dict(
-        1 => (Pos(0, 0), Dim(2, 3))))
+        1 => Stack(Pos(0, 0), Dim(2, 3))))
     @test isempty(aboxes)
 
     aboxes = findboxesabove(Pos(2, 0), Dict(
-        1 => (Pos(0, 0), Dim(2, 3))))
+        1 => Stack(Pos(0, 0), Dim(2, 3))))
     @test !(1 in aboxes)
 
     
     aboxes = findboxesabove(Pos(2, 0), Dict(
-        2 => (Pos(0, 3), Dim(10, 1)),
-        1 => (Pos(0, 0), Dim(2, 3))))
+        2 => Stack(Pos(0, 3), Dim(10, 1)),
+        1 => Stack(Pos(0, 0), Dim(2, 3))))
     @test 2 in aboxes && !(1 in aboxes)
 
     p = Pos(0.260, 0.378)
     d = Dim(0.198, 0.574)
     r = Dict(
-      2 => (Pos(0.260, 0), Dim(0.368, 0.378)),
-      3 => (Pos(0.272, 0.496), Dim(0.165, 0.206)),
-      1 => (Pos(0, 0), Dim(0.260, 0.496))
+      2 => Stack(Pos(0.260, 0), Dim(0.368, 0.378)),
+      3 => Stack(Pos(0.272, 0.496), Dim(0.165, 0.206)),
+      1 => Stack(Pos(0, 0), Dim(0.260, 0.496))
     )
     aboxes = findboxesabove(p, r)
     @test !(3 in aboxes)
@@ -183,13 +183,13 @@ end
     p = Pos(0.679720634248212, 0.5696261712270595)
     d = Dim(0.2343801985845854, 0.17673141164813494)
     r = Dict(
-        5 => (Pos(0.916311, 0.509838), Dim(0.0836887, 0.115192)),
-        4 => (Pos(0.916311, 0), Dim(0.0836887, 0.509838)),
-        6 => (Pos(0.916311, 0.62503), Dim(0.0836887, 0.192314)),
-        7 => (Pos(0.779155, 0.629148), Dim(0.117465, 0.264841)),
-        2 => (Pos(0.322131, 0), Dim(0.113921, 0.521509)),
-        3 => (Pos(0.436052, 0), Dim(0.48026, 0.413936)),
-        1 => (Pos(0, 0), Dim(0.322131, 0.837564)))
+        5 => Stack(Pos(0.916311, 0.509838), Dim(0.0836887, 0.115192)),
+        4 => Stack(Pos(0.916311, 0), Dim(0.0836887, 0.509838)),
+        6 => Stack(Pos(0.916311, 0.62503), Dim(0.0836887, 0.192314)),
+        7 => Stack(Pos(0.779155, 0.629148), Dim(0.117465, 0.264841)),
+        2 => Stack(Pos(0.322131, 0), Dim(0.113921, 0.521509)),
+        3 => Stack(Pos(0.436052, 0), Dim(0.48026, 0.413936)),
+        1 => Stack(Pos(0, 0), Dim(0.322131, 0.837564)))
     aboxes = findboxesabove(p, r)
     @test !(1 in aboxes)
     @test !(2 in aboxes)
@@ -199,7 +199,7 @@ end
     @test !(6 in aboxes)
     @test !(7 in aboxes)
 
-    r = Dict(1 => (Pos(0, 1), Dim(5, 1)), 2 => (Pos(7, 0), Dim(2, 2)))
+    r = Dict(1 => Stack(Pos(0, 1), Dim(5, 1)), 2 => Stack(Pos(7, 0), Dim(2, 2)))
     
     @test 1 in findboxesabove(Pos(0, 0), r)
 
@@ -207,14 +207,14 @@ end
     p = Pos(0.9173920482282241, 0.5956575275540524)
     d = Dim(0.001, 0.12376169444300854)
     r = Dict(
-      5 => (Pos(0.917392, 0), Dim(0.082608, 0.302143)),
-      4 => (Pos(0.751503, 0), Dim(0.165889, 0.367109)),
-      6 => (Pos(0.917392, 0.302143), Dim(0.0269158, 0.511427)),
-      7 => (Pos(0.944308, 0.302143), Dim(0.0556922, 0.169016)),
-      2 => (Pos(0.185148, 0), Dim(0.465636, 0.790959)),
-      8 => (Pos(0.916207, 0.700376), Dim(0.00118471, 0.0242651)),
-      3 => (Pos(0.650784, 0), Dim(0.100719, 0.727985)),
-      1 => (Pos(0, 0), Dim(0.185148, 0.93093))
+      5 => Stack(Pos(0.917392, 0), Dim(0.082608, 0.302143)),
+      4 => Stack(Pos(0.751503, 0), Dim(0.165889, 0.367109)),
+      6 => Stack(Pos(0.917392, 0.302143), Dim(0.0269158, 0.511427)),
+      7 => Stack(Pos(0.944308, 0.302143), Dim(0.0556922, 0.169016)),
+      2 => Stack(Pos(0.185148, 0), Dim(0.465636, 0.790959)),
+      8 => Stack(Pos(0.916207, 0.700376), Dim(0.00118471, 0.0242651)),
+      3 => Stack(Pos(0.650784, 0), Dim(0.100719, 0.727985)),
+      1 => Stack(Pos(0, 0), Dim(0.185148, 0.93093))
     ) 
     aboxes = findboxesabove(p, r)
 
@@ -223,7 +223,7 @@ end
 
     p = Pos(0, 0)
     r = Dict(
-      1 => (Pos(0, 0), Dim(1, 1))
+      1 => Stack(Pos(0, 0), Dim(1, 1))
     )
     aboxes = findboxesabove(p, r)
     @test 1 in aboxes
@@ -231,7 +231,7 @@ end
 
     p = Pos(1, 0)
     r = Dict(
-      1 => (Pos(0, 0), Dim(1, 1))
+      1 => Stack(Pos(0, 0), Dim(1, 1))
     )
     aboxes = findboxesabove(p, r)
     @test !(1 in aboxes)
@@ -239,7 +239,7 @@ end
 
     p = Pos(0.5, 0)
     r = Dict(
-      1 => (Pos(0, 1), Dim(1, 1))
+      1 => Stack(Pos(0, 1), Dim(1, 1))
     )
     aboxes = findboxesabove(p, r)
     @test 1 in aboxes
@@ -247,21 +247,21 @@ end
 
     p = Pos(0.5, 0)
     r = Dict(
-      1 => (Pos(0, 5), Dim(1, 1))
+      1 => Stack(Pos(0, 5), Dim(1, 1))
     )
     aboxes = findboxesabove(p, r)
     @test 1 in aboxes
 
     p = Pos(1, 0)
     r = Dict(
-      1 => (Pos(0, 0), Dim(1, 1))
+      1 => Stack(Pos(0, 0), Dim(1, 1))
     )
     aboxes = findboxesabove(p, r)
     @test !(1 in aboxes)
 
     p = Pos(-0.5, 0)
     r = Dict(
-      1 => (Pos(0, 0), Dim(1, 1))
+      1 => Stack(Pos(0, 0), Dim(1, 1))
     )
     aboxes = findboxesabove(p, r)
     @test !(1 in aboxes)
@@ -271,7 +271,7 @@ end
 
 @testset "find boxes right" begin
     
-    r = Dict(1 => (Pos(0, 1), Dim(5, 1)), 2 => (Pos(7, 0), Dim(2, 2)))
+    r = Dict(1 => Stack(Pos(0, 1), Dim(5, 1)), 2 => Stack(Pos(7, 0), Dim(2, 2)))
 
     boxesright = findboxesright(Pos(0, 0), Dim(1, 1), r)
 
@@ -281,9 +281,9 @@ end
     p = Pos(0.6600787433709162, 0.5791527054086574)
     d = Dim(0.290875650604264, 0.2395909303148459)
     r = Dict(
-      2 => (Pos(0.660079, 0), Dim(0.267742, 0.579153)),
-      3 => (Pos(0.671143, 0.606602), Dim(0.123719, 0.271841)),
-      1 => (Pos(0, 0), Dim(0.660079, 0.606602))
+      2 => Stack(Pos(0.660079, 0), Dim(0.267742, 0.579153)),
+      3 => Stack(Pos(0.671143, 0.606602), Dim(0.123719, 0.271841)),
+      1 => Stack(Pos(0, 0), Dim(0.660079, 0.606602))
     )
     boxesright = findboxesright(p, d, r)
     @test !(1 in boxesright)
@@ -293,86 +293,219 @@ end
     p = Pos(0.8682584442589909, 0.9947360724710459)
     d = Dim(0.10542070771055019, 0.005263927528954104)
     r = Dict(
-    #   5 => (Pos(0.988235, 0), Dim(0.0117654, 0.48294)),
-    #   4 => (Pos(0.868258, 0), Dim(0.119976, 0.353601)),
-    #   6 => (Pos(0.988235, 0.48294), Dim(0.0117654, 0.486306)),
-      7 => (Pos(0.964295, 0.895591), Dim(0.0357055, 0.100487)),
-    #   2 => (Pos(0.550112, 0), Dim(0.141112, 0.961887)),
-    #   3 => (Pos(0.691224, 0), Dim(0.177034, 0.401109)),
-    #   1 => (Pos(0, 0), Dim(0.550112, 0.992972))
+    #   5 => Stack(Pos(0.988235, 0), Dim(0.0117654, 0.48294)),
+    #   4 => Stack(Pos(0.868258, 0), Dim(0.119976, 0.353601)),
+    #   6 => Stack(Pos(0.988235, 0.48294), Dim(0.0117654, 0.486306)),
+      7 => Stack(Pos(0.964295, 0.895591), Dim(0.0357055, 0.100487)),
+    #   2 => Stack(Pos(0.550112, 0), Dim(0.141112, 0.961887)),
+    #   3 => Stack(Pos(0.691224, 0), Dim(0.177034, 0.401109)),
+    #   1 => Stack(Pos(0, 0), Dim(0.550112, 0.992972))
     )
     @test 7 in findboxesright(p, d, r)
 
 
-    r = Dict(1 => (Pos(0, 0), Dim(1, 1)))
+    r = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(0.0, 0.0)
     d = Dim(1, 1)
     boxesright = findboxesright(p, d, r)
 
     @test 1 in boxesright
 
-    r = Dict(1 => (Pos(0.5, 0), Dim(1, 1)))
+    r = Dict(1 => Stack(Pos(0.5, 0), Dim(1, 1)))
     p = Pos(0.0, 0.0)
     d = Dim(1, 1)
     boxesright = findboxesright(p, d, r)
 
     @test 1 in boxesright
 
-    r = Dict(1 => (Pos(0, 0), Dim(1, 1)))
+    r = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(1.0, 0.0)
     d = Dim(1, 1)
     boxesright = findboxesright(p, d, r)
 
     @test !(1 in boxesright)
 
-    r = Dict(1 => (Pos(0, 0), Dim(1, 1)))
+    r = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(0.5, 0.0)
     d = Dim(1, 1)
     boxesright = findboxesright(p, d, r)
 
     @test !(1 in boxesright)
 
-    r = Dict(1 => (Pos(0.5, 0), Dim(1, 1)))
+    r = Dict(1 => Stack(Pos(0.5, 0), Dim(1, 1)))
     p = Pos(0.0, 0.0)
     d = Dim(1, 1)
     boxesright = findboxesright(p, d, r)
 
     @test 1 in boxesright
 
-    r = Dict(1 => (Pos(0.5, 0.5), Dim(1, 1)))
+    r = Dict(1 => Stack(Pos(0.5, 0.5), Dim(1, 1)))
     p = Pos(0.0, 0.0)
     d = Dim(1, 1)
     boxesright = findboxesright(p, d, r)
 
     @test 1 in boxesright
 
-    r = Dict(1 => (Pos(0.5, -0.5), Dim(1, 1)))
+    r = Dict(1 => Stack(Pos(0.5, -0.5), Dim(1, 1)))
     p = Pos(0.0, 0.0)
     d = Dim(1, 1)
     boxesright = findboxesright(p, d, r)
 
     @test 1 in boxesright
 
-    r = Dict(1 => (Pos(0, -0.5), Dim(1, 1)))
+    r = Dict(1 => Stack(Pos(0, -0.5), Dim(1, 1)))
     p = Pos(0.0, 0.0)
     d = Dim(1, 1)
     boxesright = findboxesright(p, d, r)
 
     @test 1 in boxesright
 
-    r = Dict(1 => (Pos(0, 1), Dim(1, 1)))
+    r = Dict(1 => Stack(Pos(0, 1), Dim(1, 1)))
     p = Pos(0.0, 0.0)
     d = Dim(1, 1)
     boxesright = findboxesright(p, d, r)
 
     @test !(1 in boxesright)
 
-    r = Dict(1 => (Pos(1, 0.5), Dim(1, 1)))
+    r = Dict(1 => Stack(Pos(1, 0.5), Dim(1, 1)))
     p = Pos(0.0, 0.0)
     d = Dim(1, 1)
     boxesright = findboxesright(p, d, r)
 
     @test 1 in boxesright
+
+end
+
+@testset "find boxes left" begin
+    
+    r = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(0.0, 0.0)
+    d = Dim(1, 1)
+    boxesleft = findboxesleft(p, d, r)
+
+    @test 1 in boxesleft
+
+    r = Dict(1 => Stack(Pos(0.5, 0), Dim(1, 1)))
+    p = Pos(0.0, 0.0)
+    d = Dim(1, 1)
+    boxesleft = findboxesleft(p, d, r)
+
+    @test !(1 in boxesleft)
+
+    r = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(1.0, 0.0)
+    d = Dim(1, 1)
+    boxesleft = findboxesleft(p, d, r)
+
+    @test 1 in boxesleft
+
+    r = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(0.5, 0.0)
+    d = Dim(1, 1)
+    boxesleft = findboxesleft(p, d, r)
+
+    @test 1 in boxesleft
+
+    r = Dict(1 => Stack(Pos(0.5, 0), Dim(1, 1)))
+    p = Pos(0.0, 0.0)
+    d = Dim(1, 1)
+    boxesleft = findboxesleft(p, d, r)
+
+    @test !(1 in boxesleft)
+
+    r = Dict(1 => Stack(Pos(0.5, 0.5), Dim(1, 1)))
+    p = Pos(0.0, 0.0)
+    d = Dim(1, 1)
+    boxesleft = findboxesleft(p, d, r)
+
+    @test !(1 in boxesleft)
+
+    r = Dict(1 => Stack(Pos(0.5, -0.5), Dim(1, 1)))
+    p = Pos(0.0, 0.0)
+    d = Dim(1, 1)
+    boxesleft = findboxesleft(p, d, r)
+
+    @test !(1 in boxesleft)
+
+    r = Dict(1 => Stack(Pos(0, -0.5), Dim(1, 1)))
+    p = Pos(0.0, 0.0)
+    d = Dim(1, 1)
+    boxesleft = findboxesleft(p, d, r)
+
+    @test 1 in boxesleft
+
+    r = Dict(1 => Stack(Pos(0, 1), Dim(1, 1)))
+    p = Pos(0.0, 0.0)
+    d = Dim(1, 1)
+    boxesleft = findboxesleft(p, d, r)
+
+    @test !(1 in boxesleft)
+
+    r = Dict(1 => Stack(Pos(1, 0.5), Dim(1, 1)))
+    p = Pos(0.0, 0.0)
+    d = Dim(1, 1)
+    boxesleft = findboxesleft(p, d, r)
+
+    @test !(1 in boxesleft)
+
+
+
+end
+
+@testset "totheleft" begin
+    """
+    +---+
+    | 1 |
+    +---p
+    """
+    solution = Dict(1 => StackStack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(1.0, 0.0)
+    @test totheleft(p, solution; precision=3) == 1
+
+    """
+    +---+   
+    | 1 |   
+    +---+   p
+    """
+    solution = Dict(1 => StackStack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(2.0, 0.0)
+    @test totheleft(p, solution; precision=3) == 1
+
+    """
+    +---+   
+    | 1 |   p
+    +---+   
+    """
+    solution = Dict(1 => StackStack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(2.0, 0.5)
+    @test totheleft(p, solution; precision=3) == 1
+
+    """
+    +---+   p
+    | 1 |   
+    +---+   
+    """
+    solution = Dict(1 => StackStack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(2.0, 1)
+    @test totheleft(p, solution; precision=3) == 0
+
+    """
+    p    +---+
+         | 1 |   
+         +---+   
+    """
+    solution = Dict(1 => StackStack(Pos(1, 0), Dim(1, 1)))
+    p = Pos(0.0, 1)
+    @test totheleft(p, solution; precision=3) == 0
+
+    """
+         +---+
+         | 1 |   
+    p    +---+   
+    """
+    solution = Dict(1 => StackStack(Pos(1, 0), Dim(1, 1)))
+    p = Pos(0.0, 0.0)
+    @test totheleft(p, solution; precision=3) == 0
 
 end
 
@@ -413,7 +546,7 @@ end
 
 @testset "collision function" begin
     
-    r = Dict(1 => (Pos(0, 1), Dim(5, 1)), 2 => (Pos(7, 0), Dim(2, 2)))
+    r = Dict(1 => StackStack(Pos(0, 1), Dim(5, 1)), 2 => Stack(Pos(7, 0), Dim(2, 2)))
     
     
     
@@ -433,23 +566,23 @@ end
 
     @test !collision(Pos(9, 0), Dim(1, 1), r)
 
-    r = Dict( 5 => (Pos(4, 0), Dim(1, 1)), 2 => (Pos(0, 1), Dim(1, 1)), 3 => (Pos(1, 0), Dim(3, 3)), 1 => (Pos(0, 0), Dim(1, 1)))
+    r = Dict( 5 => Stack(Pos(4, 0), Dim(1, 1)), 2 => Stack(Pos(0, 1), Dim(1, 1)), 3 => Stack(Pos(1, 0), Dim(3, 3)), 1 => Stack(Pos(0, 0), Dim(1, 1)))
     @test collision(Pos(0, 2), Dim(2, 1), r)
 
     p = Pos(0.2604926233999792, 0.37827530439454293)
     d = Dim(0.19831329972752604, 0.5736318825516512)
     r = Dict(
-      2 => (Pos(0.260493, 0), Dim(0.367593, 0.378275))
+      2 => Stack(Pos(0.260493, 0), Dim(0.367593, 0.378275))
     )
     @test !collision(p, d, r)
 
     r = Dict(
-      3 => (Pos(0.272358, 0.496099), Dim(0.164996, 0.206335))
+      3 => Stack(Pos(0.272358, 0.496099), Dim(0.164996, 0.206335))
     )
     @test collision(p, d, r)
 
     r = Dict(
-      1 => (Pos(0, 0), Dim(0.260493, 0.496099))
+      1 => Stack(Pos(0, 0), Dim(0.260493, 0.496099))
     )
     @test !collision(p, d, r)
 
@@ -457,25 +590,25 @@ end
     p = Pos(0.8682584442589909, 0.9947360724710459)
     d = Dim(0.10542070771055019, 0.005263927528954104)
     r = Dict(
-    #   5 => (Pos(0.988235, 0), Dim(0.0117654, 0.48294)),
-    #   4 => (Pos(0.868258, 0), Dim(0.119976, 0.353601)),
-    #   6 => (Pos(0.988235, 0.48294), Dim(0.0117654, 0.486306)),
-      7 => (Pos(0.964295, 0.895591), Dim(0.0357055, 0.100487)),
-    #   2 => (Pos(0.550112, 0), Dim(0.141112, 0.961887)),
-    #   3 => (Pos(0.691224, 0), Dim(0.177034, 0.401109)),
-    #   1 => (Pos(0, 0), Dim(0.550112, 0.992972))
+    #   5 => Stack(Pos(0.988235, 0), Dim(0.0117654, 0.48294)),
+    #   4 => Stack(Pos(0.868258, 0), Dim(0.119976, 0.353601)),
+    #   6 => Stack(Pos(0.988235, 0.48294), Dim(0.0117654, 0.486306)),
+      7 => Stack(Pos(0.964295, 0.895591), Dim(0.0357055, 0.100487)),
+    #   2 => Stack(Pos(0.550112, 0), Dim(0.141112, 0.961887)),
+    #   3 => Stack(Pos(0.691224, 0), Dim(0.177034, 0.401109)),
+    #   1 => Stack(Pos(0, 0), Dim(0.550112, 0.992972))
     )
     @test collision(p, d, r)
     
     p = Pos(0.7801779598676905, 0.9872828760942663)
     d = Dim(0.10785733636911919, 0.012717123905733652)
     r = Dict(
-        #   5 => (Pos(0.922803, 0.996865), Dim(0.077197, 0.00313544)),
-        #   4 => (Pos(0.922803, 0.893771), Dim(0.077197, 0.103093)),
-          6 => (Pos(0.877791, 0.988419), Dim(0.0450124, 0.0115809)),
-        # 2 => (Pos(0.922803, 0), Dim(0.077197, 0.781983)),
-        # 3 => (Pos(0.922803, 0.781983), Dim(0.077197, 0.111789)),
-        # 1 => (Pos(0, 0), Dim(0.922803, 0.879307))
+        #   5 => Stack(Pos(0.922803, 0.996865), Dim(0.077197, 0.00313544)),
+        #   4 => Stack(Pos(0.922803, 0.893771), Dim(0.077197, 0.103093)),
+          6 => Stack(Pos(0.877791, 0.988419), Dim(0.0450124, 0.0115809)),
+        # 2 => Stack(Pos(0.922803, 0), Dim(0.077197, 0.781983)),
+        # 3 => Stack(Pos(0.922803, 0.781983), Dim(0.077197, 0.111789)),
+        # 1 => Stack(Pos(0, 0), Dim(0.922803, 0.879307))
         )
     @test collision(p, d, r)
 
@@ -483,14 +616,14 @@ end
     p = Pos(0.9173920482282241, 0.5956575275540524)
     d = Dim(0.001, 0.12376169444300854)
     r = Dict(
-    #   5 => (Pos(0.917392, 0), Dim(0.082608, 0.302143)),
-    #   4 => (Pos(0.751503, 0), Dim(0.165889, 0.367109)),
-      6 => (Pos(0.917392, 0.302143), Dim(0.0269158, 0.511427)),
-    #   7 => (Pos(0.944308, 0.302143), Dim(0.0556922, 0.169016)),
-    #   2 => (Pos(0.185148, 0), Dim(0.465636, 0.790959)),
-    #   8 => (Pos(0.916207, 0.700376), Dim(0.00118471, 0.0242651)),
-    #   3 => (Pos(0.650784, 0), Dim(0.100719, 0.727985)),
-    #   1 => (Pos(0, 0), Dim(0.185148, 0.93093))
+    #   5 => Stack(Pos(0.917392, 0), Dim(0.082608, 0.302143)),
+    #   4 => Stack(Pos(0.751503, 0), Dim(0.165889, 0.367109)),
+      6 => Stack(Pos(0.917392, 0.302143), Dim(0.0269158, 0.511427)),
+    #   7 => Stack(Pos(0.944308, 0.302143), Dim(0.0556922, 0.169016)),
+    #   2 => Stack(Pos(0.185148, 0), Dim(0.465636, 0.790959)),
+    #   8 => Stack(Pos(0.916207, 0.700376), Dim(0.00118471, 0.0242651)),
+    #   3 => Stack(Pos(0.650784, 0), Dim(0.100719, 0.727985)),
+    #   1 => Stack(Pos(0, 0), Dim(0.185148, 0.93093))
     ) 
     @test collision(p, d, r)
 
@@ -498,11 +631,11 @@ end
     # p = Pos(0.9926480570550624, 0.30824860456814623)
     # d = Dim(0.001, 0.4104763075001061)
     # r = Dict(
-    # #   5 => (Pos(0.99176, 0.72853), Dim(0.000888102, 0.106989)),
-    # #   4 => (Pos(0.992648, 0.97499), Dim(0.00735194, 0.0250099)),
-    # #   2 => (Pos(0.861778, 0), Dim(0.13087, 0.308249)),
-    #   3 => (Pos(0.992648, 0), Dim(0.00735194, 0.97499)),
-    # #   1 => (Pos(0, 0), Dim(0.861778, 0.971887))
+    # #   5 => Stack(Pos(0.99176, 0.72853), Dim(0.000888102, 0.106989)),
+    # #   4 => Stack(Pos(0.992648, 0.97499), Dim(0.00735194, 0.0250099)),
+    # #   2 => Stack(Pos(0.861778, 0), Dim(0.13087, 0.308249)),
+    #   3 => Stack(Pos(0.992648, 0), Dim(0.00735194, 0.97499)),
+    # #   1 => Stack(Pos(0, 0), Dim(0.861778, 0.971887))
     # )
 
     # @test !collision(p, d, r)
@@ -510,29 +643,29 @@ end
     p = Pos(0.9859539875368014, 0.9765595603311082)
     d = Dim(0.009885218625116808, 0.00767268558160028)
     r = Dict(
-    #   5 => (Pos(0.979308, 0), Dim(0.0175611, 0.150042)),
-      12 => (Pos(0.995494, 0.841467), Dim(0.0013758, 0.146971)),
-    #   8 => (Pos(0.996869, 0.454622), Dim(0.00313051, 0.474395)),
-    #   1 => (Pos(0, 0), Dim(0.864806, 0.830905)),
-    #   6 => (Pos(0.996869, 0), Dim(0.00313051, 0.290461)),
-    #   11 => (Pos(0.995494, 0.800829), Dim(0.0013758, 0.0406388)),
-    #   9 => (Pos(0.996869, 0.929016), Dim(0.00313051, 0.034796)),
-    #   3 => (Pos(0.947844, 0), Dim(0.0118101, 0.164162)),
-    #   7 => (Pos(0.996869, 0.290461), Dim(0.00313051, 0.16416)),
-    #   4 => (Pos(0.959654, 0), Dim(0.0196547, 0.172211)),
-    #   13 => (Pos(0.98648, 0.984232), Dim(0.00901378, 0.0102169)),
-    #   2 => (Pos(0.864806, 0), Dim(0.0830375, 0.382982)),
-    #   10 => (Pos(0.996869, 0.963812), Dim(0.00313051, 0.0293756))
+    #   5 => Stack(Pos(0.979308, 0), Dim(0.0175611, 0.150042)),
+      12 => Stack(Pos(0.995494, 0.841467), Dim(0.0013758, 0.146971)),
+    #   8 => Stack(Pos(0.996869, 0.454622), Dim(0.00313051, 0.474395)),
+    #   1 => Stack(Pos(0, 0), Dim(0.864806, 0.830905)),
+    #   6 => Stack(Pos(0.996869, 0), Dim(0.00313051, 0.290461)),
+    #   11 => Stack(Pos(0.995494, 0.800829), Dim(0.0013758, 0.0406388)),
+    #   9 => Stack(Pos(0.996869, 0.929016), Dim(0.00313051, 0.034796)),
+    #   3 => Stack(Pos(0.947844, 0), Dim(0.0118101, 0.164162)),
+    #   7 => Stack(Pos(0.996869, 0.290461), Dim(0.00313051, 0.16416)),
+    #   4 => Stack(Pos(0.959654, 0), Dim(0.0196547, 0.172211)),
+    #   13 => Stack(Pos(0.98648, 0.984232), Dim(0.00901378, 0.0102169)),
+    #   2 => Stack(Pos(0.864806, 0), Dim(0.0830375, 0.382982)),
+    #   10 => Stack(Pos(0.996869, 0.963812), Dim(0.00313051, 0.0293756))
     )
     @test collision(p, d, r)
 
-    r = Dict(1 => (Pos(0, 0), Dim(1, 1)))
+    r = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     @test collision(Pos(0.9, 0.9), Dim(1/(10^3), 1/(10^3)), r; verbose=true)
 
 end
 
 @testset "illegalpos" begin
-    r = Dict(1 => (Pos(0.0, 0.0), Dim(1, 1)))
+    r = Dict(1 => Stack(Pos(0.0, 0.0), Dim(1, 1)))
  
     @test illegalpos(Pos(0, 0), r)
     @test illegalpos(Pos(0, 0.9), r)
