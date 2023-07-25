@@ -740,57 +740,6 @@ end
 
 # end
 
-# @testset "genS3 function" begin
-#     maxW = 5
-#     maxL = 5
-#     maxeps = 1
-#     epsstep = 0.1
-
-#     my_rs = Dict()
-
-#     ratios = Array{Union{Int8, Missing}}(missing, maxW, maxL, convert(Int64, maxeps/epsstep))
-#     numbers = Array{Union{Int32, Missing}}(missing, maxW, maxL, convert(Int64, maxeps/epsstep))
-#     # genS3(W, L, eps)
-#     for w in 1:maxW
-#         println("w:$w")
-#         for le in 1:maxL
-#             println("\tle:$le")
-#             for (ei, e) in enumerate(0.1:epsstep:maxeps)
-#                 println("\t\te:$e")
-#                 volume = 0.0
-#                 S, r = genS3(w, le, e)
-#                 @testset "no collision" begin
-#                     for k in keys(r)
-#                         # r = Dict(
-#                         #     i => (s.le, s.wi) for (i, s) in enumerate(S))
-#                         @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
-#                         volume += r[k].dim.le * r[k].dim.wi
-#                     end
-#                 end
-#                 ratios[w, le, ei] = convert(Int8, round(volume/(w*le) * 100))
-#                 numbers[w, le, ei] = length(r)
-#                 if isempty(my_rs) && length(r) <= 6 && volume/(w*le) < 60
-#                     my_rs = r
-#                 end
-#                 testoutofbound(r, w)
-#                 # Filling test
-#                 # println(volume/(w*le))
-#                 # @test volume/(w*le) > 0.9                
-#             end
-#         end
-#     end
-#     display(ratios)
-#     display(numbers)
-#     display(my_rs)
-#     # figure out why this has a ratio of less than 60%
-# #     Dict{Any, Any} with 5 entries:
-# #   5 => (Pos(0.809869, 0.94915), Dim(0.190131, 0.0508503))
-# #   4 => (Pos(0.809869, 0.734121), Dim(0.190131, 0.215029))
-# #   2 => (Pos(0.809869, 0), Dim(0.190131, 0.311604))
-# #   3 => (Pos(0.809869, 0.311604), Dim(0.190131, 0.422517))
-# #   1 => (Pos(0, 0), Dim(0.809869, 0.813025))
-# end
-
 @testset "shareside" begin
     
     # shareside(a::Stack, b::Stack)
@@ -800,7 +749,7 @@ end
     | a | 2 |
     +---+---+
     """
-    
+
     @test shareside(Stack(Pos(0, 0), Dim(1, 1)), Stack(Pos(1, 0), Dim(1, 1)))
     
     """
@@ -810,7 +759,7 @@ end
     | a |
     +---+
     """
-    
+
     @test shareside(Stack(Pos(0, 0), Dim(1, 1)), Stack(Pos(0, 1), Dim(1, 1)))
 
     """
@@ -820,7 +769,7 @@ end
     | 4 |
     +---+
     """
-    
+
     @test shareside(Stack(Pos(0, 0), Dim(1, 1)), Stack(Pos(0, -1), Dim(1, 1)))
 
     """
@@ -828,7 +777,7 @@ end
     | 3 | a |
     +---+---+
     """
-    
+
     @test shareside(Stack(Pos(1, 0), Dim(1, 1)), Stack(Pos(0, 0), Dim(1, 1)))
 
 
@@ -838,7 +787,7 @@ end
     | a +---+
     +---+
     """
-    
+
     @test !shareside(Stack(Pos(0, 0), Dim(1, 1)), Stack(Pos(1, 0.5), Dim(1, 1)))
 
     """
@@ -847,7 +796,7 @@ end
     | a | +---+
     +---+
     """
-    
+
     @test !shareside(Stack(Pos(0, 0), Dim(1, 1)), Stack(Pos(2, 0.5), Dim(1, 1)))
 
 
@@ -858,10 +807,145 @@ end
     | a |
     +---+
     """
-    
+
     @test !shareside(Stack(Pos(0, 0), Dim(1, 1)), Stack(Pos(0.5, 1), Dim(1, 1)))
 
 end
+
+@testset "fuse!" begin
+    """
+    +---+---+
+    | a | 2 |
+    +---+---+
+    """
+    rectangles = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)), 2 => Stack(Pos(1, 0), Dim(1, 1)))
+    fuse!(rectangles, rectangles[1], rectangles[2], 3)
+    @test rectangles == Dict(3 => Stack(Pos(0, 0), Dim(2, 1)))
+    
+    """
+    +---+
+    | 1 |
+    +---+
+    | a |
+    +---+
+    """
+
+    rectangles = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)), 2 => Stack(Pos(0, 1), Dim(1, 1)))
+    fuse!(rectangles, rectangles[1], rectangles[2], 3)
+    @test rectangles == Dict(3 => Stack(Pos(0, 0), Dim(1, 2)))
+    """
+    +---+
+    | a |
+    +---+
+    | 4 |
+    +---+
+    """
+
+    rectangles = Dict(1 => Stack(Pos(0, 1), Dim(1, 1)), 2 => Stack(Pos(0, 0), Dim(1, 1)))
+    fuse!(rectangles, rectangles[1], rectangles[2], 3)
+    @test rectangles == Dict(3 => Stack(Pos(0, 0), Dim(1, 2)))
+    """
+    +---+---+
+    | 3 | a |
+    +---+---+
+    """
+
+    rectangles = Dict(1 => Stack(Pos(1, 0), Dim(1, 1)), 2 => Stack(Pos(0, 0), Dim(1, 1)))
+    fuse!(rectangles, rectangles[1], rectangles[2], 3)
+    @test rectangles == Dict(3 => Stack(Pos(0, 0), Dim(2, 1)))
+end
+
+@testset "cutrectangle" begin
+
+
+    @test cutrectangle("x", Stack(Pos(0, 0), Dim(1, 1)), 0.5) == Stack(Pos(0, 0), Dim(0.5, 1))
+
+    @test cutrectangle("x", Stack(Pos(0, 0), Dim(1, 1)), 0.25) == Stack(Pos(0, 0), Dim(0.25, 1))
+
+    @test cutrectangle("x", Stack(Pos(0, 0), Dim(1, 1)), 0.75) == Stack(Pos(0, 0), Dim(0.75, 1))
+
+
+    @test cutrectangle("y", Stack(Pos(0, 0), Dim(1, 1)), 0.5) == Stack(Pos(0, 0), Dim(1, 0.5))
+
+    @test cutrectangle("y", Stack(Pos(0, 0), Dim(1, 1)), 0.1) == Stack(Pos(0, 0), Dim(1, 0.1))
+
+
+    @test_throws ArgumentError cutrectangle("x", Stack(Pos(2, 0), Dim(1, 1)), 0.5)
+
+    @test_throws ArgumentError cutrectangle("x", Stack(Pos(2, 0), Dim(1, 1)), 0.25)
+
+    @test_throws ArgumentError cutrectangle("x", Stack(Pos(5, 3), Dim(1, 1)), 0.75)
+
+
+    @test_throws ArgumentError cutrectangle("y", Stack(Pos(3, 2), Dim(1, 1)), 0.5)
+
+    @test_throws ArgumentError cutrectangle("y", Stack(Pos(1, 1), Dim(1, 1)), 0.1)
+
+    @test cutrectangle("x", Stack(Pos(1, 0), Dim(1, 1)), 1.5) == Stack(Pos(1, 0), Dim(0.5, 1))
+
+    @test cutrectangle("y", Stack(Pos(0, 1), Dim(1, 1)), 1.5) == Stack(Pos(0, 1), Dim(1, 0.5))
+
+
+end
+
+@testset "newrectangle" begin
+    rectangle = Stack(Pos(0, 0), Dim(0.5, 1))
+    @test newrectangle("x", rectangle, Dim(1, 1), 0.5) == Stack(Pos(0.5, 0), Dim(0.5, 1))
+
+
+    rectangle = Stack(Pos(1, 0), Dim(0.5, 1))
+    @test newrectangle("x", rectangle, Dim(1, 1), 1.5) == Stack(Pos(1.5, 0), Dim(0.5, 1))
+
+    rectangle = Stack(Pos(0, 0), Dim(1, 0.5))
+    @test newrectangle("y", rectangle, Dim(1, 1), 0.5) == Stack(Pos(0, 0.5), Dim(1, 0.5))
+
+    rectangle = Stack(Pos(0, 1), Dim(1, 0.5))
+    @test newrectangle("y", rectangle, Dim(1, 1), 1.5) == Stack(Pos(0, 1.5), Dim(1, 0.5))
+
+end
+
+@testset "cutandfuse_generator" begin
+    maxW = 5
+    maxL = 5
+    maxeps = 1
+    epsstep = 0.1
+
+    # my_rs = Dict()
+
+    # ratios = Array{Union{Int8, Missing}}(missing, maxW, maxL, convert(Int64, maxeps/epsstep))
+    # numbers = Array{Union{Int32, Missing}}(missing, maxW, maxL, convert(Int64, maxeps/epsstep))
+    for w in 1:maxW
+        # println("w:$w")
+        for le in 1:maxL
+            # println("\tle:$le")
+            # println("\t\te:$e")
+            volume = 0.0
+            solution = cutandfuse_generator(le, w, 10, 10, precision=3)
+            @testset "no collision" begin
+                for k in keys(solution)
+                    # r = Dict(
+                    #     i => (s.le, s.wi) for (i, s) in enumerate(S))
+                    @test !collision(solution[k].pos, solution[k].dim, filter(p -> p[1] != k, solution))
+                    volume += solution[k].dim.le * solution[k].dim.wi
+                end
+            end
+            @test volume == w * le
+            # ratios[w, le, ei] = convert(Int8, round(volume/(w*le) * 100))
+            # numbers[w, le, ei] = length(r)
+            # if isempty(my_rs) && length(r) <= 6 && volume/(w*le) < 60
+            #     my_rs = r
+            # end
+            testoutofbound(solution, w)
+            # Filling test
+            # println(volume/(w*le))
+            # @test volume/(w*le) > 0.9                
+        end
+    end
+    # display(ratios)
+    # display(numbers)
+    # display(my_rs)
+end
+
 
 
 
@@ -899,4 +983,3 @@ end
 
 end
 
-end

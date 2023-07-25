@@ -17,24 +17,15 @@ function main()
     # end
 
     # println(collision(Pos(0.992648057, 0.30824860456), Dim(0.001, 0.001), Dict(1 => (Pos(0.992648, 0), Dim(0.00735194, 0.97499)))))
-
-
-    volume = 0.0
-    w = 1
-    le = 1
-    e = 0.01
-    S, r = genS3(w, le, e)
-    begin
-        for k in keys(r)
-            # r = Dict(
-            #     i => (s.le, s.wi) for (i, s) in enumerate(S))
-            println("k: ", !collision(r[k][1], r[k][2], filter(p -> p[1] != k, r)))
-            volume += r[k][2].le * r[k][2].wi
+    for i in 1:1000
+        solution = cutandfuse_generator(10, 10, 4, 4, precision=3)
+        filling = sum([solution[k].dim.le * solution[k].dim.wi for k in keys(solution)])
+        if filling != 100
+            display(solution)
+            println(filling)
+            break
         end
     end
-    # testoutofbound(r, w)
-    # Filling test
-    prinlnt("vol ratio ", volume/(w*le) > 0.9)
 
     # println(evals(100000))
     # println(evals(100000, true))

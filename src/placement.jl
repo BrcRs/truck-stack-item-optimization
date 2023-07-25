@@ -25,13 +25,13 @@ struct Stack
     dim::Dim
 end
 
-function findboxesabove(pos, r, precision=3)
+function findboxesabove(pos, r; precision=3)
     # return filter(b -> r[b].pos.y >= pos.y && r[b].pos.x < pos.x + dim.le && r[b].pos.x + r[b].dim.le > pos.x, keys(r))
     # return filter(b -> geqtol(r[b].pos.y, pos.y, precision) && lessertol(r[b].pos.x, pos.x + dim.le, precision) && greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
     return filter(b -> geqtol(r[b].pos.y, pos.y, precision) && leqtol(r[b].pos.x, pos.x, precision) && greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
 end
 
-function findboxesright(pos, r, precision=3)
+function findboxesright(pos, r; precision::Integer=3)
     # return filter(b -> geqtol(r[b].pos.x, pos.x, precision) && lessertol(r[b].pos.y, pos.y + dim.wi, precision) && greatertol(r[b].pos.y + r[b].dim.wi, pos.y, precision), keys(r))
     return filter(
         b -> geqtol(r[b].pos.x, pos.x, precision) && 
@@ -40,7 +40,7 @@ function findboxesright(pos, r, precision=3)
         keys(r))
 end
 
-function findboxesright(pos, dim, r, precision=3)
+function findboxesright(pos, dim, r; precision=3)
     return filter(
         b -> geqtol(r[b].pos.x, pos.x, precision) && 
         lessertol(r[b].pos.y, pos.y + dim.wi, precision) && 
@@ -378,6 +378,7 @@ end
 
 function shareside(a::Stack, b::Stack)
     """
+    ```
         +---+
         | 1 |
     +---+---+---+
@@ -385,6 +386,7 @@ function shareside(a::Stack, b::Stack)
     +---+---+---+
         | 4 |
         +---+
+    ```
     """
     if a.dim.le == b.dim.le
         if  Pos(a.pos.x, a.pos.y + a.dim.wi) == b.pos
@@ -409,10 +411,54 @@ function shareside(a::Stack, b::Stack)
     return false
 end
 
-"""This algorithm works in two phases:
+function cutrectangle(orientation, rectangle, cut)
+    res = nothing
+    if orientation == "x"
+        if cut == rectangle.pos.x
+            return rectangle 
+        end
+        if cut < rectangle.pos.x || cut >= rectangle.pos.x + rectangle.dim.le
+            throw(ArgumentError("cut ($cut) out of bounds of rectangle $rectangle"))
+        end
+        res = Stack(rectangle.pos, Dim(cut - rectangle.pos.x , rectangle.dim.wi))
+    else
+        if cut == rectangle.pos.y
+            return rectangle 
+        end
+        if cut < rectangle.pos.y || cut >= rectangle.pos.y + rectangle.dim.wi
+            throw(ArgumentError("cut ($cut) out of bounds of rectangle $rectangle"))
+        end
+        res = Stack(rectangle.pos, Dim(rectangle.dim.le, cut - rectangle.pos.y))
+    end
+    return res
+end
+
+function newrectangle(orientation, rectangle, olddim, cut)
+    if orientation == "x"
+        return Stack(Pos(cut, rectangle.pos.y), Dim(rectangle.pos.x + olddim.le - cut, olddim.wi))
+    else
+        return Stack(Pos(rectangle.pos.x, cut), Dim(olddim.le, rectangle.pos.y + olddim.wi - cut))
+    end
+end
+
+function fuse!(rectangles, a, b, id)
+
+    filter!(p -> !(p[2] in [a, b]), rectangles)
+
+    samex = b.pos.x == a.pos.x
+
+    rectangles[id] = Stack(
+                                Pos(min(a.pos.x, b.pos.x), min(a.pos.y, b.pos.y)), 
+                                samex ? Dim(a.dim.le, a.dim.wi + b.dim.wi) : Dim(a.dim.le + b.dim.le, a.dim.wi))
+end
+"""
+    cutandfuse_generator(L, W, cutiter, fuseiter, precision=3)
+
+This algorithm works in two phases:
 1. Have a bigger rectangle, and cut it in two new rectangles.
 2. Do the step above a number of time for different rectangles
 The two first steps alone are unable to generate some configurations, for instance:
+```
 +---+-----------+
 |   |           |
 |   +-------+---+
@@ -421,10 +467,12 @@ The two first steps alone are unable to generate some configurations, for instan
 +---+-------+   |
 |           |   |
 +-----------+---+
+```
 3. Fuse two adjacent compatible (which create a new rectangle) rectangles
 4. repeat step 3. a number of times
 
 Example to create the configuration above:
+```
 +---+-----------+
 |   |           |
 |   |           |
@@ -460,35 +508,55 @@ Example to create the configuration above:
 +---+-------+---+
 |   |       |   |
 +---+-------+---+
-
+```
 And then fuse the right rectangles.
 
 """
-function cutandfuse_generator(L, W, cutiter, fuseiter, eps, precision=3)
-
+function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3)
+    # println("========")
     rectangles = Dict(0 => Stack(Pos(0, 0), Dim(L, W)))
+    nb_rects = 1
+    movingL = [L/2]
+    movingW = [W/2]
 
     # cut phase
     for i in 1:cutiter
+        # println("---")
         # choose random cut orientation
         orientation = rand(["x", "y"])
         cut = 0.0
 
         # choose a random cut coordinate
         if orientation == "x"
-            cut = rand() * L
+            # cut = rand() * L
+            # cut = rand(1:L) # DEBUG
+            cut = rand(movingL)
+            push!(movingL, 1.5 * cut, 0.5 * cut)
+            filter!(x -> x != cut, movingL)
         else
-            cut = rand() * W
+            # cut = rand() * W
+            # cut = rand(1:W) # DEBUG
+
+            cut = rand(movingW)
+            push!(movingW, 1.5 * cut, 0.5 * cut)
+            filter!(x -> x != cut, movingW)
         end
-        
+
+
         # and find impacted rectangles
-        impacted = orientation == "x" ? findboxesabove(Pos(cut, 0), rectangles, precision) :
-                                        findboxesright(Pos(0, cut), rectangles, precision)
+        impacted = orientation == "x" ? findboxesabove(Pos(cut, 0), rectangles, precision=precision) :
+                                        findboxesright(Pos(0, cut), rectangles, precision=precision)
         
+        # display(rectangles)
+        # println("cut: $cut on $orientation")
+        # println("impacted: $impacted")
+
         # For every impacted rectangle:
         for k in impacted
+            # println("-*-")
             # Update rectangle
             """
+            ```
             rectangles[k].pos.x
             __^___
                     rectangles[k].dim.le
@@ -498,19 +566,33 @@ function cutandfuse_generator(L, W, cutiter, fuseiter, eps, precision=3)
                   +----/----+
                        ^______ cut
             0 1 2 3 4 5 6 7 8 9 10
+            ```
             """
             olddim = Dim(rectangles[k].dim.le, rectangles[k].dim.wi)
-            if orientation == "x"
-                rectangles[k].dim.le = cut - rectangles[k].pos.x 
-            else
-                rectangles[k].dim.wi = cut - rectangles[k].pos.y 
+            rectangles[k] = cutrectangle(orientation, rectangles[k], cut)
+            # println("rectangle $k becomes $(rectangles[k])")
+            # if orientation == "x"
+            #     # rectangles[k].dim.le = cut - rectangles[k].pos.x 
+            #     # rectangles[k].dim = Dim(cut - rectangles[k].pos.x , rectangles[k].dim.wi)
+            #     rectangles[k] = Stack(rectangles[k].pos, Dim(cut - rectangles[k].pos.x , rectangles[k].dim.wi))
+            # else
+            #     # rectangles[k].dim.wi = cut - rectangles[k].pos.y 
+            #     # rectangles[k].dim = Dim(rectangles[k].dim.le, cut - rectangles[k].pos.y)
+            #     rectangles[k] = Stack(rectangles[k].pos, Dim(rectangles[k].dim.le, cut - rectangles[k].pos.y))
+            # end
+
+            # create new formed rectangle only if the cut actually cut the rectangle
+            if rectangles[k].dim != olddim
+                nb_rects += 1
+                rectangles[nb_rects] = newrectangle(orientation, rectangles[k], olddim, cut)
             end
-            # create new formed rectangle
-            if orientation == "x"
-                rectangles[i] = Stack(Pos(cut, rectangles[k].pos.y), Dim(olddim.le - cut, olddim.wi))
-            else
-                rectangles[i] = Stack(Pos(rectangles[k].pos.x, cut), Dim(olddim.le, olddim.wi - cut))
-            end
+            # println("New rectangle: $(rectangles[nb_rects])")
+
+            # if orientation == "x"
+            #     rectangles[i] = Stack(Pos(cut, rectangles[k].pos.y), Dim(rectangles[k].pos.x + olddim.le - cut, olddim.wi))
+            # else
+            #     rectangles[i] = Stack(Pos(rectangles[k].pos.x, cut), Dim(olddim.le, rectangles[k].pos.y + olddim.wi - cut))
+            # end
         end
     end
 
@@ -523,6 +605,7 @@ function cutandfuse_generator(L, W, cutiter, fuseiter, eps, precision=3)
         # TODO optimize
         neighbors = []
         """
+        ```
             +---+
             | 1 |
         +---+---+---+
@@ -530,6 +613,7 @@ function cutandfuse_generator(L, W, cutiter, fuseiter, eps, precision=3)
         +---+---+---+
             | 4 |
             +---+
+        ```
         """
         for k in keys(rectangles)
             # if  rectangles[k].pos == Pos(rectangle.pos.x, rectangle.pos.y + rectangle.dim.wi) ||
@@ -538,15 +622,29 @@ function cutandfuse_generator(L, W, cutiter, fuseiter, eps, precision=3)
             #     #...
             # end
             if shareside(rectangle, rectangles[k])
-                push!(neighbors, rectangle[k])
+                push!(neighbors, rectangles[k])
             end
         end
         # if no neighbor, continue
+        if isempty(neighbors)
+            continue
+        end
+        # choose randomly
+        neighbor = rand(neighbors)
 
         # delete the two rectangles, replace with new bigger one 
+        nb_rects += 1
+        fuse!(rectangles, rectangle, neighbor, nb_rects)
+
+        # filter!(p -> !(p[2] in [neighbor, rectangle]), rectangles)
+        # samex = neighbor.pos.x == rectangle.pos.x
+        # rectangles[i+cutiter] = Stack(
+        #                             Pos(min(rectangle.pos.x, neighbor.pos.x), min(rectangle.pos.y, neighbor.pos.y)), 
+        #                             samex ? Dim(rectangle.dim.le, rectangle.dim.wi + neighbor.dim.wi) : Dim(rectangle.dim.le + neighbor.dim.le, rectangle.dim.wi))
+
     end
 
-    return solution
+    return rectangles
 end
 
 function rndgenS(W, L, ratio)
