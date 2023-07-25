@@ -376,6 +376,178 @@ function genS3(W, L, eps, precision=3)
 
 end
 
+function shareside(a::Stack, b::Stack)
+    """
+        +---+
+        | 1 |
+    +---+---+---+
+    | 3 | a | 2 |
+    +---+---+---+
+        | 4 |
+        +---+
+    """
+    if a.dim.le == b.dim.le
+        if  Pos(a.pos.x, a.pos.y + a.dim.wi) == b.pos
+            return true
+        end
+
+        if Pos(b.pos.x, b.pos.y + b.dim.wi) == a.pos
+            return true
+        end
+    end
+
+    if a.dim.wi == b.dim.wi
+        if b.pos == Pos(a.pos.x + a.dim.le, a.pos.y)
+            return true
+        end
+        
+        if a.pos == Pos(b.pos.x + b.dim.le, b.pos.y)
+            return true
+        end
+    end
+
+    return false
+end
+
+"""This algorithm works in two phases:
+1. Have a bigger rectangle, and cut it in two new rectangles.
+2. Do the step above a number of time for different rectangles
+The two first steps alone are unable to generate some configurations, for instance:
++---+-----------+
+|   |           |
+|   +-------+---+
+|   |       |   |
+|   |       |   |
++---+-------+   |
+|           |   |
++-----------+---+
+3. Fuse two adjacent compatible (which create a new rectangle) rectangles
+4. repeat step 3. a number of times
+
+Example to create the configuration above:
++---+-----------+
+|   |           |
+|   |           |
+|   |           |
+|   |           |
+|   |           |
+|   |           |
++---+-----------+
+
++---+-------+---+
+|   |       |   |
+|   |       |   |
+|   |       |   |
+|   |       |   |
+|   |       |   |
+|   |       |   |
++---+-------+---+
+
++---+-------+---+
+|   |       |   |
++---+-------+---+
+|   |       |   |
+|   |       |   |
+|   |       |   |
+|   |       |   |
++---+-------+---+
+
++---+-------+---+
+|   |       |   |
++---+-------+---+
+|   |       |   |
+|   |       |   |
++---+-------+---+
+|   |       |   |
++---+-------+---+
+
+And then fuse the right rectangles.
+
+"""
+function cutandfuse_generator(L, W, cutiter, fuseiter, eps, precision=3)
+
+    rectangles = Dict(0 => Stack(Pos(0, 0), Dim(L, W)))
+
+    # cut phase
+    for i in 1:cutiter
+        # choose random cut orientation
+        orientation = rand(["x", "y"])
+        cut = 0.0
+
+        # choose a random cut coordinate
+        if orientation == "x"
+            cut = rand() * L
+        else
+            cut = rand() * W
+        end
+        
+        # and find impacted rectangles
+        impacted = orientation == "x" ? findboxesabove(Pos(cut, 0), rectangles, precision) :
+                                        findboxesright(Pos(0, cut), rectangles, precision)
+        
+        # For every impacted rectangle:
+        for k in impacted
+            # Update rectangle
+            """
+            rectangles[k].pos.x
+            __^___
+                    rectangles[k].dim.le
+                  ____^______
+                  +----/----+
+                  |    /    |
+                  +----/----+
+                       ^______ cut
+            0 1 2 3 4 5 6 7 8 9 10
+            """
+            olddim = Dim(rectangles[k].dim.le, rectangles[k].dim.wi)
+            if orientation == "x"
+                rectangles[k].dim.le = cut - rectangles[k].pos.x 
+            else
+                rectangles[k].dim.wi = cut - rectangles[k].pos.y 
+            end
+            # create new formed rectangle
+            if orientation == "x"
+                rectangles[i] = Stack(Pos(cut, rectangles[k].pos.y), Dim(olddim.le - cut, olddim.wi))
+            else
+                rectangles[i] = Stack(Pos(rectangles[k].pos.x, cut), Dim(olddim.le, olddim.wi - cut))
+            end
+        end
+    end
+
+    # fuse phase
+    for i in 1:fuseiter
+        # choose a rectangle randomly
+        rectangle = rectangles[rand(keys(rectangles))]
+
+        # choose a neighbor randomly
+        # TODO optimize
+        neighbors = []
+        """
+            +---+
+            | 1 |
+        +---+---+---+
+        | 3 |   | 2 |
+        +---+---+---+
+            | 4 |
+            +---+
+        """
+        for k in keys(rectangles)
+            # if  rectangles[k].pos == Pos(rectangle.pos.x, rectangle.pos.y + rectangle.dim.wi) ||
+            #     rectangles[k].pos == Pos(rectangle.pos.x + rectangle.dim.le, rectangle.pos.y) ||
+            #     rectangles[k].pos == Pos(rectangle.pos.x, rectangle.pos.y + rectangle.dim.wi)
+            #     #...
+            # end
+            if shareside(rectangle, rectangles[k])
+                push!(neighbors, rectangle[k])
+            end
+        end
+        # if no neighbor, continue
+
+        # delete the two rectangles, replace with new bigger one 
+    end
+
+    return solution
+end
 
 function rndgenS(W, L, ratio)
     println("Entering rndgenS")
