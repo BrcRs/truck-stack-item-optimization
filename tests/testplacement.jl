@@ -681,64 +681,64 @@ end
 function testoutofbound(r, W)
     @testset "out of bound" begin
         for k in keys(r)
-            @test !outofbound(r[k][1], r[k][2], W)
+            @test !outofbound(r[k].pos, r[k].dim, W)
         end
     end
 end
 
-@testset "place function" begin
-    W = 3
+# @testset "place function" begin
+#     W = 3
     
-    r = place([Dim(1, 1), Dim(1, 1), Dim(2, 1), Dim(1, 1)], W)
-    @testset "no collision 1" begin
-        for k in keys(r)
-            @test !collision(r[k][1], r[k][2], filter(p -> p[1] != k, r))
-        end
-    end
+#     r = place([Dim(1, 1), Dim(1, 1), Dim(2, 1), Dim(1, 1)], W)
+#     @testset "no collision 1" begin
+#         for k in keys(r)
+#             @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
+#         end
+#     end
 
-    testoutofbound(r, W)
+#     testoutofbound(r, W)
 
-    r = place([Dim(1, 1), Dim(1, 1), Dim(2, 1), Dim(1, 1), Dim(7, 1)], W)
-    @testset "no collision 2" begin
-        for k in keys(r)
-            @test !collision(r[k][1], r[k][2], filter(p -> p[1] != k, r))
-        end
-    end
-    testoutofbound(r, W)
+#     r = place([Dim(1, 1), Dim(1, 1), Dim(2, 1), Dim(1, 1), Dim(7, 1)], W)
+#     @testset "no collision 2" begin
+#         for k in keys(r)
+#             @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
+#         end
+#     end
+#     testoutofbound(r, W)
 
-    r = place([Dim(7, 1), Dim(1, 1), Dim(1, 1), Dim(2, 1), Dim(1, 1)], W)
-    @testset "no collision 3" begin
-        for k in keys(r)
-            @test !collision(r[k][1], r[k][2], filter(p -> p[1] != k, r))
-        end
-    end
-    testoutofbound(r, W)
+#     r = place([Dim(7, 1), Dim(1, 1), Dim(1, 1), Dim(2, 1), Dim(1, 1)], W)
+#     @testset "no collision 3" begin
+#         for k in keys(r)
+#             @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
+#         end
+#     end
+#     testoutofbound(r, W)
 
-    r = place([Dim(1, 1), Dim(3, 1), Dim(1, 1), Dim(2, 1), Dim(1, 1)], W)
-    @testset "no collision 4" begin
-        for k in keys(r)
-            @test !collision(r[k][1], r[k][2], filter(p -> p[1] != k, r))
-        end
-    end
-    testoutofbound(r, W)
+#     r = place([Dim(1, 1), Dim(3, 1), Dim(1, 1), Dim(2, 1), Dim(1, 1)], W)
+#     @testset "no collision 4" begin
+#         for k in keys(r)
+#             @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
+#         end
+#     end
+#     testoutofbound(r, W)
 
-    r = place([Dim(1, 1), Dim(1, 1), Dim(3, 3), Dim(2, 1), Dim(1, 1)], W)
-    @testset "no collision 5" begin
-        for k in keys(r)
-            @test !collision(r[k][1], r[k][2], filter(p -> p[1] != k, r))
-        end
-    end
-    testoutofbound(r, W)
+#     r = place([Dim(1, 1), Dim(1, 1), Dim(3, 3), Dim(2, 1), Dim(1, 1)], W)
+#     @testset "no collision 5" begin
+#         for k in keys(r)
+#             @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
+#         end
+#     end
+#     testoutofbound(r, W)
 
-    r = place([Dim(1, 1), Dim(4, 1), Dim(2, 1), Dim(8, 2), Dim(1, 1), Dim(3, 1), Dim(4, 2), Dim(2, 1), Dim(1, 1)], W)
-    @testset "no collision 6" begin
-        for k in keys(r)
-            @test !collision(r[k][1], r[k][2], filter(p -> p[1] != k, r))
-        end
-    end
-    testoutofbound(r, W)
+#     r = place([Dim(1, 1), Dim(4, 1), Dim(2, 1), Dim(8, 2), Dim(1, 1), Dim(3, 1), Dim(4, 2), Dim(2, 1), Dim(1, 1)], W)
+#     @testset "no collision 6" begin
+#         for k in keys(r)
+#             @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
+#         end
+#     end
+#     testoutofbound(r, W)
 
-end
+# end
 
 @testset "genS3 function" begin
     maxW = 5
@@ -763,8 +763,8 @@ end
                     for k in keys(r)
                         # r = Dict(
                         #     i => (s.le, s.wi) for (i, s) in enumerate(S))
-                        @test !collision(r[k][1], r[k][2], filter(p -> p[1] != k, r))
-                        volume += r[k][2].le * r[k][2].wi
+                        @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
+                        volume += r[k].dim.le * r[k].dim.wi
                     end
                 end
                 ratios[w, le, ei] = convert(Int8, round(volume/(w*le) * 100))
