@@ -4,7 +4,7 @@ using Random
 # 2 => width
 
 struct Dim
-    le
+    le # le corresponds to x axis
     wi
     Dim(a, b) = a == 0 || b == 0 ? throw(ArgumentError("Dim($a, $b): Dimension can't be of size zero")) : new(a, b)
 end
@@ -18,6 +18,11 @@ end
 struct Pos
     x
     y
+end
+
+struct Stack
+    pos::Pos
+    dim::Dim
 end
 
 function findboxesabove(pos, r, precision=3)
@@ -36,12 +41,24 @@ function findboxesright(pos, r, precision=3)
 end
 
 function findboxesright(pos, dim, r, precision=3)
-    return filter(b -> geqtol(r[b][1].x, pos.x, precision) && lessertol(r[b][1].y, pos.y + dim.wi, precision) && greatertol(r[b][1].y + r[b][2].wi, pos.y, precision), keys(r))
+    return filter(
+        b -> geqtol(r[b][1].x, pos.x, precision) && 
+        lessertol(r[b][1].y, pos.y + dim.wi, precision) && 
+        greatertol(r[b][1].y + r[b][2].wi, pos.y, precision), 
+        keys(r))
     # return filter(
     #     b -> geqtol(r[b][1].x, pos.x, precision) && 
     #     leqtol(r[b][1].y, pos.y, precision) && 
     #     greatertol(r[b][1].y + r[b][2].wi, pos.y, precision), 
     #     keys(r))
+end
+
+function findboxesleft(pos, dim, r, precision=3)
+    return filter(
+        b -> leqtol(r[b][:pos].x, pos.x, precision) && 
+        lessertol(r[b][:pos].y, pos.y + dim.wi, precision) && 
+        greatertol(r[b][:pos].y + r[b][:dim].wi, pos.y, precision),
+        keys(r))
 end
 
 """Return wether the two boxes overlap on X"""
@@ -146,6 +163,118 @@ function place(S, W, precision=3)
 
 end
 
+"""Given a position, find the most to the left available position without 
+overlapping a placed stack."""
+function totheleft(pos, solution; precision=3)
+    # Find all stacks overlapping on y axis and with x < pos.x
+    boxesleft = findboxesleft(pos, Dim(10.0^-precision, 10.0^-precision), solution, precision)
+
+    # Find the stack which extends the most to the right
+    leftbound = max([solution[k][:pos].x + solution[k][:dim].le for k in boxesleft])    
+
+    # return the x position of the right side of the stack
+    return leftbound
+end
+
+struct Tag
+    tag::Symbol
+    _tags::Vector{Symbol}
+end
+function Tag(t)
+    _tags = [:Perpendicular, :Parallel, :None]
+    if !(t in _tags)
+        throw(ArgumentError("$t is not a recognized tag.\nRecognized tags are $_tags"))
+    end
+    return Tag(t, _tags)
+end
+
+
+function BLtruck(instance, precision=3)
+    """Lengths must be greater than widths"""
+    # TODO pretreatment?
+    """One of the two dimensions must be lesser than W?"""
+
+    corners = [Pos(0, 0)]
+    solution = Dict{Any, Any}()
+    torem = []
+    toadd = []
+
+
+    # For each stack to place
+    for (i, s) in enumerate(instance[:stacks])
+    
+        # For each corner potentialy available
+        for o in corners
+    
+            # ignore corners waiting to be removed
+            if o in torem
+                continue
+            end
+
+            orientation = Tag(:None)
+
+            # if the stack fits oriented with its length perpendicular to the 
+            # width of the truck and it doesn't overlap with another stack
+            if leqtol(o.y + s.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.wi, s.le), solution; precision)
+                # the stack can be placed in this orientation
+                orientation = Tag(:Perpendicular)
+            # else if the stack fits oriented with its length parallel to the
+            # length of the truck and it doesn't overlap with another stack
+            elseif leqtol(o.y + s.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.le, s.wi), solution; precision)
+                orientation = Tag(:Parallel)
+            end
+
+            if orientation != Tag(:None)
+                
+                if orientation == Tag(:Perpendicular)
+                    # Add the stack to this corner in solution
+                    solution[i] = Pos(o.x, o.y), Dim(s.wi, s.le)
+                    
+                    # Add new corners
+                    # TODO floating corners: corners must be placed as much to the left as possible
+                    push!(toadd,    totheleft(Pos(o.x, o.y + s.le), solution), 
+                                    totheleft(Pos(o.x + s.wi, o.y), solution))
+                end
+
+                if orientation == Tag(:Parallel)
+                    # add to solution
+                    solution[i] = Pos(o.x, o.y), Dim(s.le, s.wi)
+
+                    # add new corners
+                    # TODO add floating corners
+                    push!(toadd, Pos(o.x, o.y + s.wi), Pos(o.x + s.le, o.y))
+                end
+
+                # remove corner
+                push!(torem, o)
+                
+                # remove covered corners
+                for o2 in corners
+                    if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.wi, precision)
+                        push!(torem, o2)
+                    end
+                
+                end
+
+                # stop iterating over corners
+                break
+                
+            end
+        end
+        
+        # remove corners waiting to be removed
+        filter!(x -> !(x in torem), corners)
+
+        # Add corners to the list of available corners
+        push!(corners, toadd...)
+
+        toadd = []
+    end
+
+    return solution
+end
+
+
 """Given a position and a the position of the lowest box above it, return the maximum width possible 
 of a box placed at that position."""
 function genWidth(o, lowestyabove, eps, precision=3)
@@ -244,38 +373,6 @@ function genS3(W, L, eps, precision=3)
 
 end
 
-# function genS2(W, L, nbsub, nb)
-#     S = []
-
-#     # S = [(step, step) for i in 1:((W*L)/(step*step))]
-#     S = Matrix{Integer}(undef, nbsub, nbsub)
-#     zones = Dict{Any, Any}()
-#     m = 0
-#     for i in 1:nbsub
-#         for j in 1:nbsub
-#             m += 1
-#             S[i, j] = m
-#             zones[m] = hcat([((i-1) * W/nbsub) ; ((j-1) * L/nbsub)],  [(i * W/nbsub); (j * L/nbsub)])
-#         end
-#     end
-#     tobesel = collect(1:m)
-#     while !isempty(tobesel)
-#         # Select random cell
-#         cell = rand(tobesel)
-#         # For four sides
-#         for dir in [(-1, 0), (1, 0), (0, 1), (0, -1)]
-#             # choose random value for length
-#             thelength = rand() * nbsub
-
-#             # cover until size limit or previously expanded rectangle is met
-#             while 
-#         end
-#         filter!(x -> x != cell, tobesel)
-#     end
-
-    
-#     return S, zones
-# end
 
 function rndgenS(W, L, ratio)
     println("Entering rndgenS")
