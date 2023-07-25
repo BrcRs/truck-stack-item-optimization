@@ -131,7 +131,7 @@ function place(S, W, precision=3)
             # end
             if leqtol(o.y + s.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.wi, s.le), r; precision)
                 push!(torem, o)
-                r[i] = Pos(o.x, o.y), Dim(s.wi, s.le)
+                r[i] = Stack(Pos(o.x, o.y), Dim(s.wi, s.le))
                 push!(toadd, Pos(o.x, o.y + s.le), Pos(o.x + s.wi, o.y))
                 # remove covered starting points
                 for o2 in O
@@ -170,7 +170,8 @@ function totheleft(pos, solution; precision=3)
     boxesleft = findboxesleft(pos, Dim(10.0^-precision, 10.0^-precision), solution, precision)
 
     # Find the stack which extends the most to the right
-    leftbound = max([solution[k].pos.x + solution[k].dim.le for k in boxesleft])    
+    rightsides = [solution[k].pos.x + solution[k].dim.le for k in boxesleft]
+    leftbound = isempty(rightsides) ? 0 : max(rightsides...)    
 
     # return the x position of the right side of the stack
     return leftbound
@@ -360,7 +361,7 @@ function genS3(W, L, eps, precision=3)
             # end
             push!(toadd, Pos(o.x, o.y + wi), Pos(o.x + le, o.y))
             push!(S, Dim(le, wi))
-            r[i] = Pos(o.x, o.y), Dim(le, wi)
+            r[i] = Stack(Pos(o.x, o.y), Dim(le, wi))
         end
         filter!(x -> !(x in torem), O)
         torem = []
