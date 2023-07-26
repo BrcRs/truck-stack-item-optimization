@@ -460,7 +460,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(1.0, 0.0)
-    @test totheleft(p, solution; precision=3) == 1
+    @test totheleft(p, solution; precision=3) == Pos(1.0, 0.0)
 
     """
     +---+   
@@ -469,7 +469,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(2.0, 0.0)
-    @test totheleft(p, solution; precision=3) == 1
+    @test totheleft(p, solution; precision=3) == Pos(1.0, 0.0)
 
     """
     +---+   
@@ -478,7 +478,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(2.0, 0.5)
-    @test totheleft(p, solution; precision=3) == 1
+    @test totheleft(p, solution; precision=3) == Pos(1.0, 0.5)
 
     """
     +---+   p
@@ -487,7 +487,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(2.0, 1)
-    @test totheleft(p, solution; precision=3) == 0
+    @test totheleft(p, solution; precision=3) == Pos(0.0, 1.0)
 
     """
     p    +---+
@@ -496,7 +496,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(1, 0), Dim(1, 1)))
     p = Pos(0.0, 1)
-    @test totheleft(p, solution; precision=3) == 0
+    @test totheleft(p, solution; precision=3) == Pos(0.0, 1.0)
 
     """
          +---+
@@ -505,7 +505,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(1, 0), Dim(1, 1)))
     p = Pos(0.0, 0.0)
-    @test totheleft(p, solution; precision=3) == 0
+    @test totheleft(p, solution; precision=3) == Pos(0.0, 0.0)
 
 end
 
@@ -548,13 +548,65 @@ end
     
     r = Dict(1 => Stack(Pos(0, 1), Dim(5, 1)), 2 => Stack(Pos(7, 0), Dim(2, 2)))
     
-    
+    """
+
+    +------------------------+         +---------+
+    |                        |         |         |
+    1------------------------+         |         |
+                                       |         |
+                                       2---------+
+
+    """
     
     # NOK
-    @test collision(Pos(0, 0), Dim(2, 3), r)
-    @test collision(Pos(0, 1), Dim(1, 5), r)
+    """
+    +---------+
+    |         |
+    +---------|--------------+         +---------+
+    |         |              |         |         |
+    1---------|--------------+         |         |
+    |         |                        |         |
+    +---------+                        2---------+
 
+    """
+
+    @test collision(Pos(0, 0), Dim(2, 3), r)
+
+    """
+    ......
+    |   |
+    |   |
+    +---|--------------------+         +---------+
+    |   |                    |         |         |
+    1===+--------------------+         |         |
+                                       |         |
+                                       2---------+
+
+    """
+    
+    @test collision(Pos(0, 1), Dim(1, 5), r)
+    
+    """
+
+    +------------------------+         +---------+
+    |                        |         |         |
+    1---+---+----------------+         |         |
+        |   |                          |         |
+        +---+                          2---------+
+
+    """
+    
     @test !collision(Pos(1, 0), Dim(1, 1), r)
+    """
+
+    +---+---+----------------+         +---------+
+    |   |   |                |         |         |
+    1---|---|----------------+         |         |
+        |   |                          |         |
+        +---+                          2---------+
+
+    """
+    
     @test collision(Pos(1, 0), Dim(1, 2), r)
 
     # OK
@@ -661,6 +713,24 @@ end
 
     r = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     @test collision(Pos(0.9, 0.9), Dim(1/(10^3), 1/(10^3)), r; verbose=true)
+
+
+    
+    # ```
+    #     +---+
+    #     | 1 |
+    # +---+---+---+
+    # | 3 |   | 2 |
+    # +---+---+---+
+    #     | 4 |
+    #     +---+
+    # ```
+    
+    r = Dict(1 => Stack(Pos(1, 2), Dim(1, 1)), 2 => Stack(Pos(2, 1), Dim(1, 1)), 3 => Stack(Pos(0, 1), Dim(1, 1)), 4 => Stack(Pos(1, 0), Dim(1, 1)), 5 => Stack(Pos(1, 1), Dim(1, 1)))
+    
+    for k in keys(r)    
+        @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r); verbose=true)
+    end
 
 end
 
@@ -953,22 +1023,40 @@ end
 @testset "BLtruck" begin
     ratios = []
     instances_solutions = []
-    for i in 1:1000
-        instance = generate_placement_instance()
-        ratio, solution = eval_placement_function(BLtruck, instance)
+
+    ITER = 100
+    L = 1000
+    W = 100
+
+    NBCUTS = 20
+    NBFUSE = 20
+
+    for i in 1:ITER
+        rectangles = cutandfuse_generator(L, W, NBCUTS, NBFUSE; precision=3)
+        instance = [pair for pair in rectangles]
+        solution = BLtruck(instance, W, precision=3)
+        # display(solution)
+        # ratio, solution = eval_placement_function(BLtruck, instance)
+        foundL = max([solution[k].pos.x + solution[k].dim.le for k in keys(solution)]...)
+        ratio = foundL / L
         push!(ratios, ratio)
         push!(instances_solutions, (ins=instance, sol=solution))
     end
 
     # Test solution is valid
     @testset "BLtruck is valid" begin
-        for i in 1:length(instance_solutions)
+        for i in 1:ITER
+            instance, solution = instances_solutions[i]
             # check overlapping and out of bounds
-            @testset "No overlapping and out of bounds" begin
-                instance, solution = instances_solutions[i]
-                for stack in values(solution)
-                    @test !isoverlapping(stack, solution, instance)
-                    @test !isoutofbounds(stack, solution, instance)
+            @testset "No overlapping" begin
+                for (j, stack) in solution
+                    @test !collision(stack.pos, stack.dim, filter(p -> p[1] != j, solution); precision=3, verbose=false)
+                end
+            end
+            @testset "Not out of bounds" begin
+                
+                for (j, stack) in solution
+                    @test !outofbound(stack.pos, stack.dim, W; precision=3)
                 end
             end
         end 
@@ -976,8 +1064,12 @@ end
     
     # Test optimality is 2-OPT
     @testset "BLtruck is 2-OPT" begin
-        for r in ratios
+        for (i, r) in enumerate(ratios)
             @test r <= 2.0
+            if r > 2.0
+                display(instances_solutions[i])
+                # println(r)
+            end
         end
     end
 

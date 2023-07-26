@@ -1,9 +1,9 @@
 using Random
-
+using AutoHashEquals
 # 1 => length
 # 2 => width
 
-struct Dim
+@auto_hash_equals struct Dim
     le # le corresponds to x axis
     wi
     Dim(a, b) = a == 0 || b == 0 ? throw(ArgumentError("Dim($a, $b): Dimension can't be of size zero")) : new(a, b)
@@ -15,10 +15,11 @@ end
 #     end
 #     return Dim(le, wi)
 # end
-struct Pos
+@auto_hash_equals struct Pos
     x
     y
 end
+
 
 struct Stack
     pos::Pos
@@ -104,7 +105,7 @@ function collision(pos, dim, r; precision=3, verbose=false)
     return false
 end
 
-function outofbound(pos, dim, W, precision=3)
+function outofbound(pos, dim, W; precision=3)
     return greatertol(pos.y + dim.wi, W, precision)
 end
 
@@ -126,27 +127,27 @@ function place(S, W, precision=3)
             end
             # if i == 4
             #     println(3 in keys(r))
-            #     println(!collision(Pos(o.x, o.y), Dim(s.wi, s.le), r))
-            #     println(!collision(Pos(o.x, o.y), Dim(s.le, s.wi), r))
+            #     println(!collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), r))
+            #     println(!collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), r))
             # end
-            if leqtol(o.y + s.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.wi, s.le), r; precision)
+            if leqtol(o.y + s.dim.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), r; precision)
                 push!(torem, o)
-                r[i] = Stack(Pos(o.x, o.y), Dim(s.wi, s.le))
-                push!(toadd, Pos(o.x, o.y + s.le), Pos(o.x + s.wi, o.y))
+                r[i] = Stack(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le))
+                push!(toadd, Pos(o.x, o.y + s.dim.le), Pos(o.x + s.dim.wi, o.y))
                 # remove covered starting points
                 for o2 in O
-                    if leqtol(o.x,  o2.x, precision) && lessertol(o2.x, o.x + s.wi, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.y, o.y + s.le, precision)
+                    if leqtol(o.x,  o2.x, precision) && lessertol(o2.x, o.x + s.dim.wi, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.y, o.y + s.dim.le, precision)
                         push!(torem, o2)
                     end
                 end
                 break
-            elseif leqtol(o.y + s.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.le, s.wi), r; precision)
+            elseif leqtol(o.y + s.dim.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), r; precision)
                 push!(torem, o)
-                r[i] = Stack(Pos(o.x, o.y), Dim(s.le, s.wi))
-                push!(toadd, Pos(o.x, o.y + s.wi), Pos(o.x + s.le, o.y))
+                r[i] = Stack(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi))
+                push!(toadd, Pos(o.x, o.y + s.dim.wi), Pos(o.x + s.dim.le, o.y))
                 # remove covered starting points
                 for o2 in O
-                    if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.wi, precision)
+                    if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.dim.wi, precision)
                         push!(torem, o2)
                     end
                 end
@@ -173,38 +174,38 @@ function totheleft(pos, solution; precision=3)
     rightsides = [solution[k].pos.x + solution[k].dim.le for k in boxesleft]
     leftbound = isempty(rightsides) ? 0 : max(rightsides...)    
 
-    # return the x position of the right side of the stack
-    return leftbound
+    # return the Pos with x position as the right side of the stack
+    return Pos(leftbound, pos.y)
 end
 
-struct Tag
-    tag::Symbol
-    _tags::Vector{Symbol}
-end
-function Tag(t)
-    _tags = [:Perpendicular, :Parallel, :None]
-    if !(t in _tags)
-        throw(ArgumentError("$t is not a recognized tag.\nRecognized tags are $_tags"))
-    end
-    return Tag(t, _tags)
-end
+# struct Tag
+#     tag::Symbol
+#     _tags::Vector{Symbol}
+# end
+# function Tag(t)
+#     _tags = [:Perpendicular, :Parallel, :None]
+#     if !(t in _tags)
+#         throw(ArgumentError("$t is not a recognized tag.\nRecognized tags are $_tags"))
+#     end
+#     return Tag(t, _tags)
+# end
 
 
-function BLtruck(instance, precision=3)
+function BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3) where T <: Integer
     """Lengths must be greater than widths"""
     # TODO pretreatment?
     """One of the two dimensions must be lesser than W?"""
 
     corners = [Pos(0, 0)]
-    solution = Dict{Any, Any}()
-    torem = []
-    toadd = []
+    solution = Dict{Integer, Stack}()
+    torem = Pos[]
+    toadd = Pos[]
 
 
     # For each stack to place
-    for (i, s) in enumerate(instance[:stacks])
+    for (i, s) in instance
     
-        # For each corner potentialy available
+        # For each corner potentially available
         for o in corners
     
             # ignore corners waiting to be removed
@@ -212,40 +213,40 @@ function BLtruck(instance, precision=3)
                 continue
             end
 
-            orientation = Tag(:None)
+            orientation = :None
 
             # if the stack fits oriented with its length perpendicular to the 
             # width of the truck and it doesn't overlap with another stack
-            if leqtol(o.y + s.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.wi, s.le), solution; precision)
+            if leqtol(o.y + s.dim.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision)
                 # the stack can be placed in this orientation
-                orientation = Tag(:Perpendicular)
+                orientation = :Perpendicular
             # else if the stack fits oriented with its length parallel to the
             # length of the truck and it doesn't overlap with another stack
-            elseif leqtol(o.y + s.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.le, s.wi), solution; precision)
-                orientation = Tag(:Parallel)
+            elseif leqtol(o.y + s.dim.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision)
+                orientation = :Parallel
             end
 
-            if orientation != Tag(:None)
+            if orientation != :None
                 
-                if orientation == Tag(:Perpendicular)
+                if orientation == :Perpendicular
                     # Add the stack to this corner in solution
-                    solution[i] = Stack(Pos(o.x, o.y), Dim(s.wi, s.le))
+                    solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le))
                     
                     # Add new corners
                     # TODO floating corners: corners must be placed as much to the left as possible
-                    push!(toadd,    totheleft(Pos(o.x, o.y + s.le), solution), 
-                                    totheleft(Pos(o.x + s.wi, o.y), solution))
+                    push!(toadd,    totheleft(Pos(o.x, o.y + s.dim.le), solution), 
+                                    totheleft(Pos(o.x + s.dim.wi, o.y), solution))
                 end
 
-                if orientation == Tag(:Parallel)
+                if orientation == :Parallel
                     # add to solution
-                    solution[i] = Stack(Pos(o.x, o.y), Dim(s.le, s.wi))
+                    solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi))
 
                     # add new corners
                     # TODO add floating corners
                     push!(toadd, 
-                                    totheleft(Pos(o.x, o.y + s.wi), solution), 
-                                    totheleft(Pos(o.x + s.le, o.y), solution))
+                                    totheleft(Pos(o.x, o.y + s.dim.wi), solution), 
+                                    totheleft(Pos(o.x + s.dim.le, o.y), solution))
                 end
 
                 # remove corner
@@ -253,7 +254,7 @@ function BLtruck(instance, precision=3)
                 
                 # remove covered corners
                 for o2 in corners
-                    if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.wi, precision)
+                    if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.dim.wi, precision)
                         push!(torem, o2)
                     end
                 
@@ -271,7 +272,7 @@ function BLtruck(instance, precision=3)
         # Add corners to the list of available corners
         push!(corners, toadd...)
 
-        toadd = []
+        toadd = Pos[]
     end
 
     return solution
@@ -324,7 +325,7 @@ function genS3(W, L, eps, precision=3)
                 continue
             end
             # print("=")
-            # ro = (ywi = o.y + s.wi, yle =  o.y + s.le, xle = o.x + s.le, xwi = o.x + s.wi)
+            # ro = (ywi = o.y + s.dim.wi, yle =  o.y + s.dim.le, xle = o.x + s.dim.le, xwi = o.x + s.dim.wi)
             wi, le = missing, missing
             # First draw a vertical line until box is found
             above = findboxesabove(o, r, precision)
