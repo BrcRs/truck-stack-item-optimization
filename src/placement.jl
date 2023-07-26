@@ -191,6 +191,105 @@ end
 # end
 
 
+function placestack!(solution, W, i, s, corners; precision=3, verbose=false)
+    torem = []
+    toadd = []
+    placed = false
+    if verbose
+        println("Placing s=$s")
+    end
+    # For each corner potentially available
+    for o in corners
+        if verbose
+            println("Considering corner $o")
+        end
+
+        # ignore corners waiting to be removed
+        if o in torem
+            continue
+        end
+
+        orientation = :None
+
+        # if the stack fits oriented with its length perpendicular to the 
+        # width of the truck and it doesn't overlap with another stack
+        if leqtol(o.y + s.dim.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision)
+            # the stack can be placed in this orientation
+            orientation = :Perpendicular
+            if verbose
+                println("$s can be placed perpendicular")
+            end
+        # else if the stack fits oriented with its length parallel to the
+        # length of the truck and it doesn't overlap with another stack
+        elseif leqtol(o.y + s.dim.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision)
+            orientation = :Parallel
+            if verbose
+                println("$s can be placed parallel")
+            end
+
+        else
+            if verbose
+                println("$s can't be placed at $o because...")
+                println("Perpendicular:")
+                println("\tleqtol(o.y + s.dim.le, W, precision) = ", leqtol(o.y + s.dim.le, W, precision))
+                println("\t!collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision) = ", !collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision))
+                println("Parallel:")
+                println("\tleqtol(o.y + s.dim.wi, W, precision)  = ", leqtol(o.y + s.dim.wi, W, precision) )
+                println("\t!collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision) = ", !collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision))
+
+                display(solution)
+
+            end
+        end
+
+        if orientation != :None
+            placed = true
+            if orientation == :Perpendicular
+                # Add the stack to this corner in solution
+                solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le))
+                
+                # Add new corners
+                # TODO floating corners: corners must be placed as much to the left as possible
+                push!(toadd,    totheleft(Pos(o.x, o.y + s.dim.le), solution), 
+                                totheleft(Pos(o.x + s.dim.wi, o.y), solution))
+            end
+
+            if orientation == :Parallel
+                # add to solution
+                solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi))
+
+                # add new corners
+                # TODO add floating corners
+                push!(toadd, 
+                                totheleft(Pos(o.x, o.y + s.dim.wi), solution), 
+                                totheleft(Pos(o.x + s.dim.le, o.y), solution))
+            end
+
+            # remove corner
+            push!(torem, o)
+            
+            # remove covered corners
+            for o2 in corners
+                if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.dim.wi, precision)
+                    push!(torem, o2)
+                end
+            
+            end
+
+            # stop iterating over corners
+            break
+            
+        end
+    end
+
+    if !placed
+        error("The stack can't be placed")
+    end
+
+    return torem, toadd
+end
+
+
 function BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3) where T <: Integer
     """Lengths must be greater than widths"""
     # TODO pretreatment?
@@ -205,73 +304,78 @@ function BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3) where T <: In
     # For each stack to place
     for (i, s) in instance
     
-        # For each corner potentially available
-        for o in corners
+        torem, toadd = placestack!(solution, W, i, s, corners; precision=3)
+        # # For each corner potentially available
+        # for o in corners
     
-            # ignore corners waiting to be removed
-            if o in torem
-                continue
-            end
+        #     # ignore corners waiting to be removed
+        #     if o in torem
+        #         continue
+        #     end
 
-            orientation = :None
+        #     orientation = :None
 
-            # if the stack fits oriented with its length perpendicular to the 
-            # width of the truck and it doesn't overlap with another stack
-            if leqtol(o.y + s.dim.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision)
-                # the stack can be placed in this orientation
-                orientation = :Perpendicular
-            # else if the stack fits oriented with its length parallel to the
-            # length of the truck and it doesn't overlap with another stack
-            elseif leqtol(o.y + s.dim.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision)
-                orientation = :Parallel
-            end
+        #     # if the stack fits oriented with its length perpendicular to the 
+        #     # width of the truck and it doesn't overlap with another stack
+        #     if leqtol(o.y + s.dim.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision)
+        #         # the stack can be placed in this orientation
+        #         orientation = :Perpendicular
+        #     # else if the stack fits oriented with its length parallel to the
+        #     # length of the truck and it doesn't overlap with another stack
+        #     elseif leqtol(o.y + s.dim.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision)
+        #         orientation = :Parallel
+        #     end
 
-            if orientation != :None
+        #     if orientation != :None
                 
-                if orientation == :Perpendicular
-                    # Add the stack to this corner in solution
-                    solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le))
+        #         if orientation == :Perpendicular
+        #             # Add the stack to this corner in solution
+        #             solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le))
                     
-                    # Add new corners
-                    # TODO floating corners: corners must be placed as much to the left as possible
-                    push!(toadd,    totheleft(Pos(o.x, o.y + s.dim.le), solution), 
-                                    totheleft(Pos(o.x + s.dim.wi, o.y), solution))
-                end
+        #             # Add new corners
+        #             # TODO floating corners: corners must be placed as much to the left as possible
+        #             push!(toadd,    totheleft(Pos(o.x, o.y + s.dim.le), solution), 
+        #                             totheleft(Pos(o.x + s.dim.wi, o.y), solution))
+        #         end
 
-                if orientation == :Parallel
-                    # add to solution
-                    solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi))
+        #         if orientation == :Parallel
+        #             # add to solution
+        #             solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi))
 
-                    # add new corners
-                    # TODO add floating corners
-                    push!(toadd, 
-                                    totheleft(Pos(o.x, o.y + s.dim.wi), solution), 
-                                    totheleft(Pos(o.x + s.dim.le, o.y), solution))
-                end
+        #             # add new corners
+        #             # TODO add floating corners
+        #             push!(toadd, 
+        #                             totheleft(Pos(o.x, o.y + s.dim.wi), solution), 
+        #                             totheleft(Pos(o.x + s.dim.le, o.y), solution))
+        #         end
 
-                # remove corner
-                push!(torem, o)
+        #         # remove corner
+        #         push!(torem, o)
                 
-                # remove covered corners
-                for o2 in corners
-                    if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.dim.wi, precision)
-                        push!(torem, o2)
-                    end
+        #         # remove covered corners
+        #         for o2 in corners
+        #             if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.dim.wi, precision)
+        #                 push!(torem, o2)
+        #             end
                 
-                end
+        #         end
 
-                # stop iterating over corners
-                break
+        #         # stop iterating over corners
+        #         break
                 
-            end
-        end
+        #     end
+        # end
         
         # remove corners waiting to be removed
         filter!(x -> !(x in torem), corners)
 
         # Add corners to the list of available corners
         push!(corners, toadd...)
-
+        # if !issorted(corners, by= o -> o.x)
+        #     display(corners)
+        #     error("Not sorted")
+        # end
+        sort!(corners, by= o -> o.x )
         toadd = Pos[]
     end
 
@@ -412,21 +516,21 @@ function shareside(a::Stack, b::Stack)
     return false
 end
 
-function cutrectangle(orientation, rectangle, cut)
+function cutrectangle(orientation, rectangle, cut; precision=3)
     res = nothing
     if orientation == "x"
-        if cut == rectangle.pos.x
+        if eqtol(cut, rectangle.pos.x, precision)
             return rectangle 
         end
-        if cut < rectangle.pos.x || cut >= rectangle.pos.x + rectangle.dim.le
+        if lessertol(cut, rectangle.pos.x, precision) || geqtol(cut, rectangle.pos.x + rectangle.dim.le, precision)
             throw(ArgumentError("cut ($cut) out of bounds of rectangle $rectangle"))
         end
         res = Stack(rectangle.pos, Dim(cut - rectangle.pos.x , rectangle.dim.wi))
     else
-        if cut == rectangle.pos.y
+        if eqtol(cut, rectangle.pos.y, precision)
             return rectangle 
         end
-        if cut < rectangle.pos.y || cut >= rectangle.pos.y + rectangle.dim.wi
+        if lessertol(cut, rectangle.pos.y, precision) || geqtol(cut, rectangle.pos.y + rectangle.dim.wi, precision)
             throw(ArgumentError("cut ($cut) out of bounds of rectangle $rectangle"))
         end
         res = Stack(rectangle.pos, Dim(rectangle.dim.le, cut - rectangle.pos.y))
@@ -529,18 +633,21 @@ function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3)
 
         # choose a random cut coordinate
         if orientation == "x"
-            # cut = rand() * L
+            cut = rand() * L
             # cut = rand(1:L) # DEBUG
-            cut = rand(movingL)
-            push!(movingL, 1.5 * cut, 0.5 * cut)
-            filter!(x -> x != cut, movingL)
+
+            # The following works
+            # cut = rand(movingL)
+            # push!(movingL, 1.5 * cut, 0.5 * cut)
+            # filter!(x -> x != cut, movingL)
         else
-            # cut = rand() * W
+            cut = rand() * W
             # cut = rand(1:W) # DEBUG
 
-            cut = rand(movingW)
-            push!(movingW, 1.5 * cut, 0.5 * cut)
-            filter!(x -> x != cut, movingW)
+            # The following works
+            # cut = rand(movingW)
+            # push!(movingW, 1.5 * cut, 0.5 * cut)
+            # filter!(x -> x != cut, movingW)
         end
 
 
@@ -646,6 +753,52 @@ function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3)
     end
 
     return rectangles
+end
+
+# function nb_cuts_fuse_calc(nbstacks, base)
+#     # In the worst case, each cut doubles the number of stacks
+#     # In the best case, each cut only adds one stack
+
+#     # Each fuse always only reduce the number of stacks by 1 at most,
+#     # but sometimes can't fuse any stack anymore so 0 at best
+
+#     # Most stacks = 2^nbcuts
+
+#     # Least stacks = nbcuts - nbfuse
+#     # return nbcuts, nbfuse for max stacks
+#     # return same for least stacks
+#     return (most=(round(log2(nbstacks)), 0), least=(base+nbstacks, base)) 
+
+# end
+
+function nb_cuts_fuse_avg(nbstacks)
+    # probability of choosing a side: p[side] = 0.5
+
+    # nbx number of x cuts
+    # nby number of y cuts
+
+    # for n the number of iteration, the expected outcome is
+    # nbx = nby = n/2
+
+    # each iteration, if the chosen side is x, then the number of new stacks is equal to nby and inversely.
+    # Which means that each iteration, the number of new stacks is k/2 for k the current iteration
+
+    """
+    nbstacks = 1 + sum_{k=1}^{n} p_side * E[nbx_k] + p_side * E[nby_k] 
+    nbstacks = 1 + sum_{k=1}^{n} 0.5 * k/2 + 0.5 * k/2
+    nbstacks = 1 + sum_{k=1}^{n} k/2 = 1 + n(n+1)/4
+    nbstacks - n(n+1)/4 - 1 = 0
+    (4 nbstacks - n(n+1) - 4)/4 = 0
+    iff 4 nbstacks - n(n+1) - 4 = 0
+    iff - n^2 - n + 4 nbstacks - 4 = 0
+
+    delta = 1 - 4 * -1 * (4 nbstacks - 4) = 1 + 16 nbstacks - 16 = 16 nbstacks - 15
+    x1 = (1 + sqrt(16 nbstacks - 15))/-2
+    x2 = (1 - sqrt(16 nbstacks - 15))/-2
+    """
+
+    return max((1 + sqrt(16 * nbstacks - 15))/-2, (1 - sqrt(16 * nbstacks - 15))/-2)
+
 end
 
 function rndgenS(W, L, ratio)
