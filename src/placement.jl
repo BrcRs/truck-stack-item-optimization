@@ -32,6 +32,15 @@ function findboxesabove(pos, r; precision=3)
     return filter(b -> geqtol(r[b].pos.y, pos.y, precision) && leqtol(r[b].pos.x, pos.x, precision) && greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
 end
 
+function findboxesbelow(pos, dim, r; precision=3)
+    # return filter(b -> r[b].pos.y >= pos.y && r[b].pos.x < pos.x + dim.le && r[b].pos.x + r[b].dim.le > pos.x, keys(r))
+    # return filter(b -> geqtol(r[b].pos.y, pos.y, precision) && lessertol(r[b].pos.x, pos.x + dim.le, precision) && greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
+    return filter(b ->  leqtol(r[b].pos.y, pos.y, precision) && 
+                        leqtol(r[b].pos.x, pos.x + dim.le, precision) && 
+                        greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
+end
+
+
 function findboxesright(pos, r; precision::Integer=3)
     # return filter(b -> geqtol(r[b].pos.x, pos.x, precision) && lessertol(r[b].pos.y, pos.y + dim.wi, precision) && greatertol(r[b].pos.y + r[b].dim.wi, pos.y, precision), keys(r))
     return filter(
@@ -178,6 +187,21 @@ function totheleft(pos, solution; precision=3)
     return Pos(leftbound, pos.y)
 end
 
+
+"""Given a position, find the most to the bottom available position without 
+overlapping a placed stack."""
+function tothebottom(pos, solution; precision=3)
+    # Find all stacks overlapping on x axis and with y < pos.y
+    boxesbot = findboxesbelow(pos, Dim(10.0^-precision, 10.0^-precision), solution; precision)
+
+    # Find the stack which extends the most to the top
+    topsides = [solution[k].pos.y + solution[k].dim.wi for k in boxesbot]
+    botbound = isempty(topsides) ? 0 : max(topsides...)    
+
+    # return the Pos with y position as the top side of the stack
+    return Pos(pos.x, botbound)
+end
+
 # struct Tag
 #     tag::Symbol
 #     _tags::Vector{Symbol}
@@ -190,6 +214,21 @@ end
 #     return Tag(t, _tags)
 # end
 
+"""
+    coveredcorners(corners, stack; precision=3)
+
+Remove corners covered by provided stack at position o.
+"""
+function coveredcorners(corners, o, stack; precision=3)
+    torem = Pos[]
+    for o2 in corners
+        if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + stack.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.y, o.y + stack.dim.wi, precision)
+            push!(torem, o2)
+        end
+    
+    end
+    return torem
+end
 
 function placestack!(solution, W, i, s, corners; precision=3, verbose=false)
     torem = []
@@ -232,10 +271,10 @@ function placestack!(solution, W, i, s, corners; precision=3, verbose=false)
                 println("$s can't be placed at $o because...")
                 println("Perpendicular:")
                 println("\tleqtol(o.y + s.dim.le, W, precision) = ", leqtol(o.y + s.dim.le, W, precision))
-                println("\t!collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision) = ", !collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision))
+                println("\t!collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision) = ", !collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision, verbose))
                 println("Parallel:")
                 println("\tleqtol(o.y + s.dim.wi, W, precision)  = ", leqtol(o.y + s.dim.wi, W, precision) )
-                println("\t!collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision) = ", !collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision))
+                println("\t!collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision) = ", !collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision, verbose))
 
                 display(solution)
 
@@ -251,7 +290,7 @@ function placestack!(solution, W, i, s, corners; precision=3, verbose=false)
                 # Add new corners
                 # TODO floating corners: corners must be placed as much to the left as possible
                 push!(toadd,    totheleft(Pos(o.x, o.y + s.dim.le), solution), 
-                                totheleft(Pos(o.x + s.dim.wi, o.y), solution))
+                                tothebottom(Pos(o.x + s.dim.wi, o.y), solution))
             end
 
             if orientation == :Parallel
@@ -262,19 +301,20 @@ function placestack!(solution, W, i, s, corners; precision=3, verbose=false)
                 # TODO add floating corners
                 push!(toadd, 
                                 totheleft(Pos(o.x, o.y + s.dim.wi), solution), 
-                                totheleft(Pos(o.x + s.dim.le, o.y), solution))
+                                tothebottom(Pos(o.x + s.dim.le, o.y), solution))
             end
 
             # remove corner
             push!(torem, o)
             
             # remove covered corners
-            for o2 in corners
-                if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.dim.wi, precision)
-                    push!(torem, o2)
-                end
+            push!(torem, coveredcorners(corners, o, s; precision)...)
+            # for o2 in corners
+            #     if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.dim.wi, precision)
+            #         push!(torem, o2)
+            #     end
             
-            end
+            # end
 
             # stop iterating over corners
             break
@@ -290,7 +330,7 @@ function placestack!(solution, W, i, s, corners; precision=3, verbose=false)
 end
 
 
-function BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3) where T <: Integer
+function BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3, verbose=false) where T <: Integer
     """Lengths must be greater than widths"""
     # TODO pretreatment?
     """One of the two dimensions must be lesser than W?"""
@@ -304,79 +344,25 @@ function BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3) where T <: In
     # For each stack to place
     for (i, s) in instance
     
-        torem, toadd = placestack!(solution, W, i, s, corners; precision=3)
-        # # For each corner potentially available
-        # for o in corners
-    
-        #     # ignore corners waiting to be removed
-        #     if o in torem
-        #         continue
-        #     end
-
-        #     orientation = :None
-
-        #     # if the stack fits oriented with its length perpendicular to the 
-        #     # width of the truck and it doesn't overlap with another stack
-        #     if leqtol(o.y + s.dim.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision)
-        #         # the stack can be placed in this orientation
-        #         orientation = :Perpendicular
-        #     # else if the stack fits oriented with its length parallel to the
-        #     # length of the truck and it doesn't overlap with another stack
-        #     elseif leqtol(o.y + s.dim.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision)
-        #         orientation = :Parallel
-        #     end
-
-        #     if orientation != :None
-                
-        #         if orientation == :Perpendicular
-        #             # Add the stack to this corner in solution
-        #             solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le))
-                    
-        #             # Add new corners
-        #             # TODO floating corners: corners must be placed as much to the left as possible
-        #             push!(toadd,    totheleft(Pos(o.x, o.y + s.dim.le), solution), 
-        #                             totheleft(Pos(o.x + s.dim.wi, o.y), solution))
-        #         end
-
-        #         if orientation == :Parallel
-        #             # add to solution
-        #             solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi))
-
-        #             # add new corners
-        #             # TODO add floating corners
-        #             push!(toadd, 
-        #                             totheleft(Pos(o.x, o.y + s.dim.wi), solution), 
-        #                             totheleft(Pos(o.x + s.dim.le, o.y), solution))
-        #         end
-
-        #         # remove corner
-        #         push!(torem, o)
-                
-        #         # remove covered corners
-        #         for o2 in corners
-        #             if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.dim.wi, precision)
-        #                 push!(torem, o2)
-        #             end
-                
-        #         end
-
-        #         # stop iterating over corners
-        #         break
-                
-        #     end
-        # end
+        if !issorted(corners, by= o -> o.x)
+            display(corners)
+            error("Not sorted")
+        end
+        torem, toadd = placestack!(solution, W, i, s, corners; precision)
+        if verbose
+            println("About to place stack n. $i, $s")
+            println("Available corners: $corners")
+            println("$i : $(solution[i]) was placed and added the new corners: $toadd")
+        end
         
         # remove corners waiting to be removed
         filter!(x -> !(x in torem), corners)
 
         # Add corners to the list of available corners
         push!(corners, toadd...)
-        # if !issorted(corners, by= o -> o.x)
-        #     display(corners)
-        #     error("Not sorted")
-        # end
-        sort!(corners, by= o -> o.x )
+        sort!(corners, by= o -> o.x ) # TODO instead of sorting put elements in right place
         toadd = Pos[]
+        torem = Pos[]
     end
 
     return solution

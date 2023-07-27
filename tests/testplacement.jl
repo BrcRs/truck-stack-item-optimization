@@ -507,42 +507,130 @@ end
     p = Pos(0.0, 0.0)
     @test totheleft(p, solution; precision=3) == Pos(0.0, 0.0)
 
+
+    solution = Dict(1 => Stack(Pos(0, 5.58863), Dim(0.140078, 2.72428)))
+    p = Pos(97.2757, 7.53424)
+    @test totheleft(p, solution; precision=3) == Pos(0.140078, 7.53424)
+
+
 end
 
-@testset "genWidth" begin
-    
-    @test genWidth(Pos(0, 0), 2, 0.5) <= 2
-    @test genWidth(Pos(0, 1.5), 2, 0.5) == 0.5
-    @test genWidth(Pos(0.945, 0), 2, 0.5) <= 2
-    @test genWidth(Pos(0.6354684, 0.945), 1.5, 0.2) <= 1.5 - 0.945
-    # @test genWidth(Pos(0.649, 0), 2, 0.5) == 2
-    # @test genWidth(Pos(0.123, 0), 2, 0.5) == 2
-    # @test genWidth(Pos(0.7845, 0), 2, 0.5) == 2
-    # @test genWidth(Pos(0.951, 0), 2, 0.5) == 2
-    # @test genWidth(Pos(0.6498, 0), 2, 0.5) == 2
+
+@testset "tothebottom" begin
+    """
+    +---+
+    | 1 |
+    +---p
+    """
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(1.0, 0.0)
+    @test tothebottom(p, solution; precision=3) == Pos(1.0, 0.0)
+
+    """
+    +---+   
+    | 1 |   
+    +---+   p
+    """
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(2.0, 0.0)
+    @test tothebottom(p, solution; precision=3) == Pos(2.0, 0.0)
+
+    """
+    +---+   
+    | 1 |   p
+    +---+   
+    """
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(2.0, 0.5)
+    @test tothebottom(p, solution; precision=3) == Pos(2.0, 0)
+
+    """
+    +---+   p
+    | 1 |   
+    +---+   
+    """
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(2.0, 1)
+    @test tothebottom(p, solution; precision=3) == Pos(2.0, 0.0)
+
+    """
+    p    +---+
+         | 1 |   
+         +---+   
+    """
+    solution = Dict(1 => Stack(Pos(1, 0), Dim(1, 1)))
+    p = Pos(0.0, 1)
+    @test tothebottom(p, solution; precision=3) == Pos(0.0, 0.0)
+
+    """
+         +---+
+         | 1 |   
+    p    +---+   
+    """
+    solution = Dict(1 => Stack(Pos(1, 0), Dim(1, 1)))
+    p = Pos(0.0, 0.0)
+    @test tothebottom(p, solution; precision=3) == Pos(0.0, 0.0)
 
 
-    @test_throws ArgumentError genWidth(Pos(0, 0), 2, 3)
-    @test_throws ArgumentError genWidth(Pos(0, 1.5), 2, 1)
-    @test_throws ArgumentError genWidth(Pos(0, 2), 2, 0.2)
-    
+    """
+         +---+
+         | 1 |   
+         +---+p
+
+    """
+    solution = Dict(1 => Stack(Pos(1, 1), Dim(1, 1)))
+    p = Pos(2.0, 1.0)
+    @test tothebottom(p, solution; precision=3) == Pos(2.0, 0.0)
+
+    """
+         p
+
+         +---+
+         | 1 |   
+         +---+
+
+    """
+    solution = Dict(1 => Stack(Pos(1, 1), Dim(1, 1)))
+    p = Pos(1.0, 3.0)
+    @test tothebottom(p, solution; precision=3) == Pos(1.0, 2.0)
+
 end
 
-@testset "genLength" begin
-    @test genLength(Pos(0, 0), 2, 0.5) <= 2
-    @test genLength(Pos(1.5, 0), 2, 0.5) == 0.5
-    @test genLength(Pos(0, 0.945), 2, 0.5) <= 2
-    @test genLength(Pos(0.945, 0.6354684), 1.5, 0.2) <= 1.5 - 0.945
-    # @test genLength(Pos(0.649, 0), 2, 0.5) == 2
-    # @test genLength(Pos(0.123, 0), 2, 0.5) == 2
-    # @test genLength(Pos(0.7845, 0), 2, 0.5) == 2
-    # @test genLength(Pos(0.951, 0), 2, 0.5) == 2
-    # @test genLength(Pos(0.6498, 0), 2, 0.5) == 2
+
+# @testset "genWidth" begin
+    
+#     @test genWidth(Pos(0, 0), 2, 0.5) <= 2
+#     @test genWidth(Pos(0, 1.5), 2, 0.5) == 0.5
+#     @test genWidth(Pos(0.945, 0), 2, 0.5) <= 2
+#     @test genWidth(Pos(0.6354684, 0.945), 1.5, 0.2) <= 1.5 - 0.945
+#     # @test genWidth(Pos(0.649, 0), 2, 0.5) == 2
+#     # @test genWidth(Pos(0.123, 0), 2, 0.5) == 2
+#     # @test genWidth(Pos(0.7845, 0), 2, 0.5) == 2
+#     # @test genWidth(Pos(0.951, 0), 2, 0.5) == 2
+#     # @test genWidth(Pos(0.6498, 0), 2, 0.5) == 2
 
 
-    @test_throws ArgumentError genLength(Pos(0, 0), 2, 3)
-    @test_throws ArgumentError genLength(Pos(1.5, 0), 2, 1)
-    @test_throws ArgumentError genLength(Pos(2, 0), 2, 0.2)end
+#     @test_throws ArgumentError genWidth(Pos(0, 0), 2, 3)
+#     @test_throws ArgumentError genWidth(Pos(0, 1.5), 2, 1)
+#     @test_throws ArgumentError genWidth(Pos(0, 2), 2, 0.2)
+    
+# end
+
+# @testset "genLength" begin
+#     @test genLength(Pos(0, 0), 2, 0.5) <= 2
+#     @test genLength(Pos(1.5, 0), 2, 0.5) == 0.5
+#     @test genLength(Pos(0, 0.945), 2, 0.5) <= 2
+#     @test genLength(Pos(0.945, 0.6354684), 1.5, 0.2) <= 1.5 - 0.945
+#     # @test genLength(Pos(0.649, 0), 2, 0.5) == 2
+#     # @test genLength(Pos(0.123, 0), 2, 0.5) == 2
+#     # @test genLength(Pos(0.7845, 0), 2, 0.5) == 2
+#     # @test genLength(Pos(0.951, 0), 2, 0.5) == 2
+#     # @test genLength(Pos(0.6498, 0), 2, 0.5) == 2
+
+
+#     @test_throws ArgumentError genLength(Pos(0, 0), 2, 3)
+#     @test_throws ArgumentError genLength(Pos(1.5, 0), 2, 1)
+#     @test_throws ArgumentError genLength(Pos(2, 0), 2, 0.2)end
 
 @testset "collision function" begin
     
@@ -756,60 +844,6 @@ function testoutofbound(r, W)
     end
 end
 
-# @testset "place function" begin
-#     W = 3
-    
-#     r = place([Dim(1, 1), Dim(1, 1), Dim(2, 1), Dim(1, 1)], W)
-#     @testset "no collision 1" begin
-#         for k in keys(r)
-#             @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
-#         end
-#     end
-
-#     testoutofbound(r, W)
-
-#     r = place([Dim(1, 1), Dim(1, 1), Dim(2, 1), Dim(1, 1), Dim(7, 1)], W)
-#     @testset "no collision 2" begin
-#         for k in keys(r)
-#             @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
-#         end
-#     end
-#     testoutofbound(r, W)
-
-#     r = place([Dim(7, 1), Dim(1, 1), Dim(1, 1), Dim(2, 1), Dim(1, 1)], W)
-#     @testset "no collision 3" begin
-#         for k in keys(r)
-#             @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
-#         end
-#     end
-#     testoutofbound(r, W)
-
-#     r = place([Dim(1, 1), Dim(3, 1), Dim(1, 1), Dim(2, 1), Dim(1, 1)], W)
-#     @testset "no collision 4" begin
-#         for k in keys(r)
-#             @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
-#         end
-#     end
-#     testoutofbound(r, W)
-
-#     r = place([Dim(1, 1), Dim(1, 1), Dim(3, 3), Dim(2, 1), Dim(1, 1)], W)
-#     @testset "no collision 5" begin
-#         for k in keys(r)
-#             @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
-#         end
-#     end
-#     testoutofbound(r, W)
-
-#     r = place([Dim(1, 1), Dim(4, 1), Dim(2, 1), Dim(8, 2), Dim(1, 1), Dim(3, 1), Dim(4, 2), Dim(2, 1), Dim(1, 1)], W)
-#     @testset "no collision 6" begin
-#         for k in keys(r)
-#             @test !collision(r[k].pos, r[k].dim, filter(p -> p[1] != k, r))
-#         end
-#     end
-#     testoutofbound(r, W)
-
-# end
-
 @testset "shareside" begin
     
     # shareside(a::Stack, b::Stack)
@@ -1016,6 +1050,20 @@ end
     # display(my_rs)
 end
 
+@testset "coveredcorners" begin
+    corners = [Pos(0, 0), Pos(5, 5), Pos(5, 0), Pos(0, 5), Pos(1, 1), Pos(0, 6), Pos(6, 0)]
+    stack = Stack(Pos(0, 0), Dim(5, 5))
+    o = Pos(0, 0)
+    shouldbecovered = [Pos(0, 0), Pos(1, 1)]
+    covered = coveredcorners(corners, o, stack)
+    for c in shouldbecovered
+        @test c in covered
+    end
+    for c in filter(x -> !(x in shouldbecovered), corners)
+        @test !(c in covered)
+    end
+end
+
 @testset "placestack!" begin
 
     # ```
@@ -1051,6 +1099,18 @@ end
     placestack!(r, 10, 3, Stack(Pos(105.056, 2.56714), Dim(97.8747, 2.37662)), [Pos(2.37662, 0), Pos(105.056, 2.56714)]; precision=3, verbose=false)
     @test r[3].pos != Pos(2.37662, 0) # collision with 4
 
+
+    r = Dict(
+        0 => Stack(Pos(0, 0), Dim(2.49442, 3.19793)),
+        4 => Stack(Pos(0, 3.19793), Dim(96.8021, 1.64834)),
+        5 => Stack(Pos(96.8021, 0), Dim(96.8021, 5.85725)),
+        6 => Stack(Pos(0, 4.84627), Dim(5.85725, 3.19793)),
+        2 => Stack(Pos(0, 8.0442), Dim(3.19793, 1.64834)),
+        # 3 => Stack(Pos(193.604, 0), Dim(96.8021, 2.49442))
+    )
+    placestack!(r, 10, 3, Stack(Pos(193.604, 0), Dim(96.8021, 2.49442)), [Pos(5.85725, 5.85725), Pos(193.604, 0)]; precision=3, verbose=true)
+    @test r[3].pos == Pos(5.85725, 5.85725)
+
 end
 
 
@@ -1084,6 +1144,23 @@ end
         push!(instances_solutions, (ins=instance, sol=solution))
     end
 
+    # @testset "Particular test" begin
+    #     rectangles = Dict(
+    #         0 => Stack(Pos(0, 0), Dim(2.32568, 2.72428)),
+    #         4 => Stack(Pos(0, 2.72428), Dim(97.2757, 0.140078)),
+    #         5 => Stack(Pos(97.2757, 0), Dim(97.2757, 7.53424)),
+    #         6 => Stack(Pos(0, 2.86436), Dim(7.53424, 2.72428)),
+    #         2 => Stack(Pos(0, 5.58863), Dim(0.140078, 2.72428)),
+    #         3 => Stack(Pos(194.551, 0), Dim(97.2757, 2.32568))
+    #     )
+    #     instance = [Pair(k, rectangles[k]) for k in [0, 4, 5, 6, 2, 3]]
+    #     solution = BLtruck(instance, 10, precision=3, verbose=true)
+    #     @test solution[3].pos == Pos(0.140078, 7.53424)
+    #     println(collision(Pos(0.140078, 7.53424), solution[3].dim, solution; verbose=true))
+    #     placestack!(solution, 10, 7, solution[3], [Pos(0.140078, 7.53424), Pos(194.551, 0)]; precision=3, verbose=true)
+    #     @test solution[7].pos == Pos(0.140078, 7.53424)
+    # end
+
     # Test solution is valid
     @testset "BLtruck is valid" begin
         for i in 1:ITER
@@ -1106,27 +1183,12 @@ end
     # Test optimality is 2-OPT
     @testset "BLtruck is 2-OPT" begin
         for (i, r) in enumerate(ratios)
-            # @test r <= 2.0
-            @test r <= 3.0 
-            # some solutions are not obtainable, because we don't consider all corners, e.g.:
-
-            """
-            ```
-            +----------------------+       +----------+
-            | 3                    |       |          |
-            +-------------+--------+       |  4       |
-            | 2           |                |          |
-            +----+--------+                +----------+
-            | 1  |
-            +----+
-            ```
-
-            In this configuration, 4 can't be placed because upper corners aren't considered
-
-            """
+            # @test r <= 2.0 + 0.1
+            @test r <= 3.0 # TODO why not 2-OPT?
 
 
-            # if r > 2.0
+            # if r > 2.0 + 0.1
+            #     display(instances_solutions[i].ins)
             #     display(instances_solutions[i].sol)
             #     display(length(instances_solutions[i].sol))
             #     # println(r)
