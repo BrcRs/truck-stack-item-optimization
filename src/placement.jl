@@ -4,8 +4,8 @@ using AutoHashEquals
 # 2 => width
 
 @auto_hash_equals struct Dim
-    le # le corresponds to x axis
-    wi
+    le # le:length corresponds to x axis of a truck
+    wi # wi:width corresponds to y axis
     Dim(a, b) = a == 0 || b == 0 ? throw(ArgumentError("Dim($a, $b): Dimension can't be of size zero")) : new(a, b)
 end
 
@@ -26,13 +26,27 @@ struct Stack
     dim::Dim
 end
 
-function findboxesabove(pos, r; precision=3)
+
+"""
+    findboxesabove(pos::Pos, r::Dict{T, Stack}; precision=3) where T <: Integer
+
+Return elements of `r` that are directly above and overlapping on x axis with `pos`.
+By convention, the right and top borders of a stack aren't counted in the stack.
+"""
+function findboxesabove(pos::Pos, r::Dict{T, Stack}; precision=3) where T <: Integer
     # return filter(b -> r[b].pos.y >= pos.y && r[b].pos.x < pos.x + dim.le && r[b].pos.x + r[b].dim.le > pos.x, keys(r))
     # return filter(b -> geqtol(r[b].pos.y, pos.y, precision) && lessertol(r[b].pos.x, pos.x + dim.le, precision) && greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
     return filter(b -> geqtol(r[b].pos.y, pos.y, precision) && leqtol(r[b].pos.x, pos.x, precision) && greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
 end
 
-function findboxesbelow(pos, dim, r; precision=3)
+"""
+    findboxesbelow(pos::Pos, dim::Dim, r::Dict{T, Stack}; precision=3) where T <: Integer
+
+Return elements of `r` that are directly below and overlapping on x axis with a 
+stack of position `pos` and dimensions `dim`.
+By convention, the right and top borders of a stack aren't counted in the stack.
+"""
+function findboxesbelow(pos::Pos, dim::Dim, r::Dict{T, Stack}; precision=3) where T <: Integer
     # return filter(b -> r[b].pos.y >= pos.y && r[b].pos.x < pos.x + dim.le && r[b].pos.x + r[b].dim.le > pos.x, keys(r))
     # return filter(b -> geqtol(r[b].pos.y, pos.y, precision) && lessertol(r[b].pos.x, pos.x + dim.le, precision) && greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
     return filter(b ->  leqtol(r[b].pos.y, pos.y, precision) && 
@@ -40,8 +54,13 @@ function findboxesbelow(pos, dim, r; precision=3)
                         greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
 end
 
+"""
+    findboxesright(pos::Pos, r::Dict{T, Stack}; precision::Integer=3) where T <: Integer
 
-function findboxesright(pos, r; precision::Integer=3)
+Return elements of `r` that are directly to the right and overlapping on y axis with `pos`.
+By convention, the right and top borders of a stack aren't counted in the stack.
+"""
+function findboxesright(pos::Pos, r::Dict{T, Stack}; precision::Integer=3) where T <: Integer
     # return filter(b -> geqtol(r[b].pos.x, pos.x, precision) && lessertol(r[b].pos.y, pos.y + dim.wi, precision) && greatertol(r[b].pos.y + r[b].dim.wi, pos.y, precision), keys(r))
     return filter(
         b -> geqtol(r[b].pos.x, pos.x, precision) && 
@@ -50,7 +69,14 @@ function findboxesright(pos, r; precision::Integer=3)
         keys(r))
 end
 
-function findboxesright(pos, dim, r; precision=3)
+"""
+    findboxesright(pos::Pos, dim::Dim, r::Dict{T, Stack}; precision=3) where T <: Integer
+
+Return elements of `r` that are directly to the right and overlapping on y axis 
+with a stack of position `pos` and dimensions `dim`.
+By convention, the right and top borders of a stack aren't counted in the stack.
+"""
+function findboxesright(pos::Pos, dim::Dim, r::Dict{T, Stack}; precision=3) where T <: Integer
     return filter(
         b -> geqtol(r[b].pos.x, pos.x, precision) && 
         lessertol(r[b].pos.y, pos.y + dim.wi, precision) && 
@@ -63,7 +89,14 @@ function findboxesright(pos, dim, r; precision=3)
     #     keys(r))
 end
 
-function findboxesleft(pos, dim, r, precision=3)
+"""
+    findboxesleft(pos::Pos, dim::Dim, r::Dict{T, Stack}, precision=3) where T <: Integer
+
+Return elements of `r` that are directly to the left and overlapping on y axis 
+with a stack of position `pos` and dimensions `dim`.
+By convention, the right and top borders of a stack aren't counted in the stack.
+"""
+function findboxesleft(pos::Pos, dim::Dim, r::Dict{T, Stack}, precision=3) where T <: Integer
     return filter(
         b -> leqtol(r[b].pos.x, pos.x, precision) && 
         lessertol(r[b].pos.y, pos.y + dim.wi, precision) && 
@@ -71,29 +104,38 @@ function findboxesleft(pos, dim, r, precision=3)
         keys(r))
 end
 
-"""Return wether the two boxes overlap on X"""
+"""Return wether two boxes overlap on X"""
 function overlapX(apos, adim, bpos, bdim; precision=3)
     return greatertol(apos.x + adim.le, bpos.x, precision) && lessertol(apos.x, bpos.x + bdim.le, precision)
 end
 
 
-"""Return wether the two boxes overlap on X"""
+"""Return wether two boxes overlap on X"""
 function overlapY(apos, adim, bpos, bdim; precision=3)
     return greatertol(apos.y + adim.wi, bpos.y, precision) && lessertol(apos.y, bpos.y + bdim.wi, precision)
 end
 
-
+"""<= but with tolerance"""
 leqtol(a, b, decimals=3) = round(a, digits=decimals) <= round(b, digits=decimals)
 
+"""> but with tolerance"""
 greatertol(a, b, decimals=3) = !eqtol(a, b, decimals) && geqtol(a, b, decimals)
+
+"""< but with tolerance"""
 lessertol(a, b, decimals=3) = !eqtol(a, b, decimals) && leqtol(a, b, decimals)
 
+""">= but with tolerance"""
 geqtol(a, b, decimals=3) = round(a, digits=decimals) >= round(b, digits=decimals)
 
+"""== but with tolerance"""
 eqtol(a, b, decimals=3) = round(a, digits=decimals) == round(b, digits=decimals)
 
-function collision(pos, dim, r; precision=3, verbose=false)
-    """Return true if considered box overlaps with existing one"""
+"""
+    collision(pos::Pos, dim::Dim, r::Dict{T, Stack}; precision=3, verbose=false) where T <: Integer
+
+Return true if considered box overlaps with existing one in solution `r`.
+"""
+function collision(pos::Pos, dim::Dim, r::Dict{T, Stack}; precision=3, verbose=false) where T <: Integer
 
     # Find boxes with corresponding x
     # tocheck = filter(b -> r[b].pos.x < pos.x + dim.le && r[b].pos.x + r[b].dim.le > pos.x, keys(r))
@@ -116,61 +158,6 @@ end
 
 function outofbound(pos, dim, W; precision=3)
     return greatertol(pos.y + dim.wi, W, precision)
-end
-
-function place(S, W, precision=3)
-    """Lengths must be greater than widths"""
-    # TODO pretreatment
-    """One of the two dimensions must be lesser than W"""
-    # println("Entering place")
-    O = [Pos(0, 0)]
-    r = Dict{Int, Stack}()
-    torem = []
-    toadd = []
-    for (i, s) in enumerate(S)
-        # println(i, " ", s)
-        # println("O = ", O)
-        for o in O
-            if o in torem
-                continue
-            end
-            # if i == 4
-            #     println(3 in keys(r))
-            #     println(!collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), r))
-            #     println(!collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), r))
-            # end
-            if leqtol(o.y + s.dim.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), r; precision)
-                push!(torem, o)
-                r[i] = Stack(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le))
-                push!(toadd, Pos(o.x, o.y + s.dim.le), Pos(o.x + s.dim.wi, o.y))
-                # remove covered starting points
-                for o2 in O
-                    if leqtol(o.x,  o2.x, precision) && lessertol(o2.x, o.x + s.dim.wi, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.y, o.y + s.dim.le, precision)
-                        push!(torem, o2)
-                    end
-                end
-                break
-            elseif leqtol(o.y + s.dim.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), r; precision)
-                push!(torem, o)
-                r[i] = Stack(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi))
-                push!(toadd, Pos(o.x, o.y + s.dim.wi), Pos(o.x + s.dim.le, o.y))
-                # remove covered starting points
-                for o2 in O
-                    if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.dim.wi, precision)
-                        push!(torem, o2)
-                    end
-                end
-                break
-            end
-                
-        end
-        filter!(x -> !(x in torem), O)
-        push!(O, toadd...)
-        toadd = []
-    end
-
-    return r
-
 end
 
 """Given a position, find the most to the left available position without 
@@ -202,18 +189,6 @@ function tothebottom(pos, solution; precision=3)
     return Pos(pos.x, botbound)
 end
 
-# struct Tag
-#     tag::Symbol
-#     _tags::Vector{Symbol}
-# end
-# function Tag(t)
-#     _tags = [:Perpendicular, :Parallel, :None]
-#     if !(t in _tags)
-#         throw(ArgumentError("$t is not a recognized tag.\nRecognized tags are $_tags"))
-#     end
-#     return Tag(t, _tags)
-# end
-
 """
     coveredcorners(corners, stack; precision=3)
 
@@ -230,7 +205,14 @@ function coveredcorners(corners, o, stack; precision=3)
     return torem
 end
 
-function placestack!(solution, W, i, s, corners; precision=3, verbose=false)
+"""
+    placestack!(solution::Dict{T, Stack}, W, i, s::Stack, corners; precision=3, verbose=false) where T <: Integer
+
+Place stack `s` in `solution` in the first available corner in `corners`.
+Placing a stack leads to the creation of 2 new corners added to `toadd`.
+The corner taken is put in a list `torem` of corners to remove.
+"""
+function placestack!(solution::Dict{T, Stack}, W, i, s::Stack, corners; precision=3, verbose=false) where T <: Integer
     torem = []
     toadd = []
     placed = false
@@ -288,7 +270,8 @@ function placestack!(solution, W, i, s, corners; precision=3, verbose=false)
                 solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le))
                 
                 # Add new corners
-                # TODO floating corners: corners must be placed as much to the left as possible
+                # corners must be placed as much to the left as possible
+                # or as much to the bottom as possible
                 push!(toadd,    totheleft(Pos(o.x, o.y + s.dim.le), solution), 
                                 tothebottom(Pos(o.x + s.dim.wi, o.y), solution))
             end
@@ -298,7 +281,6 @@ function placestack!(solution, W, i, s, corners; precision=3, verbose=false)
                 solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi))
 
                 # add new corners
-                # TODO add floating corners
                 push!(toadd, 
                                 totheleft(Pos(o.x, o.y + s.dim.wi), solution), 
                                 tothebottom(Pos(o.x + s.dim.le, o.y), solution))
@@ -329,7 +311,11 @@ function placestack!(solution, W, i, s, corners; precision=3, verbose=false)
     return torem, toadd
 end
 
+"""
+    BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3, verbose=false) where T <: Integer
 
+Places stacks in a space of width `W` as to minimize to overall length of the solution.
+"""
 function BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3, verbose=false) where T <: Integer
     """Lengths must be greater than widths"""
     # TODO pretreatment?
@@ -369,104 +355,122 @@ function BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3, verbose=false
 end
 
 
-"""Given a position and a the position of the lowest box above it, return the maximum width possible 
-of a box placed at that position."""
-function genWidth(o, lowestyabove, eps, precision=3)
-    if greatertol(eps, lowestyabove - o.y, precision)
-        throw(ArgumentError("Space between $(o.y) and $lowestyabove is less than minimum eps=$eps width."))
-    end
-    wi = rand() * (lowestyabove - o.y - eps) + eps
-    return wi
-end
+# """Given a position and a the position of the lowest box above it, return the maximum width possible 
+# of a box placed at that position."""
+# function genWidth(o, lowestyabove, eps, precision=3)
+#     if greatertol(eps, lowestyabove - o.y, precision)
+#         throw(ArgumentError("Space between $(o.y) and $lowestyabove is less than minimum eps=$eps width."))
+#     end
+#     wi = rand() * (lowestyabove - o.y - eps) + eps
+#     return wi
+# end
 
-function genLength(o, closestxright, eps; precision=3)
-    if greatertol(eps, closestxright - o.x)
-        throw(ArgumentError("Space between $(o.x) and $closestxright is less than minimum eps=$eps width."))
-    end
-    le = rand() * (closestxright - o.x - eps) + eps
-    return le
-end
+# function genLength(o, closestxright, eps; precision=3)
+#     if greatertol(eps, closestxright - o.x)
+#         throw(ArgumentError("Space between $(o.x) and $closestxright is less than minimum eps=$eps width."))
+#     end
+#     le = rand() * (closestxright - o.x - eps) + eps
+#     return le
+# end
 
 """Return wether position o is illegal with already placed boxes."""
 function illegalpos(o, r; precision=3)
     return collision(o, Dim(1/(10^precision), 1/(10^precision)), r)
 end
 
-function genS3(W, L, eps, precision=3)
-    """Lengths must be greater than widths"""
-    """One of the two dimensions must be lesser than W"""
-    # println("Entering place")
-    O = [Pos(0, 0)]
-    S = []
-    r = Dict()
-    torem = []
-    toadd = []
-    i = 0
-    while !isempty(O)
-        i += 1
-        # println()
-        # print("#")
-        for o in O
-            if o in torem
-                continue
-            end
-            push!(torem, o)
-            if illegalpos(o, r; precision)
-                continue
-            end
-            # print("=")
-            # ro = (ywi = o.y + s.dim.wi, yle =  o.y + s.dim.le, xle = o.x + s.dim.le, xwi = o.x + s.dim.wi)
-            wi, le = missing, missing
-            # First draw a vertical line until box is found
-            above = findboxesabove(o, r, precision)
-            # Find lowest limit among already placed boxes
-            lowestyabove = isempty(above) ? W : min([r[k].pos.y for k in above]...)
-            # generate width
-            if lessertol(lowestyabove - o.y, eps, precision)
-                # print(".")
-                wi = lowestyabove - o.y
-            else
-                wi = genWidth(o, lowestyabove, eps, precision)
-            end
-            if leqtol(wi, 0, precision)
-                continue
-            end
-            # Sweep to the right to determine closest right box
-            right = findboxesright(Pos(o.x, o.y), Dim(precision, wi), r, precision)
-            # print("|")
-            closestxright = isempty(right) ? L : min([r[k].pos.x for k in right]...)
-            # generate length
-            if leqtol(closestxright - o.x, eps, precision)
-                # print(".")
-                le = closestxright - o.x
-            else
-                le = genLength(o, closestxright, eps; precision)
-            end
+# function genS3(W, L, eps, precision=3)
+#     """Lengths must be greater than widths"""
+#     """One of the two dimensions must be lesser than W"""
+#     # println("Entering place")
+#     O = [Pos(0, 0)]
+#     S = []
+#     r = Dict()
+#     torem = []
+#     toadd = []
+#     i = 0
+#     while !isempty(O)
+#         i += 1
+#         # println()
+#         # print("#")
+#         for o in O
+#             if o in torem
+#                 continue
+#             end
+#             push!(torem, o)
+#             if illegalpos(o, r; precision)
+#                 continue
+#             end
+#             # print("=")
+#             # ro = (ywi = o.y + s.dim.wi, yle =  o.y + s.dim.le, xle = o.x + s.dim.le, xwi = o.x + s.dim.wi)
+#             wi, le = missing, missing
+#             # First draw a vertical line until box is found
+#             above = findboxesabove(o, r, precision)
+#             # Find lowest limit among already placed boxes
+#             lowestyabove = isempty(above) ? W : min([r[k].pos.y for k in above]...)
+#             # generate width
+#             if lessertol(lowestyabove - o.y, eps, precision)
+#                 # print(".")
+#                 wi = lowestyabove - o.y
+#             else
+#                 wi = genWidth(o, lowestyabove, eps, precision)
+#             end
+#             if leqtol(wi, 0, precision)
+#                 continue
+#             end
+#             # Sweep to the right to determine closest right box
+#             right = findboxesright(Pos(o.x, o.y), Dim(precision, wi), r, precision)
+#             # print("|")
+#             closestxright = isempty(right) ? L : min([r[k].pos.x for k in right]...)
+#             # generate length
+#             if leqtol(closestxright - o.x, eps, precision)
+#                 # print(".")
+#                 le = closestxright - o.x
+#             else
+#                 le = genLength(o, closestxright, eps; precision)
+#             end
             
             
-            if leqtol(le, 0, precision)
-                continue
-            end
-            # if leqtol(le, 0, precision) || leqtol(wi, 0, precision)
-            #     continue
-            # end
-            push!(toadd, Pos(o.x, o.y + wi), Pos(o.x + le, o.y))
-            push!(S, Dim(le, wi))
-            r[i] = Stack(Pos(o.x, o.y), Dim(le, wi))
-        end
-        filter!(x -> !(x in torem), O)
-        torem = []
-        push!(O, toadd...)
-        toadd = []
-        # display(r)
-        # display(O)
-        # sleep(10)
-    end
+#             if leqtol(le, 0, precision)
+#                 continue
+#             end
+#             # if leqtol(le, 0, precision) || leqtol(wi, 0, precision)
+#             #     continue
+#             # end
+#             push!(toadd, Pos(o.x, o.y + wi), Pos(o.x + le, o.y))
+#             push!(S, Dim(le, wi))
+#             r[i] = Stack(Pos(o.x, o.y), Dim(le, wi))
+#         end
+#         filter!(x -> !(x in torem), O)
+#         torem = []
+#         push!(O, toadd...)
+#         toadd = []
+#         # display(r)
+#         # display(O)
+#         # sleep(10)
+#     end
 
-    return S, r
+#     return S, r
 
-end
+# end
 
+"""
+shareside(a::Stack, b::Stack)
+
+Return wether two stacks share a stack.
+
+# Example
+```
++---+
+| d |
++---+---+---+
+| c | a | b |
++-+-+-+-+---+
+  | e |
+  +---+
+```
+`a` and `b` share a side.
+However, `a` and `e` don't.
+"""
 function shareside(a::Stack, b::Stack)
     """
     ```
@@ -502,7 +506,14 @@ function shareside(a::Stack, b::Stack)
     return false
 end
 
-function cutrectangle(orientation, rectangle, cut; precision=3)
+"""
+cutrectangle(orientation::String, rectangle::Stack, cut::T; precision=3) where T <: Real
+
+Given a rectangle and depending on orientation reduce the length or width 
+in function of the cut, as if the rectangle were cut in two.
+Return the new rectangle.
+"""
+function cutrectangle(orientation::String, rectangle::Stack, cut::T; precision=3) where T <: Real
     res = nothing
     if orientation == "x"
         if eqtol(cut, rectangle.pos.x, precision)
@@ -512,7 +523,7 @@ function cutrectangle(orientation, rectangle, cut; precision=3)
             throw(ArgumentError("cut ($cut) out of bounds of rectangle $rectangle"))
         end
         res = Stack(rectangle.pos, Dim(cut - rectangle.pos.x , rectangle.dim.wi))
-    else
+    elseif orientation == "y"
         if eqtol(cut, rectangle.pos.y, precision)
             return rectangle 
         end
@@ -520,11 +531,19 @@ function cutrectangle(orientation, rectangle, cut; precision=3)
             throw(ArgumentError("cut ($cut) out of bounds of rectangle $rectangle"))
         end
         res = Stack(rectangle.pos, Dim(rectangle.dim.le, cut - rectangle.pos.y))
+    else
+        throw(ArgumentError("orientation $orientation not recognized.\nShould be \"x\" or \"y\"."))
     end
     return res
 end
 
-function newrectangle(orientation, rectangle, olddim, cut)
+"""
+    newrectangle(orientation::String, rectangle::Stack, olddim::Dim, cut::T) where T <: Real
+
+Return the new rectangle obtained by cutting the `rectangle` with the given 
+orientation at `cut`.
+"""
+function newrectangle(orientation::String, rectangle::Stack, olddim::Dim, cut::T) where T <: Real
     if orientation == "x"
         return Stack(Pos(cut, rectangle.pos.y), Dim(rectangle.pos.x + olddim.le - cut, olddim.wi))
     else
@@ -532,7 +551,13 @@ function newrectangle(orientation, rectangle, olddim, cut)
     end
 end
 
-function fuse!(rectangles, a, b, id)
+"""
+fuse!(rectangles::Dict{T, Stack}, a::Stack, b::Stack, id) where T <: Integer
+
+Create a new rectangle obtained by fusing the two given rectangles.
+Remove old rectangles.
+"""
+function fuse!(rectangles::Dict{T, Stack}, a::Stack, b::Stack, id) where T <: Integer
 
     filter!(p -> !(p[2] in [a, b]), rectangles)
 
@@ -542,6 +567,7 @@ function fuse!(rectangles, a, b, id)
                                 Pos(min(a.pos.x, b.pos.x), min(a.pos.y, b.pos.y)), 
                                 samex ? Dim(a.dim.le, a.dim.wi + b.dim.wi) : Dim(a.dim.le + b.dim.le, a.dim.wi))
 end
+
 """
     cutandfuse_generator(L, W, cutiter, fuseiter, precision=3)
 
@@ -741,22 +767,11 @@ function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3)
     return rectangles
 end
 
-# function nb_cuts_fuse_calc(nbstacks, base)
-#     # In the worst case, each cut doubles the number of stacks
-#     # In the best case, each cut only adds one stack
+"""
+    nb_cuts_fuse_avg(nbstacks)
 
-#     # Each fuse always only reduce the number of stacks by 1 at most,
-#     # but sometimes can't fuse any stack anymore so 0 at best
-
-#     # Most stacks = 2^nbcuts
-
-#     # Least stacks = nbcuts - nbfuse
-#     # return nbcuts, nbfuse for max stacks
-#     # return same for least stacks
-#     return (most=(round(log2(nbstacks)), 0), least=(base+nbstacks, base)) 
-
-# end
-
+Return an approximation of the number of necessary cuts to obtain `nbstacks` rectangles.
+"""
 function nb_cuts_fuse_avg(nbstacks)
     # probability of choosing a side: p[side] = 0.5
 
@@ -786,135 +801,3 @@ function nb_cuts_fuse_avg(nbstacks)
     return max((1 + sqrt(16 * nbstacks - 15))/-2, (1 - sqrt(16 * nbstacks - 15))/-2)
 
 end
-
-function rndgenS(W, L, ratio)
-    println("Entering rndgenS")
-    S = []
-    pos = []
-    r = 0.0
-    while r < ratio
-        # println(".")
-        coord = rand(1:W), rand(1:L)
-        dim = rand(1:W), rand(1:L)
-        exit = false
-        for (i, s) in enumerate(S)
-            # println("\t1")
-            if (coord[1] >= pos[i][1] && coord[1] <= pos[i][1] + s[1] && coord[2] >= pos[i][2] && coord[1] <= pos[i][2] + s[2]) || pos[i][1] <= coord[1] + dim[1] && pos[i][2] <= coord[2] + dim[2] ||
-                coord[1] + dim[1] > W || coord[2] + dim[2] > L
-                exit = true
-                break
-            end
-        end
-        if exit
-            continue
-        end
-        # status = false
-        # dim = (0, 0)
-        # while !status
-        #     status = true
-        #     println("\t2")
-        #     print("\t\t")
-        #     dim = rand() * W, rand() * L
-        #     for (i, s) in enumerate(S)
-        #         print(".")
-        #         if pos[i][1] <= coord[1] + dim[1] && pos[i][2] <= coord[2] + dim[2] 
-        #             status = false
-        #             break
-        #         end
-        #     end
-        # end 
-        push!(S, dim)
-        push!(pos, coord)
-        # upd ratio
-        r = sum([s[1] * s[2] for s in S]) / (W * L)
-        printplacement(Dict{Any, Any}(k => (pos[k], S[k]) for k in eachindex(pos)), W, L)
-    end
-    return S
-end
-
-# W = 2
-# ----------
-
-
-# ----------
-
-function printplacement(r, W, L=nothing)
-    if isnothing(L)
-        L = max([r[k].pos[1] + r[k].dim[1] for k in keys(r)]...)
-    end
-        # println([r[k].pos[1] + r[k].dim[1] for k in keys(r)])
-    A = Matrix{String}(undef, W, L)
-    A .= " "
-
-    for k in keys(r)
-        A[r[k].pos[2]+1:r[k].pos[2]+r[k].dim[2], r[k].pos[1]+1:r[k].pos[1]+r[k].dim[1]] .= string(k)
-    end
-
-    # display(A)
-    println("+", ["-" for u in 1:L]..., "+")
-    for i in size(A, 1):-1:1
-        print("|")
-        for j in 1:size(A, 2)
-            print(A[i, j])
-        end
-
-        println("|")
-
-    end
-    println("+", ["-" for u in 1:L]..., "+")
-
-end
-
-function genS(W, L, n)
-    S = []
-    X = shuffle(0:L)[1:n]
-    Y = shuffle(0:W)[1:n]
-    # println(X)
-    # println(Y)
-    SX = [(i > n ? L : X[i]) - (i-1 >= 1 ? X[i-1] : 0) for i in 1:n+1]
-    SY = [(i > n ? W : Y[i]) - (i-1 >= 1 ? Y[i-1] : 0) for i in 1:n+1]
-    for sx in SX
-        for sy in SY
-            push!(S, (sx, sy))
-        end
-
-    end
-    return filter(x -> x[1] * x[2] > 0, S)
-end
-
-function eval(maxW, maxL, shuffleS=false)
-    W = rand(1:maxW)
-    L = rand(1:maxL)
-    S, genr = genS3(W, L, rand(1:min(W, L)))
-    if shuffleS
-        shuffle!(S)
-    end
-    r = place(S, W)
-    # println(W, " ", L)
-    # println(S)
-    # println(r)
-    foundL = max([r[k].pos.x + r[k].dim.le for k in keys(r)]...)
-    if foundL <= L
-        println("Singularity")
-        println(S)
-        println(genr)
-        println(r)
-        println(L)
-        println(foundL)
-    end
-    return foundL/L
-end
-
-function evals(nbiter, shuffleS=false)
-    sum = 0
-    best = 9999
-    worst = 1
-    for i in 1:nbiter
-        e = eval(20, 20, shuffleS)
-        sum += eval(20, 20, shuffleS)
-        best = min(best, e)
-        worst = max(worst, e)
-    end
-    return sum/nbiter, best, worst
-end
-
