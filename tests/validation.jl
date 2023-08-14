@@ -1,6 +1,6 @@
 import Pkg
 # Pkg.add(["Test", "HTTP", "JSON"])
-Pkg.add(["Test", "Coverage", "AutoHashEquals"])
+Pkg.add(["Test", "Coverage", "AutoHashEquals", "Plots"])
 # using OAuth, HTTP, JSON
 using Test
 
@@ -9,4 +9,6 @@ using Test
     include("testplacement.jl")
 end
 
-@test 5 - 2 == 3
+@testset "testplacement_visualizer.jl" begin
+    include("testplacement_visualizer.jl")
+end
