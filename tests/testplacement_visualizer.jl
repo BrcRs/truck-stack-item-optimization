@@ -14,6 +14,15 @@ W = 10
 L = 100
 plot_placement(W, L, solution)
 
+NBCUTS = 20
+NBFUSE = 40
+
+rectangles = cutandfuse_generator(L, W, NBCUTS, NBFUSE; precision=3)
+plot_placement(W, L, rectangles, true)
+instance = [pair for pair in rectangles]
+solution = BLtruck(instance, W, precision=3)
+plot_placement(W, L, solution, true)
+
 # some_rects=[
 #            rectangle_from_coords(1, 1, 5, 5)
 #            rectangle_from_coords(10, 10, 15, 15)
