@@ -1062,6 +1062,26 @@ end
     for c in filter(x -> !(x in shouldbecovered), corners)
         @test !(c in covered)
     end
+
+    corners = [ Pos(0, 9.980043825131686), 
+                Pos(0.6467206477622178, 9.962824093254572), 
+                Pos(0.6467206477622178, 9.962824093254572), 
+                Pos(2.8535725859835184, 2.441387331367891), 
+                Pos(62.623393342666866, 9.239718358416525), 
+                Pos(65.73516828201012, 4.490758002528395), 
+                Pos(67.98165946491517, 8.754314549106567), 
+                Pos(76.47110582244056, 4.490758002528395), 
+                Pos(76.51649610654447, 0), 
+                Pos(80.45705471972516, 0)]
+    pos = Pos(76.51649610654447, 0)
+    s = Stack(Pos(9.512621318536885, 6.888225060656747), Dim(3.1117749393432534, 4.629616629616873))
+    precision = 3
+
+    covered = coveredcorners(corners, pos, s; precision=precision, verbose=true)
+    @test !(Pos(80.45705471972516, 0) in covered)
+    
+
+
 end
 
 @testset "placestack!" begin
@@ -1135,7 +1155,13 @@ end
     for i in 1:ITER
         rectangles = cutandfuse_generator(L, W, NBCUTS, NBFUSE; precision=3)
         instance = [pair for pair in rectangles]
-        solution = BLtruck(instance, W, precision=3)
+        solution = nothing
+        try
+            solution = BLtruck(instance, W, precision=3)
+        catch e
+            display(instance)
+            throw(e)
+        end
         # display(solution)
         # ratio, solution = eval_placement_function(BLtruck, instance)
         foundL = max([solution[k].pos.x + solution[k].dim.le for k in keys(solution)]...)

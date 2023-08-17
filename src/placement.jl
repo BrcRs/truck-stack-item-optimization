@@ -194,11 +194,19 @@ end
 
 Remove corners covered by provided stack at position o.
 """
-function coveredcorners(corners, o, stack; precision=3)
+function coveredcorners(corners, o, stack; precision=3, verbose=false)
     torem = Pos[]
     for o2 in corners
         if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + stack.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.y, o.y + stack.dim.wi, precision)
             push!(torem, o2)
+            if verbose
+                println("-==-")
+                println("leqtol($(o.x), $(o2.x), $precision) = ", leqtol(o.x, o2.x, precision) )
+                println("lessertol($(o2.x), $(o.x) + $(stack.dim.le), $precision) = ", lessertol(o2.x, o.x + stack.dim.le, precision) )
+                println("leqtol($(o.y), $(o2.y), $precision) = ", leqtol(o.y, o2.y, precision) )
+                println("lessertol($(o2.y), $(o.y) + $(stack.dim.wi), $precision) = ", lessertol(o2.y, o.y + stack.dim.wi, precision))
+                println("-==-")
+            end
         end
     
     end
@@ -290,7 +298,7 @@ function placestack!(solution::Dict{T, Stack}, W, i, s::Stack, corners; precisio
             push!(torem, o)
             
             # remove covered corners
-            push!(torem, coveredcorners(corners, o, s; precision)...)
+            push!(torem, coveredcorners(corners, o, solution[i]; precision)...)
             # for o2 in corners
             #     if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.dim.wi, precision)
             #         push!(torem, o2)
@@ -305,6 +313,13 @@ function placestack!(solution::Dict{T, Stack}, W, i, s::Stack, corners; precisio
     end
 
     if !placed
+        println("solution\n", solution)
+        println("W\n", W)
+        println("i\n", i)
+        println("s\n", s)
+        println("corners\n", corners)
+        println("precision\n", precision)
+        println("verbose\n", verbose)
         error("The stack can't be placed")
     end
 
@@ -329,7 +344,7 @@ function BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3, verbose=false
 
     # For each stack to place
     for (i, s) in instance
-    
+
         if !issorted(corners, by= o -> o.x)
             display(corners)
             error("Not sorted")
@@ -337,8 +352,9 @@ function BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3, verbose=false
         torem, toadd = placestack!(solution, W, i, s, corners; precision)
         if verbose
             println("About to place stack n. $i, $s")
-            println("Available corners: $corners")
-            println("$i : $(solution[i]) was placed and added the new corners: $toadd")
+            println("\tAvailable corners: $corners")
+            println("\t$i : $(solution[i]) was placed and added the new corners: $toadd")
+            println("\tIt covered the following corners: $torem")
         end
         
         # remove corners waiting to be removed
@@ -377,81 +393,6 @@ end
 function illegalpos(o, r; precision=3)
     return collision(o, Dim(1/(10^precision), 1/(10^precision)), r)
 end
-
-# function genS3(W, L, eps, precision=3)
-#     """Lengths must be greater than widths"""
-#     """One of the two dimensions must be lesser than W"""
-#     # println("Entering place")
-#     O = [Pos(0, 0)]
-#     S = []
-#     r = Dict()
-#     torem = []
-#     toadd = []
-#     i = 0
-#     while !isempty(O)
-#         i += 1
-#         # println()
-#         # print("#")
-#         for o in O
-#             if o in torem
-#                 continue
-#             end
-#             push!(torem, o)
-#             if illegalpos(o, r; precision)
-#                 continue
-#             end
-#             # print("=")
-#             # ro = (ywi = o.y + s.dim.wi, yle =  o.y + s.dim.le, xle = o.x + s.dim.le, xwi = o.x + s.dim.wi)
-#             wi, le = missing, missing
-#             # First draw a vertical line until box is found
-#             above = findboxesabove(o, r, precision)
-#             # Find lowest limit among already placed boxes
-#             lowestyabove = isempty(above) ? W : min([r[k].pos.y for k in above]...)
-#             # generate width
-#             if lessertol(lowestyabove - o.y, eps, precision)
-#                 # print(".")
-#                 wi = lowestyabove - o.y
-#             else
-#                 wi = genWidth(o, lowestyabove, eps, precision)
-#             end
-#             if leqtol(wi, 0, precision)
-#                 continue
-#             end
-#             # Sweep to the right to determine closest right box
-#             right = findboxesright(Pos(o.x, o.y), Dim(precision, wi), r, precision)
-#             # print("|")
-#             closestxright = isempty(right) ? L : min([r[k].pos.x for k in right]...)
-#             # generate length
-#             if leqtol(closestxright - o.x, eps, precision)
-#                 # print(".")
-#                 le = closestxright - o.x
-#             else
-#                 le = genLength(o, closestxright, eps; precision)
-#             end
-            
-            
-#             if leqtol(le, 0, precision)
-#                 continue
-#             end
-#             # if leqtol(le, 0, precision) || leqtol(wi, 0, precision)
-#             #     continue
-#             # end
-#             push!(toadd, Pos(o.x, o.y + wi), Pos(o.x + le, o.y))
-#             push!(S, Dim(le, wi))
-#             r[i] = Stack(Pos(o.x, o.y), Dim(le, wi))
-#         end
-#         filter!(x -> !(x in torem), O)
-#         torem = []
-#         push!(O, toadd...)
-#         toadd = []
-#         # display(r)
-#         # display(O)
-#         # sleep(10)
-#     end
-
-#     return S, r
-
-# end
 
 """
 shareside(a::Stack, b::Stack)
