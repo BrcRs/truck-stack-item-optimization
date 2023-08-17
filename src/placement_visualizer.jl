@@ -13,7 +13,7 @@ of width W and length L. The plot will appear in your browser and is interactive
 allowing to zoom, pan, etc. Stack names are displayed in the center of their 
 corresponding stacks.
 """
-function plot_placement(W, L, solution::Dict{T, Stack}, orthonormal=false) where T <: Integer
+function plot_placement(W, L, solution::Dict{T, Stack}; orthonormal=false) where T <: Integer
     solution_vector = [s for s in solution]
     rectangles = [rectangle(s) for (i, s) in solution_vector]
 
