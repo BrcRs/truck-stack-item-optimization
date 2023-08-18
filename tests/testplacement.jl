@@ -1055,7 +1055,7 @@ end
     stack = Stack(Pos(0, 0), Dim(5, 5))
     o = Pos(0, 0)
     shouldbecovered = [Pos(0, 0), Pos(1, 1)]
-    covered = coveredcorners(corners, o, stack)
+    covered = coveredcorners(corners, o, stack.dim.le, stack.dim.wi)
     for c in shouldbecovered
         @test c in covered
     end
@@ -1077,7 +1077,7 @@ end
     s = Stack(Pos(9.512621318536885, 6.888225060656747), Dim(3.1117749393432534, 4.629616629616873))
     precision = 3
 
-    covered = coveredcorners(corners, pos, s; precision=precision, verbose=true)
+    covered = coveredcorners(corners, pos, s.dim.le, s.dim.wi; precision=precision, verbose=true)
     @test !(Pos(80.45705471972516, 0) in covered)
     
 

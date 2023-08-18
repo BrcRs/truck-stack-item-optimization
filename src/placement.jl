@@ -20,87 +20,99 @@ end
     y
 end
 
-
-struct Stack
+abstract type AbstractStack end
+struct Stack <: AbstractStack
     pos::Pos
     dim::Dim
 end
 
+get_dim(s::Stack) = s.dim
+get_pos(s::Stack) = s.pos
+
+struct OrderedStack <: AbstractStack
+    stack::Stack
+    supplier_order::Integer
+    supplier_dock_order::Integer
+    plant_dock_order::Integer
+end
+
+get_dim(s::OrderedStack) = get_dim(s.stack)
+get_pos(s::OrderedStack) = get_pos(s.stack)
 
 """
-    findboxesabove(pos::Pos, r::Dict{T, Stack}; precision=3) where T <: Integer
+    findboxesabove(pos::Pos, r::Dict{T, S}; precision=3) where {T <: Integer, S <: AbstractStack}
 
 Return elements of `r` that are directly above and overlapping on x axis with `pos`.
 By convention, the right and top borders of a stack aren't counted in the stack.
 """
-function findboxesabove(pos::Pos, r::Dict{T, Stack}; precision=3) where T <: Integer
-    # return filter(b -> r[b].pos.y >= pos.y && r[b].pos.x < pos.x + dim.le && r[b].pos.x + r[b].dim.le > pos.x, keys(r))
-    # return filter(b -> geqtol(r[b].pos.y, pos.y, precision) && lessertol(r[b].pos.x, pos.x + dim.le, precision) && greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
-    return filter(b -> geqtol(r[b].pos.y, pos.y, precision) && leqtol(r[b].pos.x, pos.x, precision) && greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
+function findboxesabove(pos::Pos, r::Dict{T, S}; precision=3) where {T <: Integer, S <: AbstractStack}
+    # return filter(b -> get_pos(r[b]).y >= pos.y && get_pos(r[b]).x < pos.x + dim.le && get_pos(r[b]).x + get_dim(r[b]).le > pos.x, keys(r))
+    # return filter(b -> geqtol(get_pos(r[b]).y, pos.y, precision) && lessertol(get_pos(r[b]).x, pos.x + dim.le, precision) && greatertol(get_pos(r[b]).x + get_dim(r[b]).le, pos.x, precision), keys(r))
+    return filter(b -> geqtol(get_pos(r[b]).y, pos.y, precision) && leqtol(get_pos(r[b]).x, pos.x, precision) && greatertol(get_pos(r[b]).x + get_dim(r[b]).le, pos.x, precision), keys(r))
 end
 
 """
-    findboxesbelow(pos::Pos, dim::Dim, r::Dict{T, Stack}; precision=3) where T <: Integer
+    findboxesbelow(pos::Pos, dim::Dim, r::Dict{T, S}; precision=3) where {T <: Integer, S <: AbstractStack}
 
 Return elements of `r` that are directly below and overlapping on x axis with a 
 stack of position `pos` and dimensions `dim`.
 By convention, the right and top borders of a stack aren't counted in the stack.
 """
-function findboxesbelow(pos::Pos, dim::Dim, r::Dict{T, Stack}; precision=3) where T <: Integer
-    # return filter(b -> r[b].pos.y >= pos.y && r[b].pos.x < pos.x + dim.le && r[b].pos.x + r[b].dim.le > pos.x, keys(r))
-    # return filter(b -> geqtol(r[b].pos.y, pos.y, precision) && lessertol(r[b].pos.x, pos.x + dim.le, precision) && greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
-    return filter(b ->  leqtol(r[b].pos.y, pos.y, precision) && 
-                        leqtol(r[b].pos.x, pos.x + dim.le, precision) && 
-                        greatertol(r[b].pos.x + r[b].dim.le, pos.x, precision), keys(r))
+function findboxesbelow(pos::Pos, dim::Dim, r::Dict{T, S}; precision=3) where {T <: Integer, S <: AbstractStack}
+    # return filter(b -> get_pos(r[b]).y >= pos.y && get_pos(r[b]).x < pos.x + dim.le && get_pos(r[b]).x + get_dim(r[b]).le > pos.x, keys(r))
+    # return filter(b -> geqtol(get_pos(r[b]).y, pos.y, precision) && lessertol(get_pos(r[b]).x, pos.x + dim.le, precision) && greatertol(get_pos(r[b]).x + get_dim(r[b]).le, pos.x, precision), keys(r))
+    return filter(b ->  leqtol(get_pos(r[b]).y, pos.y, precision) && 
+                        leqtol(get_pos(r[b]).x, pos.x + dim.le, precision) && 
+                        greatertol(get_pos(r[b]).x + get_dim(r[b]).le, pos.x, precision), keys(r))
 end
 
 """
-    findboxesright(pos::Pos, r::Dict{T, Stack}; precision::Integer=3) where T <: Integer
+    findboxesright(pos::Pos, r::Dict{T, S}; precision::Integer=3) where {T <: Integer, S <: AbstractStack}
 
 Return elements of `r` that are directly to the right and overlapping on y axis with `pos`.
 By convention, the right and top borders of a stack aren't counted in the stack.
 """
-function findboxesright(pos::Pos, r::Dict{T, Stack}; precision::Integer=3) where T <: Integer
-    # return filter(b -> geqtol(r[b].pos.x, pos.x, precision) && lessertol(r[b].pos.y, pos.y + dim.wi, precision) && greatertol(r[b].pos.y + r[b].dim.wi, pos.y, precision), keys(r))
+function findboxesright(pos::Pos, r::Dict{T, S}; precision::Integer=3) where {T <: Integer, S <: AbstractStack}
+    # return filter(b -> geqtol(get_pos(r[b]).x, pos.x, precision) && lessertol(get_pos(r[b]).y, pos.y + dim.wi, precision) && greatertol(get_pos(r[b]).y + get_dim(r[b]).wi, pos.y, precision), keys(r))
     return filter(
-        b -> geqtol(r[b].pos.x, pos.x, precision) && 
-        leqtol(r[b].pos.y, pos.y, precision) && 
-        greatertol(r[b].pos.y + r[b].dim.wi, pos.y, precision), 
+        b -> geqtol(get_pos(r[b]).x, pos.x, precision) && 
+        leqtol(get_pos(r[b]).y, pos.y, precision) && 
+        greatertol(get_pos(r[b]).y + get_dim(r[b]).wi, pos.y, precision), 
         keys(r))
 end
 
 """
-    findboxesright(pos::Pos, dim::Dim, r::Dict{T, Stack}; precision=3) where T <: Integer
+    findboxesright(pos::Pos, dim::Dim, r::Dict{T, S}; precision=3) where {T <: Integer, S <: AbstractStack}
 
 Return elements of `r` that are directly to the right and overlapping on y axis 
 with a stack of position `pos` and dimensions `dim`.
 By convention, the right and top borders of a stack aren't counted in the stack.
 """
-function findboxesright(pos::Pos, dim::Dim, r::Dict{T, Stack}; precision=3) where T <: Integer
+function findboxesright(pos::Pos, dim::Dim, r::Dict{T, S}; precision=3) where {T <: Integer, S <: AbstractStack}
     return filter(
-        b -> geqtol(r[b].pos.x, pos.x, precision) && 
-        lessertol(r[b].pos.y, pos.y + dim.wi, precision) && 
-        greatertol(r[b].pos.y + r[b].dim.wi, pos.y, precision), 
+        b -> geqtol(get_pos(r[b]).x, pos.x, precision) && 
+        lessertol(get_pos(r[b]).y, pos.y + dim.wi, precision) && 
+        greatertol(get_pos(r[b]).y + get_dim(r[b]).wi, pos.y, precision), 
         keys(r))
     # return filter(
-    #     b -> geqtol(r[b].pos.x, pos.x, precision) && 
-    #     leqtol(r[b].pos.y, pos.y, precision) && 
-    #     greatertol(r[b].pos.y + r[b].dim.wi, pos.y, precision), 
+    #     b -> geqtol(get_pos(r[b]).x, pos.x, precision) && 
+    #     leqtol(get_pos(r[b]).y, pos.y, precision) && 
+    #     greatertol(get_pos(r[b]).y + get_dim(r[b]).wi, pos.y, precision), 
     #     keys(r))
 end
 
 """
-    findboxesleft(pos::Pos, dim::Dim, r::Dict{T, Stack}, precision=3) where T <: Integer
+    findboxesleft(pos::Pos, dim::Dim, r::Dict{T, S}, precision=3) where {T <: Integer, S <: AbstractStack}
 
 Return elements of `r` that are directly to the left and overlapping on y axis 
 with a stack of position `pos` and dimensions `dim`.
 By convention, the right and top borders of a stack aren't counted in the stack.
 """
-function findboxesleft(pos::Pos, dim::Dim, r::Dict{T, Stack}, precision=3) where T <: Integer
+function findboxesleft(pos::Pos, dim::Dim, r::Dict{T, S}, precision=3) where {T <: Integer, S <: AbstractStack}
     return filter(
-        b -> leqtol(r[b].pos.x, pos.x, precision) && 
-        lessertol(r[b].pos.y, pos.y + dim.wi, precision) && 
-        greatertol(r[b].pos.y + r[b].dim.wi, pos.y, precision),
+        b -> leqtol(get_pos(r[b]).x, pos.x, precision) && 
+        lessertol(get_pos(r[b]).y, pos.y + dim.wi, precision) && 
+        greatertol(get_pos(r[b]).y + get_dim(r[b]).wi, pos.y, precision),
         keys(r))
 end
 
@@ -131,23 +143,23 @@ geqtol(a, b, decimals=3) = round(a, digits=decimals) >= round(b, digits=decimals
 eqtol(a, b, decimals=3) = round(a, digits=decimals) == round(b, digits=decimals)
 
 """
-    collision(pos::Pos, dim::Dim, r::Dict{T, Stack}; precision=3, verbose=false) where T <: Integer
+    collision(pos::Pos, dim::Dim, r::Dict{T, S}; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
 
 Return true if considered box overlaps with existing one in solution `r`.
 """
-function collision(pos::Pos, dim::Dim, r::Dict{T, Stack}; precision=3, verbose=false) where T <: Integer
+function collision(pos::Pos, dim::Dim, r::Dict{T, S}; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
 
     # Find boxes with corresponding x
-    # tocheck = filter(b -> r[b].pos.x < pos.x + dim.le && r[b].pos.x + r[b].dim.le > pos.x, keys(r))
+    # tocheck = filter(b -> get_pos(r[b]).x < pos.x + dim.le && get_pos(r[b]).x + get_dim(r[b]).le > pos.x, keys(r))
     # tocheck = findboxesabove(pos, dim, r, precision)
     # check each one
     for k in keys(r)
 
-        if overlapX(pos, dim, r[k].pos, r[k].dim; precision) && overlapY(pos, dim, r[k].pos, r[k].dim; precision)
+        if overlapX(pos, dim, get_pos(r[k]), get_dim(r[k]); precision) && overlapY(pos, dim, get_pos(r[k]), get_dim(r[k]); precision)
             if verbose
                 println(k)
-                println("overlapX($pos, $dim, $(r[k].pos), $(r[k].dim); $precision) = ", overlapX(pos, dim, r[k].pos, r[k].dim; precision))
-                println("overlapY($pos, $dim, $(r[k].pos), $(r[k].dim); $precision) = ", overlapY(pos, dim, r[k].pos, r[k].dim; precision))
+                println("overlapX($pos, $dim, $(get_pos(r[k])), $(get_dim(r[k])); $precision) = ", overlapX(pos, dim, get_pos(r[k]), get_dim(r[k]); precision))
+                println("overlapY($pos, $dim, $(get_pos(r[k])), $(get_dim(r[k])); $precision) = ", overlapY(pos, dim, get_pos(r[k]), get_dim(r[k]); precision))
             end
             return true
         end
@@ -167,7 +179,7 @@ function totheleft(pos, solution; precision=3)
     boxesleft = findboxesleft(pos, Dim(10.0^-precision, 10.0^-precision), solution, precision)
 
     # Find the stack which extends the most to the right
-    rightsides = [solution[k].pos.x + solution[k].dim.le for k in boxesleft]
+    rightsides = [get_pos(solution[k]).x + get_dim(solution[k]).le for k in boxesleft]
     leftbound = isempty(rightsides) ? 0 : max(rightsides...)    
 
     # return the Pos with x position as the right side of the stack
@@ -182,7 +194,7 @@ function tothebottom(pos, solution; precision=3)
     boxesbot = findboxesbelow(pos, Dim(10.0^-precision, 10.0^-precision), solution; precision)
 
     # Find the stack which extends the most to the top
-    topsides = [solution[k].pos.y + solution[k].dim.wi for k in boxesbot]
+    topsides = [get_pos(solution[k]).y + get_dim(solution[k]).wi for k in boxesbot]
     botbound = isempty(topsides) ? 0 : max(topsides...)    
 
     # return the Pos with y position as the top side of the stack
@@ -190,21 +202,21 @@ function tothebottom(pos, solution; precision=3)
 end
 
 """
-    coveredcorners(corners, stack; precision=3)
+    coveredcorners(corners, o, le, wi; precision=3, verbose=false)
 
 Remove corners covered by provided stack at position o.
 """
-function coveredcorners(corners, o, stack; precision=3, verbose=false)
+function coveredcorners(corners, o, le, wi; precision=3, verbose=false)
     torem = Pos[]
     for o2 in corners
-        if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + stack.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.y, o.y + stack.dim.wi, precision)
+        if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.y, o.y + wi, precision)
             push!(torem, o2)
             if verbose
                 println("-==-")
                 println("leqtol($(o.x), $(o2.x), $precision) = ", leqtol(o.x, o2.x, precision) )
-                println("lessertol($(o2.x), $(o.x) + $(stack.dim.le), $precision) = ", lessertol(o2.x, o.x + stack.dim.le, precision) )
+                println("lessertol($(o2.x), $(o.x) + $(le), $precision) = ", lessertol(o2.x, o.x + le, precision) )
                 println("leqtol($(o.y), $(o2.y), $precision) = ", leqtol(o.y, o2.y, precision) )
-                println("lessertol($(o2.y), $(o.y) + $(stack.dim.wi), $precision) = ", lessertol(o2.y, o.y + stack.dim.wi, precision))
+                println("lessertol($(o2.y), $(o.y) + $(wi), $precision) = ", lessertol(o2.y, o.y + wi, precision))
                 println("-==-")
             end
         end
@@ -214,13 +226,13 @@ function coveredcorners(corners, o, stack; precision=3, verbose=false)
 end
 
 """
-    placestack!(solution::Dict{T, Stack}, W, i, s::Stack, corners; precision=3, verbose=false) where T <: Integer
+    placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
 
 Place stack `s` in `solution` in the first available corner in `corners`.
 Placing a stack leads to the creation of 2 new corners added to `toadd`.
 The corner taken is put in a list `torem` of corners to remove.
 """
-function placestack!(solution::Dict{T, Stack}, W, i, s::Stack, corners; precision=3, verbose=false) where T <: Integer
+function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
     torem = []
     toadd = []
     placed = false
@@ -242,7 +254,7 @@ function placestack!(solution::Dict{T, Stack}, W, i, s::Stack, corners; precisio
 
         # if the stack fits oriented with its length perpendicular to the 
         # width of the truck and it doesn't overlap with another stack
-        if leqtol(o.y + s.dim.le, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision)
+        if leqtol(o.y + get_dim(s).le, W, precision) && !collision(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision)
             # the stack can be placed in this orientation
             orientation = :Perpendicular
             if verbose
@@ -250,7 +262,7 @@ function placestack!(solution::Dict{T, Stack}, W, i, s::Stack, corners; precisio
             end
         # else if the stack fits oriented with its length parallel to the
         # length of the truck and it doesn't overlap with another stack
-        elseif leqtol(o.y + s.dim.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision)
+        elseif leqtol(o.y + get_dim(s).wi, W, precision) && !collision(Pos(o.x, o.y), Dim(get_dim(s).le, get_dim(s).wi), solution; precision)
             orientation = :Parallel
             if verbose
                 println("$s can be placed parallel")
@@ -260,11 +272,11 @@ function placestack!(solution::Dict{T, Stack}, W, i, s::Stack, corners; precisio
             if verbose
                 println("$s can't be placed at $o because...")
                 println("Perpendicular:")
-                println("\tleqtol(o.y + s.dim.le, W, precision) = ", leqtol(o.y + s.dim.le, W, precision))
-                println("\t!collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision) = ", !collision(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le), solution; precision, verbose))
+                println("\tleqtol(o.y + get_dim(s).le, W, precision) = ", leqtol(o.y + get_dim(s).le, W, precision))
+                println("\t!collision(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision) = ", !collision(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision, verbose))
                 println("Parallel:")
-                println("\tleqtol(o.y + s.dim.wi, W, precision)  = ", leqtol(o.y + s.dim.wi, W, precision) )
-                println("\t!collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision) = ", !collision(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi), solution; precision, verbose))
+                println("\tleqtol(o.y + get_dim(s).wi, W, precision)  = ", leqtol(o.y + get_dim(s).wi, W, precision) )
+                println("\t!collision(Pos(o.x, o.y), Dim(get_dim(s).le, get_dim(s).wi), solution; precision) = ", !collision(Pos(o.x, o.y), Dim(get_dim(s).le, get_dim(s).wi), solution; precision, verbose))
 
                 display(solution)
 
@@ -275,32 +287,42 @@ function placestack!(solution::Dict{T, Stack}, W, i, s::Stack, corners; precisio
             placed = true
             if orientation == :Perpendicular
                 # Add the stack to this corner in solution
-                solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.wi, s.dim.le))
+                solution[i] = loading_order ? 
+                                                OrderedStack(   Stack(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le)), 
+                                                                s.supplier_order, 
+                                                                s.supplier_dock_order, 
+                                                                s.plant_dock_order) : 
+                                                Stack(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le))
                 
                 # Add new corners
                 # corners must be placed as much to the left as possible
                 # or as much to the bottom as possible
-                push!(toadd,    totheleft(Pos(o.x, o.y + s.dim.le), solution), 
-                                tothebottom(Pos(o.x + s.dim.wi, o.y), solution))
+                push!(toadd,    totheleft(Pos(o.x, o.y + get_dim(s).le), solution), 
+                                tothebottom(Pos(o.x + get_dim(s).wi, o.y), solution))
             end
 
             if orientation == :Parallel
                 # add to solution
-                solution[i] = Stack(Pos(o.x, o.y), Dim(s.dim.le, s.dim.wi))
+                solution[i] = loading_order ? 
+                                                OrderedStack(   Stack(Pos(o.x, o.y), Dim(get_dim(s).le, get_dim(s).wi)),
+                                                                s.supplier_order, 
+                                                                s.supplier_dock_order, 
+                                                                s.plant_dock_order) : 
+                                                Stack(Pos(o.x, o.y), Dim(get_dim(s).le, get_dim(s).wi))
 
                 # add new corners
                 push!(toadd, 
-                                totheleft(Pos(o.x, o.y + s.dim.wi), solution), 
-                                tothebottom(Pos(o.x + s.dim.le, o.y), solution))
+                                totheleft(Pos(o.x, o.y + get_dim(s).wi), solution), 
+                                tothebottom(Pos(o.x + get_dim(s).le, o.y), solution))
             end
 
             # remove corner
             push!(torem, o)
             
             # remove covered corners
-            push!(torem, coveredcorners(corners, o, solution[i]; precision)...)
+            push!(torem, coveredcorners(corners, o, get_dim(solution[i]).le, get_dim(solution[i]).wi; precision)...)
             # for o2 in corners
-            #     if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + s.dim.le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + s.dim.wi, precision)
+            #     if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + get_dim(s).le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + get_dim(s).wi, precision)
             #         push!(torem, o2)
             #     end
             
@@ -327,17 +349,20 @@ function placestack!(solution::Dict{T, Stack}, W, i, s::Stack, corners; precisio
 end
 
 """
-    BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3, verbose=false) where T <: Integer
+    BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
 
 Places stacks in a space of width `W` as to minimize to overall length of the solution.
 """
-function BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3, verbose=false) where T <: Integer
+function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
     """Lengths must be greater than widths"""
     # TODO pretreatment?
     """One of the two dimensions must be lesser than W?"""
+    # TODO
+
+    ## If loading orders must be 
 
     corners = [Pos(0, 0)]
-    solution = Dict{Integer, Stack}()
+    solution = Dict{Integer, AbstractStack}()
     torem = Pos[]
     toadd = Pos[]
 
@@ -349,7 +374,7 @@ function BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3, verbose=false
             display(corners)
             error("Not sorted")
         end
-        torem, toadd = placestack!(solution, W, i, s, corners; precision)
+        torem, toadd = placestack!(solution, W, i, s, corners; precision=precision, loading_order=loading_order)
         if verbose
             println("About to place stack n. $i, $s")
             println("\tAvailable corners: $corners")
@@ -370,24 +395,6 @@ function BLtruck(instance::Vector{Pair{T, Stack}}, W; precision=3, verbose=false
     return solution
 end
 
-
-# """Given a position and a the position of the lowest box above it, return the maximum width possible 
-# of a box placed at that position."""
-# function genWidth(o, lowestyabove, eps, precision=3)
-#     if greatertol(eps, lowestyabove - o.y, precision)
-#         throw(ArgumentError("Space between $(o.y) and $lowestyabove is less than minimum eps=$eps width."))
-#     end
-#     wi = rand() * (lowestyabove - o.y - eps) + eps
-#     return wi
-# end
-
-# function genLength(o, closestxright, eps; precision=3)
-#     if greatertol(eps, closestxright - o.x)
-#         throw(ArgumentError("Space between $(o.x) and $closestxright is less than minimum eps=$eps width."))
-#     end
-#     le = rand() * (closestxright - o.x - eps) + eps
-#     return le
-# end
 
 """Return wether position o is illegal with already placed boxes."""
 function illegalpos(o, r; precision=3)
