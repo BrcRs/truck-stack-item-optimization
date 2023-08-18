@@ -8,6 +8,7 @@ using Base.Threads
 include("matrix_ops.jl")
 # include("linear_infeasibilities.jl")
 # include("progress.jl")
+include("tsiproblem.jl")
 """
     Subproblem(t::Integer, problem::TSIProblem, submodel::Union{Model, Nothing}, valueTI::Matrix{Union{Missing, Bool}})
 
