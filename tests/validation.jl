@@ -9,6 +9,10 @@ using Test
     include("testplacement.jl")
 end
 
+@testset "testordered_stacks.jl" begin
+    include("testordered_stacks.jl")
+end
+
 @testset "testplacement_visualizer.jl" begin
     # include("testplacement_visualizer.jl")
     # Needs manual testing
