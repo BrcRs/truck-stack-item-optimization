@@ -3,28 +3,28 @@ plotly()
 include("placement.jl")
 
 rectangle(x, y, w, h) = Shape(x .+ [0,w,w,0], y .+ [0,0,h,h])
-rectangle(stack::Stack) = rectangle(stack.pos.x, stack.pos.y, stack.dim.le, stack.dim.wi)
+rectangle(stack::AbstractStack) = rectangle(get_pos(stack).x, get_pos(stack).y, get_dim(stack).le, get_dim(stack).wi)
 
 """
-    plot_placement(W, L, solution::Dict{T, Stack}, orthonormal=false) where T <: Integer
+    plot_placement(W, L, solution::Dict{T, S}; orthonormal=false) where {T <: Integer, S <: AbstractStack}
 
 Plot the graph representing a solution of the placement of stacks into a truck 
 of width W and length L. The plot will appear in your browser and is interactive 
 allowing to zoom, pan, etc. Stack names are displayed in the center of their 
 corresponding stacks.
 """
-function plot_placement(W, L, solution::Dict{T, Stack}; orthonormal=false) where T <: Integer
+function plot_placement(W, L, solution::Dict{T, S}; orthonormal=false) where {T <: Integer, S <: AbstractStack}
     solution_vector = [s for s in solution]
     rectangles = [rectangle(s) for (i, s) in solution_vector]
 
     # find furthest x coordinate
-    max_x = max([s.pos.x + s.dim.le for (i, s) in solution_vector]...) * 1.1
+    max_x = max([get_pos(s).x + get_dim(s).le for (i, s) in solution_vector]...) * 1.1
 
     annotations = (
 
-    x=[s.pos.x + s.dim.le/2 for (i, s) in solution_vector],
+    x=[get_pos(s).x + get_dim(s).le/2 for (i, s) in solution_vector],
 
-    y=[s.pos.y + s.dim.wi/2 for (i, s) in solution_vector],
+    y=[get_pos(s).y + get_dim(s).wi/2 for (i, s) in solution_vector],
 
     text=[text("Stack $i", 8) for (i, s) in solution_vector],
 
