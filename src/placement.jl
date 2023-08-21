@@ -216,6 +216,23 @@ function coveredcorners(corners, o, le, wi; precision=3, verbose=false)
     return torem
 end
 
+function can_be_placed(solution, o, s::Stack, W, orientation::Symbol; precision=3, verbose=false)
+
+    res = nothing
+
+    if orientation == :Perpendicular
+        res = leqtol(o.y + get_dim(s).le, W, precision) && !collision(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision)
+    elseif orientation == :Parallel
+        res = leqtol(o.y + get_dim(s).wi, W, precision) && !collision(Pos(o.x, o.y), Dim(get_dim(s).le, get_dim(s).wi), solution; precision)
+    else
+        throw(ArgumentError("orientation argument should either be :Perpendicular or :Parallel.\nUnkown flag: $orientation"))
+    end 
+    return res
+    
+end
+
+
+
 """
     placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
 
@@ -245,7 +262,8 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; prec
 
         # if the stack fits oriented with its length perpendicular to the 
         # width of the truck and it doesn't overlap with another stack
-        if leqtol(o.y + get_dim(s).le, W, precision) && !collision(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision)
+        if can_be_placed(solution, o, s, W, :Perpendicular; precision)
+        # if leqtol(o.y + get_dim(s).le, W, precision) && !collision(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision)
             # the stack can be placed in this orientation
             orientation = :Perpendicular
             if verbose
@@ -253,7 +271,7 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; prec
             end
         # else if the stack fits oriented with its length parallel to the
         # length of the truck and it doesn't overlap with another stack
-        elseif leqtol(o.y + get_dim(s).wi, W, precision) && !collision(Pos(o.x, o.y), Dim(get_dim(s).le, get_dim(s).wi), solution; precision)
+        elseif can_be_placed(solution, o, s, W, :Parallel; precision)
             orientation = :Parallel
             if verbose
                 println("$s can be placed parallel")
