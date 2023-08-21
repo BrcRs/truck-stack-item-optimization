@@ -1154,7 +1154,8 @@ end
     # NBFUSE = 0
     for i in 1:ITER
         rectangles = cutandfuse_generator(L, W, NBCUTS, NBFUSE; precision=3)
-        instance = [pair for pair in rectangles]
+        # Vector{Pair{T, S}} where {T <: Integer, S <: AbstractStack}
+        instance = collect(rectangles)
         solution = nothing
         try
             solution = BLtruck(instance, W, precision=3)
@@ -1223,4 +1224,3 @@ end
     end
 
 end
-

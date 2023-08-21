@@ -29,15 +29,6 @@ end
 get_dim(s::Stack) = s.dim
 get_pos(s::Stack) = s.pos
 
-struct OrderedStack <: AbstractStack
-    stack::Stack
-    supplier_order::Integer
-    supplier_dock_order::Integer
-    plant_dock_order::Integer
-end
-
-get_dim(s::OrderedStack) = get_dim(s.stack)
-get_pos(s::OrderedStack) = get_pos(s.stack)
 
 """
     findboxesabove(pos::Pos, r::Dict{T, S}; precision=3) where {T <: Integer, S <: AbstractStack}
@@ -359,7 +350,11 @@ function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, lo
     """One of the two dimensions must be lesser than W?"""
     # TODO
 
-    ## If loading orders must be 
+    ## If loading orders must be considered
+    if loading_order
+        # Sort the stacks
+        sort!(instance, by=p -> (supplier_order(p[2]), supplier_dock_order(p[2]), plant_dock_order(p[2])))
+    end
 
     corners = [Pos(0, 0)]
     solution = Dict{Integer, AbstractStack}()
