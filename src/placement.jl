@@ -216,6 +216,20 @@ function coveredcorners(corners, o, le, wi; precision=3, verbose=false)
     return torem
 end
 
+function is_secure(stack, solution; precision=3)
+    if eqtol(get_pos(stack).x, 0, precision) 
+        return true
+    end
+    boxesleft = findboxesleft(get_pos(stack), get_dim(stack), solution, precision)
+    for k in boxesleft
+        b = solution[k]
+        if eqtol(get_pos(b).x + get_dim(b).le, get_pos(stack).x)
+            return true
+        end
+    end
+    return false
+end
+
 function can_be_placed(solution, o, s::Stack, W, orientation::Symbol; precision=3, verbose=false)
 
     res = nothing

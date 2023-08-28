@@ -1133,12 +1133,26 @@ end
 
 end
 
+@testset "is_secure" begin
+
+    stack0 = Stack(Pos(0, 0), Dim(1, 1))
+    stack1 = Stack(Pos(1.0, 0.0), Dim(1, 1))
+    stack2 = Stack(Pos(2.0, 0.0), Dim(1, 1))
+    
+    solution = Dict(1 => stack0)
+    
+    @test is_secure(stack1, solution; precision=3)
+    @test !is_secure(stack2, solution; precision=3)
+
+    @test is_secure(stack0, Dict(); precision=3)
+
+end
 
 
 ## Functional BLtruck tests
 @testset "BLtruck" begin
     ratios = []
-    instances_solutions = []
+    instances_solutions = [] # TODO: make it a generator for when memory space will lack
 
     ITER = 1000
     L = 100
@@ -1187,7 +1201,7 @@ end
     #     placestack!(solution, 10, 7, solution[3], [Pos(0.140078, 7.53424), Pos(194.551, 0)]; precision=3, verbose=true)
     #     @test solution[7].pos == Pos(0.140078, 7.53424)
     # end
-
+    
     # Test solution is valid
     @testset "BLtruck is valid" begin
         for i in 1:ITER
@@ -1202,6 +1216,13 @@ end
                 
                 for (j, stack) in solution
                     @test !outofbound(stack.pos, stack.dim, W; precision=3)
+                end
+            end
+            @testset "Secure stack placement" begin
+                # Stacks should be adjacent to another stack to their left on the X axis
+                # or adjacent to the left side of the truck
+                for (j, stack) in solution
+                    @test is_secure(stack, solution)
                 end
             end
         end 
@@ -1222,5 +1243,6 @@ end
             # end
         end
     end
+
 
 end
