@@ -15,9 +15,37 @@ end
 #     end
 #     return Dim(le, wi)
 # end
-@auto_hash_equals struct Pos
+
+abstract type AbstractPos end
+
+@auto_hash_equals struct Pos <: AbstractPos
     x
     y
+end
+
+@auto_hash_equals struct ProjectedPos <: AbstractPos
+    p::Pos
+    origin::Pos
+    orientation::Symbol
+    function ProjectedPos(p, origin, orientation)
+        if !(orientation in [:Horizontal, :Vertical])
+            throw(ArgumentError("orientation field should be either :Horizontal or :Vertical.\nGot $orientation"))
+        end
+        new(p, origin, orientation)
+    end
+
+end
+
+get_pos(pos::Pos) = pos
+get_pos(pos::ProjectedPos) = pos.p
+get_origin(pos::ProjectedPos) = pos.origin
+get_orientation(pos::ProjectedPos) = pos.orientation
+
+is_projected(pos::AbstractPos) = typeof(pos) == ProjectedPos
+
+function is_intersected(pos::ProjectedPos, s::AbstractStack; precision=3)
+    return  overlapY(get_pos(pos), Dim(10^-precision, 10^-precision), get_pos(s), get_dim(s); precision=precision) &&
+            overlapX(get_pos(pos), Dim(10^-precision, 10^-precision), get_pos(s), get_dim(s); precision=precision) 
 end
 
 abstract type AbstractStack end
@@ -28,6 +56,23 @@ end
 
 get_dim(s::Stack) = s.dim
 get_pos(s::Stack) = s.pos
+
+function upd!(corners, o::ProjectedPos, s::Stack)
+    error("Not implemented yet")
+end
+
+# for o in corners
+#     if greatertol(o.x, get_pos(solution[i]).x + get_dim(solution[i]).le)
+#         break
+#     end
+#     if is_projected(o) && is_intersected(o, solution[i])
+#         push!(to_upd, o)
+#     end
+# end
+# for o in to_upd
+#     upd!(corners, o, solution[i])
+# end
+
 
 
 """
@@ -113,7 +158,7 @@ function overlapX(apos, adim, bpos, bdim; precision=3)
 end
 
 
-"""Return wether two boxes overlap on X"""
+"""Return wether two boxes overlap on Y"""
 function overlapY(apos, adim, bpos, bdim; precision=3)
     return greatertol(apos.y + adim.wi, bpos.y, precision) && lessertol(apos.y, bpos.y + bdim.wi, precision)
 end
@@ -197,17 +242,17 @@ end
 
 Remove corners covered by provided stack at position o.
 """
-function coveredcorners(corners, o, le, wi; precision=3, verbose=false)
-    torem = Pos[]
+function coveredcorners(corners::Vector{<:AbstractPos}, o, le, wi; precision=3, verbose=false)
+    torem = AbstractPos[]
     for o2 in corners
-        if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.y, o.y + wi, precision)
+        if leqtol(o.x, get_pos(o2).x, precision) && lessertol(get_pos(o2).x, o.x + le, precision) && leqtol(o.y, get_pos(o2).y, precision) && lessertol(get_pos(o2).y, o.y + wi, precision)
             push!(torem, o2)
             if verbose
                 println("-==-")
-                println("leqtol($(o.x), $(o2.x), $precision) = ", leqtol(o.x, o2.x, precision) )
-                println("lessertol($(o2.x), $(o.x) + $(le), $precision) = ", lessertol(o2.x, o.x + le, precision) )
-                println("leqtol($(o.y), $(o2.y), $precision) = ", leqtol(o.y, o2.y, precision) )
-                println("lessertol($(o2.y), $(o.y) + $(wi), $precision) = ", lessertol(o2.y, o.y + wi, precision))
+                println("leqtol($(o.x), $(get_pos(o2).x), $precision) = ", leqtol(o.x, get_pos(o2).x, precision) )
+                println("lessertol($(get_pos(o2).x), $(o.x) + $(le), $precision) = ", lessertol(get_pos(o2).x, o.x + le, precision) )
+                println("leqtol($(o.y), $(get_pos(o2).y), $precision) = ", leqtol(o.y, get_pos(o2).y, precision) )
+                println("lessertol($(get_pos(o2).y), $(o.y) + $(wi), $precision) = ", lessertol(get_pos(o2).y, o.y + wi, precision))
                 println("-==-")
             end
         end
@@ -230,7 +275,7 @@ function is_secure(stack, solution; precision=3)
     return false
 end
 
-function can_be_placed(solution, o, s::Stack, W, orientation::Symbol; precision=3, verbose=false)
+function can_be_placed(solution, o::Pos, s::Stack, W, orientation::Symbol; precision=3, verbose=false)
 
     res = nothing
 
@@ -245,7 +290,7 @@ function can_be_placed(solution, o, s::Stack, W, orientation::Symbol; precision=
     
 end
 
-
+error("must update totheleft and totheright so that they return ProjectedPos corners")
 
 """
     placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
@@ -254,7 +299,7 @@ Place stack `s` in `solution` in the first available corner in `corners`.
 Placing a stack leads to the creation of 2 new corners added to `toadd`.
 The corner taken is put in a list `torem` of corners to remove.
 """
-function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
+function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vector{<:AbstractPos}; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
     torem = []
     toadd = []
     placed = false
@@ -276,7 +321,7 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; prec
 
         # if the stack fits oriented with its length perpendicular to the 
         # width of the truck and it doesn't overlap with another stack
-        if can_be_placed(solution, o, s, W, :Perpendicular; precision)
+        if can_be_placed(solution, get_pos(o), s, W, :Perpendicular; precision)
         # if leqtol(o.y + get_dim(s).le, W, precision) && !collision(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision)
             # the stack can be placed in this orientation
             orientation = :Perpendicular
@@ -285,7 +330,7 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; prec
             end
         # else if the stack fits oriented with its length parallel to the
         # length of the truck and it doesn't overlap with another stack
-        elseif can_be_placed(solution, o, s, W, :Parallel; precision)
+        elseif can_be_placed(solution, get_pos(o), s, W, :Parallel; precision)
             orientation = :Parallel
             if verbose
                 println("$s can be placed parallel")
@@ -295,11 +340,11 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; prec
             if verbose
                 println("$s can't be placed at $o because...")
                 println("Perpendicular:")
-                println("\tleqtol(o.y + get_dim(s).le, W, precision) = ", leqtol(o.y + get_dim(s).le, W, precision))
-                println("\t!collision(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision) = ", !collision(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision, verbose))
+                println("\tleqtol(get_pos(o).y + get_dim(s).le, W, precision) = ", leqtol(get_pos(o).y + get_dim(s).le, W, precision))
+                println("\t!collision(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision) = ", !collision(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision, verbose))
                 println("Parallel:")
-                println("\tleqtol(o.y + get_dim(s).wi, W, precision)  = ", leqtol(o.y + get_dim(s).wi, W, precision) )
-                println("\t!collision(Pos(o.x, o.y), Dim(get_dim(s).le, get_dim(s).wi), solution; precision) = ", !collision(Pos(o.x, o.y), Dim(get_dim(s).le, get_dim(s).wi), solution; precision, verbose))
+                println("\tleqtol(get_pos(o).y + get_dim(s).wi, W, precision)  = ", leqtol(get_pos(o).y + get_dim(s).wi, W, precision) )
+                println("\t!collision(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).le, get_dim(s).wi), solution; precision) = ", !collision(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).le, get_dim(s).wi), solution; precision, verbose))
 
                 display(solution)
 
@@ -311,45 +356,76 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; prec
             if orientation == :Perpendicular
                 # Add the stack to this corner in solution
                 solution[i] = loading_order ? 
-                                                OrderedStack(   Stack(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le)), 
+                                                OrderedStack(   Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le)), 
                                                                 s.supplier_order, 
                                                                 s.supplier_dock_order, 
                                                                 s.plant_dock_order) : 
-                                                Stack(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le))
+                                                Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le))
                 
                 # Add new corners
                 # corners must be placed as much to the left as possible
                 # or as much to the bottom as possible
-                push!(toadd,    totheleft(Pos(o.x, o.y + get_dim(s).le), solution), 
-                                tothebottom(Pos(o.x + get_dim(s).wi, o.y), solution))
+                push!(toadd,    totheleft(Pos(get_pos(o).x, get_pos(o).y + get_dim(s).le), solution), 
+                                tothebottom(Pos(get_pos(o).x + get_dim(s).wi, get_pos(o).y), solution))
             end
 
             if orientation == :Parallel
                 # add to solution
                 solution[i] = loading_order ? 
-                                                OrderedStack(   Stack(Pos(o.x, o.y), Dim(get_dim(s).le, get_dim(s).wi)),
+                                                OrderedStack(   Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).le, get_dim(s).wi)),
                                                                 s.supplier_order, 
                                                                 s.supplier_dock_order, 
                                                                 s.plant_dock_order) : 
-                                                Stack(Pos(o.x, o.y), Dim(get_dim(s).le, get_dim(s).wi))
+                                                Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).le, get_dim(s).wi))
 
                 # add new corners
                 push!(toadd, 
-                                totheleft(Pos(o.x, o.y + get_dim(s).wi), solution), 
-                                tothebottom(Pos(o.x + get_dim(s).le, o.y), solution))
+                                totheleft(Pos(get_pos(o).x, get_pos(o).y + get_dim(s).wi), solution), 
+                                tothebottom(Pos(get_pos(o).x + get_dim(s).le, get_pos(o).y), solution))
             end
 
             # remove corner
             push!(torem, o)
             
             # remove covered corners
-            push!(torem, coveredcorners(corners, o, get_dim(solution[i]).le, get_dim(solution[i]).wi; precision)...)
+            covered = coveredcorners(corners, get_pos(o), get_dim(solution[i]).le, get_dim(solution[i]).wi; precision)
             # for o2 in corners
-            #     if leqtol(o.x, o2.x, precision) && lessertol(o2.x, o.x + get_dim(s).le, precision) && leqtol(o.y, o2.y, precision) && lessertol(o2.x, o.y + get_dim(s).wi, precision)
+            #     if leqtol(get_pos(o).x, o2.x, precision) && lessertol(o2.x, get_pos(o).x + get_dim(s).le, precision) && leqtol(get_pos(o).y, o2.y, precision) && lessertol(o2.x, get_pos(o).y + get_dim(s).wi, precision)
             #         push!(torem, o2)
             #     end
             
             # end
+            
+            # update projected corners that are intersected by the newly placed stack
+            for o in corners
+                if greatertol(get_pos(o).x, get_pos(solution[i]).x + get_dim(solution[i]).le)
+                    break
+                end
+                if is_projected(o) && is_intersected(o, solution[i])
+                    push!(to_upd, o)
+                end
+            end
+            for o in to_upd
+                upd!(corners, o, solution[i])
+            end
+            push!(torem, covered...)
+            ## It is not enough! Consider the following example:
+            """
+            ____________________________________
+            +---------+
+            |         |
+            |   a     |
+            +---------+
+                      :
+            +---------X----------+
+            |   b     :          |
+            +---------:----------+
+                      :
+            __________O________________________
+
+            b is placed after a. It does not cover the O projected corner.
+            Hence, the X projected corner is never added.
+            """
 
             # stop iterating over corners
             break
@@ -390,14 +466,14 @@ function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, lo
 
     corners = [Pos(0, 0)]
     solution = Dict{Integer, AbstractStack}()
-    torem = Pos[]
-    toadd = Pos[]
+    # torem = Pos[]
+    # toadd = Pos[]
 
 
     # For each stack to place
     for (i, s) in instance
 
-        if !issorted(corners, by= o -> o.x)
+        if !issorted(corners, by= o -> (get_pos(o).x, get_pos(o).y))
             display(corners)
             error("Not sorted")
         end
@@ -414,9 +490,9 @@ function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, lo
 
         # Add corners to the list of available corners
         push!(corners, toadd...)
-        sort!(corners, by= o -> o.x ) # TODO instead of sorting put elements in right place
-        toadd = Pos[]
-        torem = Pos[]
+        sort!(corners, by= o -> (get_pos(o).x, get_pos(o).y) ) # TODO instead of sorting put elements in right place
+        # toadd = Pos[]
+        # torem = Pos[]
     end
 
     return solution
