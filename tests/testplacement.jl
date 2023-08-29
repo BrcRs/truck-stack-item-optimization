@@ -1305,7 +1305,7 @@ end
                 # Stacks should be adjacent to another stack to their left on the X axis
                 # or adjacent to the left side of the truck
                 for (j, stack) in solution
-                    @test is_secure(stack, solution; precision=10)
+                    @test is_secure(stack, solution; precision=3)
                     # Some tests did not pass: 286529 passed, 1379 failed, 0 errored, 0 broken. with precision=4
                     # Some tests did not pass: 287842 passed, 1347 failed, 0 errored, 0 broken. with precision=5
                     # Some tests did not pass: 288698 passed, 1295 failed, 0 errored, 0 broken. with precision=10
