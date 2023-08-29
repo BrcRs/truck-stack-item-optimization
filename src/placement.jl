@@ -672,6 +672,32 @@ function fuse!(rectangles::Dict{T, Stack}, a::Stack, b::Stack, id) where T <: In
                                 samex ? Dim(a.dim.le, a.dim.wi + b.dim.wi) : Dim(a.dim.le + b.dim.le, a.dim.wi))
 end
 
+function find_neighbors(rectangles, rectangle)
+    neighbors = []
+    """
+    ```
+        +---+
+        | 1 |
+    +---+---+---+
+    | 3 |   | 2 |
+    +---+---+---+
+        | 4 |
+        +---+
+    ```
+    """
+    for k in keys(rectangles)
+        # if  rectangles[k].pos == Pos(rectangle.pos.x, rectangle.pos.y + rectangle.dim.wi) ||
+        #     rectangles[k].pos == Pos(rectangle.pos.x + rectangle.dim.le, rectangle.pos.y) ||
+        #     rectangles[k].pos == Pos(rectangle.pos.x, rectangle.pos.y + rectangle.dim.wi)
+        #     #...
+        # end
+        if shareside(rectangle, rectangles[k])
+            push!(neighbors, rectangles[k])
+        end
+    end
+    return neighbors
+
+end
 """
     cutandfuse_generator(L, W, cutiter, fuseiter, precision=3)
 
@@ -820,6 +846,49 @@ function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3)
         end
     end
 
+
+    ## Intermediate step before fusing: make sure no rectangle has a dimension smaller than 10.0^-precision
+    # do this before fusing to make sure we'll have neighbors
+    # as long as such a rectangle exists
+    thin_rectangle_k = findfirst(r -> get_dim(r).wi < 10.0^-precision || get_dim(r).le < 10.0^-precision, rectangles)
+    while !isnothing(thin_rectangle_k)
+        thin_rectangle = rectangles[thin_rectangle_k]
+        # fuse it with a neighbor
+        neighbors = find_neighbors(rectangles, thin_rectangle)
+
+        # if isempty(neighbors)
+        #     display(rectangles)
+        #     error("Stack $thin_rectangle_k has no neighbors :(")
+        # end
+
+        # DO NOT choose randomly
+        # choose the neighbor on the side you want to enlarge
+        neighbor = nothing
+        if get_dim(thin_rectangle).wi < 10.0^-precision
+            neighbors = filter(x -> eqtol(get_dim(x).le, get_dim(thin_rectangle).le, precision), neighbors)
+            if isempty(neighbors)
+                display(rectangles)
+                error("Stack $thin_rectangle_k has no neighbors that share its length :(")
+                # this happens once in 5 millions, I don't know why, so I am leaving it here
+            end
+            neighbor = rand(neighbors)
+        else
+            neighbors = filter(x -> eqtol(get_dim(x).wi, get_dim(thin_rectangle).wi, precision), neighbors)
+            if isempty(neighbors)
+                display(rectangles)
+                error("Stack $thin_rectangle_k has no neighbors that share its width :(")
+            end
+            neighbor = rand(neighbors)
+        end
+
+        # delete the two rectangles, replace with new bigger one 
+        nb_rects += 1
+        fuse!(rectangles, thin_rectangle, neighbor, nb_rects)
+
+        
+        thin_rectangle_k = findfirst(r -> get_dim(r).wi < 10.0^-precision || get_dim(r).le < 10.0^-precision, rectangles)
+    end
+
     # fuse phase
     for i in 1:fuseiter
         # choose a rectangle randomly
@@ -827,28 +896,8 @@ function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3)
 
         # choose a neighbor randomly
         # TODO optimize
-        neighbors = []
-        """
-        ```
-            +---+
-            | 1 |
-        +---+---+---+
-        | 3 |   | 2 |
-        +---+---+---+
-            | 4 |
-            +---+
-        ```
-        """
-        for k in keys(rectangles)
-            # if  rectangles[k].pos == Pos(rectangle.pos.x, rectangle.pos.y + rectangle.dim.wi) ||
-            #     rectangles[k].pos == Pos(rectangle.pos.x + rectangle.dim.le, rectangle.pos.y) ||
-            #     rectangles[k].pos == Pos(rectangle.pos.x, rectangle.pos.y + rectangle.dim.wi)
-            #     #...
-            # end
-            if shareside(rectangle, rectangles[k])
-                push!(neighbors, rectangles[k])
-            end
-        end
+        neighbors = find_neighbors(rectangles, rectangle)
+
         # if no neighbor, continue
         if isempty(neighbors)
             continue
@@ -867,6 +916,9 @@ function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3)
         #                             samex ? Dim(rectangle.dim.le, rectangle.dim.wi + neighbor.dim.wi) : Dim(rectangle.dim.le + neighbor.dim.le, rectangle.dim.wi))
 
     end
+
+
+
 
     return rectangles
 end
