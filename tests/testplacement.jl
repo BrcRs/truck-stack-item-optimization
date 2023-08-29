@@ -449,6 +449,89 @@ end
     @test !(1 in boxesleft)
 
 
+    r = Dict(7 => Stack(Pos(0, 1.79067), Dim(347.168, 98.2086)))
+    p = Pos(347.168, 1.79067)
+    d = Dim(652.832, 0.01) # this passes
+    boxesleft = findboxesleft(p, d, r; verbose=false)
+
+    @test 7 in boxesleft
+
+    r = Dict(4 => Stack(Pos(0, 1.79067), Dim(347.168, 98.2086)))
+    p = Pos(347.168, 1.79067)
+    d = Dim(652.832, 0.000744365) # but this doesn't
+    # with this instance, the precision needs to be higher
+    boxesleft = findboxesleft(p, d, r; verbose=false, precision=4) 
+
+    @test 4 in boxesleft
+
+end
+
+@testset "ProjectedPos" begin
+    @testset "is_projected" begin
+        @test is_projected(ProjectedPos(Pos(0, 0), Pos(5, 0), :Vertical))
+        @test !is_projected(Pos(0, 5))
+    end
+
+    @testset "set_pos!(::ProjectedPos)" begin
+        p = ProjectedPos(Pos(0, 0), Pos(0, 0), :Vertical)
+        set_pos!(p, Pos(5, 5))
+        @test p == ProjectedPos(Pos(5, 5), Pos(0, 0), :Vertical)
+
+        p = ProjectedPos(Pos(9, 1), Pos(0, 0), :Vertical)
+        set_pos!(p, Pos(1.0, 5.9))
+        @test p == ProjectedPos(Pos(1.0, 5.9), Pos(0, 0), :Vertical)
+
+        p = ProjectedPos(Pos(2, 2.0), Pos(0, 0), :Horizontal)
+        set_pos!(p, Pos(50.0, 5))
+        @test p == ProjectedPos(Pos(50.0, 5), Pos(0, 0), :Horizontal)
+
+    end
+
+    @testset "is_intersected" begin
+        p = ProjectedPos(Pos(0, 0), Pos(0, 10), :Vertical)
+        @test is_intersected(p, Stack(Pos(0, 0), Dim(1, 1)))
+
+
+        p = ProjectedPos(Pos(0, 0), Pos(10, 0), :Horizontal)
+        @test is_intersected(p, Stack(Pos(0, 0), Dim(1, 1)))
+
+        p = ProjectedPos(Pos(0, 0), Pos(0, 10), :Vertical)
+        @test !is_intersected(p, Stack(Pos(1, 0), Dim(1, 1)))
+
+        p = ProjectedPos(Pos(0, 0), Pos(10, 0), :Horizontal)
+        @test !is_intersected(p, Stack(Pos(0, 1), Dim(1, 1)))
+
+    end
+
+    @testset "upd!(corners, o::ProjectedPos, s::AbstractStack; precision=3)" begin
+        p = ProjectedPos(Pos(2, 0), Pos(2, 10), :Vertical)
+
+        corners = [Pos(0, 0), p, Pos(1, 5)]
+        s = Stack(Pos(1, 0), Dim(5, 5))
+        upd!(corners, p, s)
+
+        @test corners == [Pos(0, 0), ProjectedPos(Pos(2, 5), Pos(2, 10), :Vertical), Pos(1, 5)]
+
+        p = ProjectedPos(Pos(0, 2), Pos(10, 2), :Horizontal)
+
+        corners = [p, Pos(1, 0), Pos(2, 5)]
+        s = Stack(Pos(0, 0), Dim(2, 8))
+        upd!(corners, p, s)
+
+        @test corners == [ProjectedPos(Pos(2, 2), Pos(10, 2), :Horizontal), Pos(1, 0), Pos(2, 5)]
+
+
+        p = ProjectedPos(Pos(0, 2), Pos(10, 2), :Horizontal)
+
+        corners = [p, Pos(1, 0), Pos(2, 5)]
+        s = Stack(Pos(0, 0), Dim(11, 8))
+        upd!(corners, p, s)
+
+        @test corners == [Pos(1, 0), Pos(2, 5)]
+
+
+
+    end
 
 end
 
@@ -469,7 +552,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(2.0, 0.0)
-    @test totheleft(p, solution; precision=3) == Pos(1.0, 0.0)
+    @test totheleft(p, solution; precision=3) == ProjectedPos(Pos(1.0, 0.0), p, :Horizontal)
 
     """
     +---+   
@@ -478,7 +561,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(2.0, 0.5)
-    @test totheleft(p, solution; precision=3) == Pos(1.0, 0.5)
+    @test totheleft(p, solution; precision=3) == ProjectedPos(Pos(1.0, 0.5), p, :Horizontal)
 
     """
     +---+   p
@@ -487,7 +570,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(2.0, 1)
-    @test totheleft(p, solution; precision=3) == Pos(0.0, 1.0)
+    @test totheleft(p, solution; precision=3) == ProjectedPos(Pos(0.0, 1.0), p, :Horizontal)
 
     """
     p    +---+
@@ -510,7 +593,7 @@ end
 
     solution = Dict(1 => Stack(Pos(0, 5.58863), Dim(0.140078, 2.72428)))
     p = Pos(97.2757, 7.53424)
-    @test totheleft(p, solution; precision=3) == Pos(0.140078, 7.53424)
+    @test totheleft(p, solution; precision=3) == ProjectedPos(Pos(0.140078, 7.53424), p, :Horizontal)
 
 
 end
@@ -542,7 +625,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(2.0, 0.5)
-    @test tothebottom(p, solution; precision=3) == Pos(2.0, 0)
+    @test tothebottom(p, solution; precision=3) == ProjectedPos(Pos(2.0, 0), p, :Vertical)
 
     """
     +---+   p
@@ -551,7 +634,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
     p = Pos(2.0, 1)
-    @test tothebottom(p, solution; precision=3) == Pos(2.0, 0.0)
+    @test tothebottom(p, solution; precision=3) == ProjectedPos(Pos(2.0, 0.0), p, :Vertical)
 
     """
     p    +---+
@@ -560,7 +643,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(1, 0), Dim(1, 1)))
     p = Pos(0.0, 1)
-    @test tothebottom(p, solution; precision=3) == Pos(0.0, 0.0)
+    @test tothebottom(p, solution; precision=3) == ProjectedPos(Pos(0.0, 0.0), p, :Vertical)
 
     """
          +---+
@@ -580,7 +663,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(1, 1), Dim(1, 1)))
     p = Pos(2.0, 1.0)
-    @test tothebottom(p, solution; precision=3) == Pos(2.0, 0.0)
+    @test tothebottom(p, solution; precision=3) == ProjectedPos(Pos(2.0, 0.0), p, :Vertical)
 
     """
          p
@@ -592,7 +675,7 @@ end
     """
     solution = Dict(1 => Stack(Pos(1, 1), Dim(1, 1)))
     p = Pos(1.0, 3.0)
-    @test tothebottom(p, solution; precision=3) == Pos(1.0, 2.0)
+    @test tothebottom(p, solution; precision=3) == ProjectedPos(Pos(1.0, 2.0), p, :Vertical)
 
 end
 
@@ -1222,14 +1305,18 @@ end
                 # Stacks should be adjacent to another stack to their left on the X axis
                 # or adjacent to the left side of the truck
                 for (j, stack) in solution
-                    @test is_secure(stack, solution)
+                    @test is_secure(stack, solution; precision=10)
+                    # Some tests did not pass: 286529 passed, 1379 failed, 0 errored, 0 broken. with precision=4
+                    # Some tests did not pass: 287842 passed, 1347 failed, 0 errored, 0 broken. with precision=5
+                    # Some tests did not pass: 288698 passed, 1295 failed, 0 errored, 0 broken. with precision=10
                 end
             end
         end 
     end
     
     # Test optimality is 2-OPT
-    @testset "BLtruck is 2-OPT" begin
+    # @testset "BLtruck is 2-OPT" begin
+    @testset "BLtruck is 3-OPT" begin
         for (i, r) in enumerate(ratios)
             # @test r <= 2.0 + 0.1
             @test r <= 3.0 # TODO why not 2-OPT?

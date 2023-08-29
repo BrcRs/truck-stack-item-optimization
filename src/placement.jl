@@ -23,30 +23,30 @@ abstract type AbstractPos end
     y
 end
 
-@auto_hash_equals struct ProjectedPos <: AbstractPos
-    p::Pos
+
+struct ProjectedPos <: AbstractPos
+    p::Base.RefValue{Pos}
     origin::Pos
     orientation::Symbol
     function ProjectedPos(p, origin, orientation)
         if !(orientation in [:Horizontal, :Vertical])
             throw(ArgumentError("orientation field should be either :Horizontal or :Vertical.\nGot $orientation"))
         end
-        new(p, origin, orientation)
+        new(Ref(p), origin, orientation)
     end
 
 end
 
-get_pos(pos::Pos) = pos
-get_pos(pos::ProjectedPos) = pos.p
-get_origin(pos::ProjectedPos) = pos.origin
-get_orientation(pos::ProjectedPos) = pos.orientation
+Base.hash(a::ProjectedPos, h::UInt) = hash(a.p[], hash(a.origin, hash(a.orientiation, hash(:ProjectedPos, h))))
+Base.:(==)(a::ProjectedPos, b::ProjectedPos) = isequal(a.p[], b.p[]) && isequal(a.origin, b.origin) && isequal(a.orientation, b.orientation)
 
-is_projected(pos::AbstractPos) = typeof(pos) == ProjectedPos
+# function Base.isequal(a::ProjectedPos, b::ProjectedPos)
+#     return get_pos(a) == get_pos(b) && get_origin(a) == get_origin(b) && get_orientation(a) == get_orientation(b)
+# end
 
-function is_intersected(pos::ProjectedPos, s::AbstractStack; precision=3)
-    return  overlapY(get_pos(pos), Dim(10^-precision, 10^-precision), get_pos(s), get_dim(s); precision=precision) &&
-            overlapX(get_pos(pos), Dim(10^-precision, 10^-precision), get_pos(s), get_dim(s); precision=precision) 
-end
+# function Base.is(a::ProjectedPos, b::ProjectedPos)
+#     error("Identity comparison between ProjectedPos not implemented")
+# end
 
 abstract type AbstractStack end
 struct Stack <: AbstractStack
@@ -54,25 +54,47 @@ struct Stack <: AbstractStack
     dim::Dim
 end
 
+get_pos(pos::Pos) = pos
+get_pos(pos::ProjectedPos) = pos.p[]
+get_origin(pos::ProjectedPos) = pos.origin
+get_orientation(pos::ProjectedPos) = pos.orientation
+is_projected(pos::AbstractPos) = typeof(pos) == ProjectedPos
+function set_pos!(propos::ProjectedPos, pos::Pos)
+    # get_pos(propos) = pos
+    propos.p[] = pos
+end
+
+function is_intersected(pos::ProjectedPos, s::AbstractStack; precision=3)
+    return  overlapY(get_pos(pos), Dim(10.0^-precision, 10.0^-precision), get_pos(s), get_dim(s); precision=precision) &&
+            overlapX(get_pos(pos), Dim(10.0^-precision, 10.0^-precision), get_pos(s), get_dim(s); precision=precision) 
+end
+
+
 get_dim(s::Stack) = s.dim
 get_pos(s::Stack) = s.pos
 
-function upd!(corners, o::ProjectedPos, s::Stack)
-    error("Not implemented yet")
+function upd!(corners, o::ProjectedPos, s::AbstractStack; precision=3)
+    if get_orientation(o) == :Vertical
+        # if the top of the stack is higher than the origin, the whole projected
+        # corner is covered, thus we must delete it
+        if greatertol(get_pos(s).y + get_dim(s).wi, get_origin(o).y, precision)
+            filter!(x -> x != o, corners)
+            return
+        end
+        # else, give it the value of the height of the top of the stack
+        set_pos!(o, Pos(get_pos(o).x, get_pos(s).y + get_dim(s).wi))
+    elseif get_orientation(o) == :Horizontal
+        if greatertol(get_pos(s).x + get_dim(s).le, get_origin(o).x, precision)
+            filter!(x -> x != o, corners)
+            return
+        end
+        set_pos!(o, Pos(get_pos(s).x + get_dim(s).le, get_pos(o).y))
+
+    else
+        throw(ArgumentError("Unknown orientation \"$orientation\""))
+    end
+    return
 end
-
-# for o in corners
-#     if greatertol(o.x, get_pos(solution[i]).x + get_dim(solution[i]).le)
-#         break
-#     end
-#     if is_projected(o) && is_intersected(o, solution[i])
-#         push!(to_upd, o)
-#     end
-# end
-# for o in to_upd
-#     upd!(corners, o, solution[i])
-# end
-
 
 
 """
@@ -138,17 +160,29 @@ function findboxesright(pos::Pos, dim::Dim, r::Dict{T, S}; precision=3) where {T
 end
 
 """
-    findboxesleft(pos::Pos, dim::Dim, r::Dict{T, S}, precision=3) where {T <: Integer, S <: AbstractStack}
+    findboxesleft(pos::Pos, dim::Dim, r::Dict{T, S}; precision=3) where {T <: Integer, S <: AbstractStack}
 
 Return elements of `r` that are directly to the left and overlapping on y axis 
 with a stack of position `pos` and dimensions `dim`.
 By convention, the right and top borders of a stack aren't counted in the stack.
 """
-function findboxesleft(pos::Pos, dim::Dim, r::Dict{T, S}, precision=3) where {T <: Integer, S <: AbstractStack}
+function findboxesleft(pos::Pos, dim::Dim, r::Dict{T, S}; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
+    # return filter(
+    #     b -> leqtol(get_pos(r[b]).x, pos.x, precision) && 
+    #     lessertol(get_pos(r[b]).y, pos.y + dim.wi, precision) && 
+    #     greatertol(get_pos(r[b]).y + get_dim(r[b]).wi, pos.y, precision),
+    #     keys(r))
+    if verbose
+        for b in keys(r)
+            println(b)
+            println("leqtol(get_pos(r[b]).x, pos.x, precision)\n", leqtol(get_pos(r[b]).x, pos.x, precision))
+            println("overlapY(pos, dim, get_pos(r[b]), get_dim(r[b]); precision=precision)\n", overlapY(pos, dim, get_pos(r[b]), get_dim(r[b]); precision=precision))
+        end
+    end
+
     return filter(
         b -> leqtol(get_pos(r[b]).x, pos.x, precision) && 
-        lessertol(get_pos(r[b]).y, pos.y + dim.wi, precision) && 
-        greatertol(get_pos(r[b]).y + get_dim(r[b]).wi, pos.y, precision),
+        overlapY(pos, dim, get_pos(r[b]), get_dim(r[b]); precision=precision),
         keys(r))
 end
 
@@ -210,22 +244,24 @@ end
 
 """Given a position, find the most to the left available position without 
 overlapping a placed stack."""
-function totheleft(pos, solution; precision=3)
+function totheleft(pos::Pos, solution; precision=3)
     # Find all stacks overlapping on y axis and with x < pos.x
-    boxesleft = findboxesleft(pos, Dim(10.0^-precision, 10.0^-precision), solution, precision)
+    boxesleft = findboxesleft(pos, Dim(10.0^-precision, 10.0^-precision), solution; precision=precision)
 
     # Find the stack which extends the most to the right
     rightsides = [get_pos(solution[k]).x + get_dim(solution[k]).le for k in boxesleft]
     leftbound = isempty(rightsides) ? 0 : max(rightsides...)    
 
     # return the Pos with x position as the right side of the stack
-    return Pos(leftbound, pos.y)
+    return eqtol(leftbound, get_pos(pos).x, precision) ? 
+                    Pos(get_pos(pos).x, get_pos(pos).y) : 
+       ProjectedPos(Pos(leftbound,      get_pos(pos).y), get_pos(pos), :Horizontal)
 end
 
 
 """Given a position, find the most to the bottom available position without 
 overlapping a placed stack."""
-function tothebottom(pos, solution; precision=3)
+function tothebottom(pos::Pos, solution; precision=3)
     # Find all stacks overlapping on x axis and with y < pos.y
     boxesbot = findboxesbelow(pos, Dim(10.0^-precision, 10.0^-precision), solution; precision)
 
@@ -234,7 +270,9 @@ function tothebottom(pos, solution; precision=3)
     botbound = isempty(topsides) ? 0 : max(topsides...)    
 
     # return the Pos with y position as the top side of the stack
-    return Pos(pos.x, botbound)
+    return eqtol(botbound, pos.y, precision) ? 
+                    Pos(pos.x, pos.y) :
+       ProjectedPos(Pos(pos.x, botbound), pos, :Vertical)
 end
 
 """
@@ -261,16 +299,32 @@ function coveredcorners(corners::Vector{<:AbstractPos}, o, le, wi; precision=3, 
     return torem
 end
 
-function is_secure(stack, solution; precision=3)
-    if eqtol(get_pos(stack).x, 0, precision) 
+function is_secure(stack, solution; precision=3, verbose=false)
+    if eqtol(get_pos(stack).x, 0, precision)
+        if verbose
+            println("The stack is against the cabin.")
+        end
         return true
     end
-    boxesleft = findboxesleft(get_pos(stack), get_dim(stack), solution, precision)
+    boxesleft = findboxesleft(get_pos(stack), get_dim(stack), solution; precision=precision, verbose=verbose)
+    if verbose
+        println("is_secure examines all boxes to the left")
+    end
     for k in boxesleft
         b = solution[k]
-        if eqtol(get_pos(b).x + get_dim(b).le, get_pos(stack).x)
+        if verbose
+            println(k)
+            println("eqtol(get_pos(b).x + get_dim(b).le, get_pos(stack).x, precision)\n", eqtol(get_pos(b).x + get_dim(b).le, get_pos(stack).x, precision))
+        end
+        if eqtol(get_pos(b).x + get_dim(b).le, get_pos(stack).x, precision)
+            if verbose
+                println("The stack is against stack $k.")
+            end
             return true
         end
+    end
+    if verbose
+        println("There isn't any stack the stack is against, and is not against the cabin.")
     end
     return false
 end
@@ -290,7 +344,6 @@ function can_be_placed(solution, o::Pos, s::Stack, W, orientation::Symbol; preci
     
 end
 
-error("must update totheleft and totheright so that they return ProjectedPos corners")
 
 """
     placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
@@ -300,8 +353,8 @@ Placing a stack leads to the creation of 2 new corners added to `toadd`.
 The corner taken is put in a list `torem` of corners to remove.
 """
 function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vector{<:AbstractPos}; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
-    torem = []
-    toadd = []
+    torem = AbstractPos[]
+    toadd = AbstractPos[]
     placed = false
     if verbose
         println("Placing s=$s")
@@ -365,8 +418,8 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
                 # Add new corners
                 # corners must be placed as much to the left as possible
                 # or as much to the bottom as possible
-                push!(toadd,    totheleft(Pos(get_pos(o).x, get_pos(o).y + get_dim(s).le), solution), 
-                                tothebottom(Pos(get_pos(o).x + get_dim(s).wi, get_pos(o).y), solution))
+                push!(toadd,    totheleft(Pos(get_pos(o).x, get_pos(o).y + get_dim(s).le), solution; precision=precision), 
+                                tothebottom(Pos(get_pos(o).x + get_dim(s).wi, get_pos(o).y), solution; precision=precision))
             end
 
             if orientation == :Parallel
@@ -380,8 +433,8 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
 
                 # add new corners
                 push!(toadd, 
-                                totheleft(Pos(get_pos(o).x, get_pos(o).y + get_dim(s).wi), solution), 
-                                tothebottom(Pos(get_pos(o).x + get_dim(s).le, get_pos(o).y), solution))
+                                totheleft(Pos(get_pos(o).x, get_pos(o).y + get_dim(s).wi), solution; precision=precision), 
+                                tothebottom(Pos(get_pos(o).x + get_dim(s).le, get_pos(o).y), solution; precision=precision))
             end
 
             # remove corner
@@ -395,12 +448,12 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
             #     end
             
             # end
-            
-            # update projected corners that are intersected by the newly placed stack
+            to_upd = []
+            # update projected corners that intersect with the newly placed stack
             for o in corners
-                if greatertol(get_pos(o).x, get_pos(solution[i]).x + get_dim(solution[i]).le)
-                    break
-                end
+                # if greatertol(get_pos(o).x, get_pos(solution[i]).x + get_dim(solution[i]).le)
+                #     break
+                # end
                 if is_projected(o) && is_intersected(o, solution[i])
                     push!(to_upd, o)
                 end
@@ -408,8 +461,8 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
             for o in to_upd
                 upd!(corners, o, solution[i])
             end
-            push!(torem, covered...)
-            ## It is not enough! Consider the following example:
+            push!(torem, filter(x -> !is_projected(x), covered)...)
+            ## Consider the following example:
             """
             ____________________________________
             +---------+
@@ -464,7 +517,7 @@ function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, lo
         sort!(instance, by=p -> (supplier_order(p[2]), supplier_dock_order(p[2]), plant_dock_order(p[2])))
     end
 
-    corners = [Pos(0, 0)]
+    corners = AbstractPos[Pos(0, 0)]
     solution = Dict{Integer, AbstractStack}()
     # torem = Pos[]
     # toadd = Pos[]
