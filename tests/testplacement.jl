@@ -530,6 +530,72 @@ end
         @test corners == [Pos(1, 0), Pos(2, 5)]
 
 
+        p = ProjectedPos(Pos(3, 0), Pos(3, 6), :Vertical)
+
+        corners = [Pos(1, 0), p, Pos(4, 5)]
+        stacks = [
+            Stack(Pos(0, 0), Dim(11, 1)),
+            Stack(Pos(0, 1), Dim(10, 0.3)),
+            Stack(Pos(2, 1.3), Dim(8, 0.4)),
+            Stack(Pos(1.5, 3), Dim(11, 0.2)),
+            ]
+        for s in stacks
+            upd!(corners, p, s)
+        end
+
+        @test corners == [Pos(1, 0), ProjectedPos(Pos(3, 3.2), Pos(3, 6), :Vertical), Pos(4, 5)]
+
+
+
+        p = ProjectedPos(Pos(3, 0), Pos(3, 6), :Vertical)
+
+        corners = [Pos(1, 0), p, Pos(4, 5)]
+        stacks = [
+            Stack(Pos(1.5, 3), Dim(11, 0.2)),
+            Stack(Pos(2, 1.3), Dim(8, 0.4)),
+            Stack(Pos(0, 1), Dim(10, 0.3)),
+            Stack(Pos(0, 0), Dim(11, 1)),
+            ]
+        """
+        4                             :
+                                      :
+                                      :
+                                      :
+                       1--------------?------------------------------------...
+        3              1--------------:------------------------------------...
+                                      :
+                                      :
+                                      :
+                                      :
+        2                             :
+                                      :
+                                      :
+                                      :
+                                      :
+        1                             :
+                                      :
+                                      :
+                                      :
+                                      :
+        0.5                           :
+                                      :
+                                      :
+                                      :
+                                      :
+        0         1    .    2         X         4
+        """
+
+
+        
+        for s in stacks
+            if is_intersected(p, s; verbose=true)
+                upd!(corners, p, s)
+            end
+        end
+
+        @test corners == [Pos(1, 0), ProjectedPos(Pos(3, 3.2), Pos(3, 6), :Vertical), Pos(4, 5)]
+
+
 
     end
 

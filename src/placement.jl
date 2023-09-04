@@ -64,9 +64,23 @@ function set_pos!(propos::ProjectedPos, pos::Pos)
     propos.p[] = pos
 end
 
-function is_intersected(pos::ProjectedPos, s::AbstractStack; precision=3)
-    return  overlapY(get_pos(pos), Dim(10.0^-precision, 10.0^-precision), get_pos(s), get_dim(s); precision=precision) &&
-            overlapX(get_pos(pos), Dim(10.0^-precision, 10.0^-precision), get_pos(s), get_dim(s); precision=precision) 
+function is_intersected(pos::ProjectedPos, s::AbstractStack; precision=3, verbose=false)
+
+    
+    projdim = missing
+    if get_orientation(pos) == :Vertical
+        projdim = Dim(10.0^-precision, max(10.0^-precision, get_origin(pos).y - get_pos(pos).y))
+    elseif get_orientation(pos) == :Horizontal
+        projdim = Dim(max(10.0^-precision, get_origin(pos).x - get_pos(pos).x), 10.0^-precision)
+    end
+    
+    if verbose
+        println()
+        println("Overlap Y: ", overlapY(get_pos(pos), projdim, get_pos(s), get_dim(s); precision=precision))
+        println("Overlap X: ", overlapX(get_pos(pos), projdim, get_pos(s), get_dim(s); precision=precision))
+    end
+    return  overlapY(get_pos(pos), projdim, get_pos(s), get_dim(s); precision=precision) &&
+            overlapX(get_pos(pos), projdim, get_pos(s), get_dim(s); precision=precision) 
 end
 
 
@@ -533,7 +547,12 @@ function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, lo
         torem, toadd = placestack!(solution, W, i, s, corners; precision=precision, loading_order=loading_order)
         if verbose
             println("About to place stack n. $i, $s")
-            println("\tAvailable corners: $corners")
+            if length(corners) > 10
+                println("\t10 first Available corners: $(corners[begin:10])")
+            else
+                println("\tAvailable corners: $corners")
+
+            end
             println("\t$i : $(solution[i]) was placed and added the new corners: $toadd")
             println("\tIt covered the following corners: $torem")
         end
