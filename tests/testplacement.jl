@@ -468,22 +468,22 @@ end
 
 @testset "ProjectedPos" begin
     @testset "is_projected" begin
-        @test is_projected(ProjectedPos(Pos(0, 0), Pos(5, 0), :Vertical))
+        @test is_projected(ProjectedPos(Pos(5, 0), Pos(5, 5), :Vertical))
         @test !is_projected(Pos(0, 5))
     end
 
     @testset "set_pos!(::ProjectedPos)" begin
-        p = ProjectedPos(Pos(0, 0), Pos(0, 0), :Vertical)
-        set_pos!(p, Pos(5, 5))
-        @test p == ProjectedPos(Pos(5, 5), Pos(0, 0), :Vertical)
+        p = ProjectedPos(Pos(0, 0), Pos(0, 7), :Vertical)
+        set_pos!(p, Pos(0, 5))
+        @test p == ProjectedPos(Pos(0, 5), Pos(0, 7), :Vertical)
 
-        p = ProjectedPos(Pos(9, 1), Pos(0, 0), :Vertical)
-        set_pos!(p, Pos(1.0, 5.9))
-        @test p == ProjectedPos(Pos(1.0, 5.9), Pos(0, 0), :Vertical)
+        p = ProjectedPos(Pos(9, 1), Pos(9, 8), :Vertical)
+        set_pos!(p, Pos(9, 5.9))
+        @test p == ProjectedPos(Pos(9, 5.9), Pos(9, 8), :Vertical)
 
-        p = ProjectedPos(Pos(2, 2.0), Pos(0, 0), :Horizontal)
-        set_pos!(p, Pos(50.0, 5))
-        @test p == ProjectedPos(Pos(50.0, 5), Pos(0, 0), :Horizontal)
+        p = ProjectedPos(Pos(40.0, 100.0), Pos(50.0, 100.0), :Horizontal)
+        set_pos!(p, Pos(25.0, 100.0))
+        @test p == ProjectedPos(Pos(25.0, 100.0), Pos(50.0, 100.0), :Horizontal)
 
     end
 
@@ -586,7 +586,7 @@ end
         """
 
 
-        
+
         for s in stacks
             if is_intersected(p, s; verbose=true)
                 upd!(corners, p, s)
@@ -595,6 +595,60 @@ end
 
         @test corners == [Pos(1, 0), ProjectedPos(Pos(3, 3.2), Pos(3, 6), :Vertical), Pos(4, 5)]
 
+
+
+    end
+
+    @testset "intersections" begin
+        # upd_intersection!(to_add, c::ProjectedPos, allprojected::Vector{ProjectedPos})
+
+        to_add = []
+
+        c = ProjectedPos(Pos(5, 0), Pos(5, 5), :Vertical)
+
+        allprojected = [
+            ProjectedPos(Pos(0, 1), Pos(7, 1), :Horizontal),
+            ProjectedPos(Pos(0, 7), Pos(7, 7), :Horizontal),
+            ProjectedPos(Pos(0, 2), Pos(7, 2), :Horizontal),
+            ProjectedPos(Pos(0, 3), Pos(7, 3), :Horizontal),
+            ProjectedPos(Pos(7, 0), Pos(7, 3), :Vertical),
+        ]
+
+        upd_intersection!(to_add, c, allprojected; verbose=false)
+
+        @test to_add == [Pos(5, 1), Pos(5, 2), Pos(5, 3)]
+
+
+        to_add = []
+
+        c = ProjectedPos(Pos(0, 5), Pos(5, 5), :Horizontal)
+
+        allprojected = [
+            ProjectedPos(Pos(1, 0), Pos(1, 7), :Vertical),
+            ProjectedPos(Pos(7, 0), Pos(7, 7), :Vertical),
+            ProjectedPos(Pos(2, 0), Pos(2, 7), :Vertical),
+            ProjectedPos(Pos(3, 0), Pos(3, 7), :Vertical),
+            ProjectedPos(Pos(0, 7), Pos(3, 7), :Horizontal),
+        ]
+
+        upd_intersection!(to_add, c, allprojected)
+
+        @test to_add == [Pos(1, 5), Pos(2, 5), Pos(3, 5)]
+
+
+
+
+        to_add = []
+
+        c = ProjectedPos(Pos(222.5523, 97.3241), Pos(320.1685, 97.3241), :Horizontal)
+
+        allprojected = [
+            ProjectedPos(Pos(293.8116, 96.6831), Pos(293.8116, 97.46255), :Vertical),
+        ]
+
+        upd_intersection!(to_add, c, allprojected)
+
+        @test to_add == [Pos(293.8116, 97.3241)]
 
 
     end
@@ -783,7 +837,8 @@ end
 
 @testset "collision function" begin
     
-    r = Dict(1 => Stack(Pos(0, 1), Dim(5, 1)), 2 => Stack(Pos(7, 0), Dim(2, 2)))
+    r = Dict(1 => Stack(Pos(0, 1), Dim(5, 1)),
+    2 => Stack(Pos(7, 0), Dim(2, 2)))
     
     """
 

@@ -32,6 +32,11 @@ struct ProjectedPos <: AbstractPos
         if !(orientation in [:Horizontal, :Vertical])
             throw(ArgumentError("orientation field should be either :Horizontal or :Vertical.\nGot $orientation"))
         end
+        if orientation == :Vertical && get_pos(p).x != get_pos(origin).x
+            throw(ArgumentError("Vertical projected position and origin don't have same x.\n$p\n$origin"))
+        elseif orientation == :Horizontal && get_pos(p).y != get_pos(origin).y
+            throw(ArgumentError("Horizontal projected position and origin don't have same y.\n$p\n$origin"))
+        end
         new(Ref(p), origin, orientation)
     end
 
@@ -64,23 +69,47 @@ function set_pos!(propos::ProjectedPos, pos::Pos)
     propos.p[] = pos
 end
 
-function is_intersected(pos::ProjectedPos, s::AbstractStack; precision=3, verbose=false)
-
-    
+function dummy_dim(pos::ProjectedPos; precision=3)
     projdim = missing
     if get_orientation(pos) == :Vertical
         projdim = Dim(10.0^-precision, max(10.0^-precision, get_origin(pos).y - get_pos(pos).y))
     elseif get_orientation(pos) == :Horizontal
         projdim = Dim(max(10.0^-precision, get_origin(pos).x - get_pos(pos).x), 10.0^-precision)
     end
+    return projdim
+end
+
+function is_intersected(pos::ProjectedPos, s::AbstractStack; precision=3, verbose=false)
+
+    
+    projdim = dummy_dim(pos; precision=precision)
     
     if verbose
         println()
         println("Overlap Y: ", overlapY(get_pos(pos), projdim, get_pos(s), get_dim(s); precision=precision))
         println("Overlap X: ", overlapX(get_pos(pos), projdim, get_pos(s), get_dim(s); precision=precision))
     end
-    return  overlapY(get_pos(pos), projdim, get_pos(s), get_dim(s); precision=precision) &&
-            overlapX(get_pos(pos), projdim, get_pos(s), get_dim(s); precision=precision) 
+    return  is_intersected(get_pos(pos), projdim, get_pos(s), get_dim(s); precision=precision, verbose=verbose)
+end
+
+function is_intersected(p1::ProjectedPos, p2::ProjectedPos; precision=3, verbose=false)
+
+    projdim1 = dummy_dim(p1; precision=precision)
+
+    projdim2 = dummy_dim(p2; precision=precision)
+    
+    # if verbose
+    #     println()
+    #     println("Overlap Y: ", overlapY(get_pos(pos), projdim, get_pos(s), get_dim(s); precision=precision))
+    #     println("Overlap X: ", overlapX(get_pos(pos), projdim, get_pos(s), get_dim(s); precision=precision))
+    # end
+    return  is_intersected(get_pos(p1), projdim1, get_pos(p2), projdim2; precision=precision, verbose=verbose)
+end
+
+function is_intersected(pos1::Pos, dim1::Dim, pos2::Pos, dim2::Dim; precision=3, verbose=false)
+    
+    return  overlapY(pos1, dim1, pos2, dim2; precision=precision) &&
+            overlapX(pos1, dim1, pos2, dim2; precision=precision)
 end
 
 
@@ -290,11 +319,11 @@ function tothebottom(pos::Pos, solution; precision=3)
 end
 
 """
-    coveredcorners(corners, o, le, wi; precision=3, verbose=false)
+    coveredcorners(corners::Vector{<:AbstractPos}, o::Pos, le, wi; precision=3, verbose=false)
 
 Remove corners covered by provided stack at position o.
 """
-function coveredcorners(corners::Vector{<:AbstractPos}, o, le, wi; precision=3, verbose=false)
+function coveredcorners(corners::Vector{<:AbstractPos}, o::Pos, le, wi; precision=3, verbose=false)
     torem = AbstractPos[]
     for o2 in corners
         if leqtol(o.x, get_pos(o2).x, precision) && lessertol(get_pos(o2).x, o.x + le, precision) && leqtol(o.y, get_pos(o2).y, precision) && lessertol(get_pos(o2).y, o.y + wi, precision)
@@ -358,6 +387,36 @@ function can_be_placed(solution, o::Pos, s::Stack, W, orientation::Symbol; preci
     
 end
 
+function upd_intersection!(to_add, c::ProjectedPos, allprojected::Vector{ProjectedPos}; verbose=false)
+    # for each projected pos
+    for p in allprojected
+        # check if orthogonal
+        # check if there is intersection with c
+        if verbose
+            println(p)
+            println("get_orientation($c) != get_orientation($p) ", get_orientation(c) != get_orientation(p))
+            println("s_intersected($c, $p) ", is_intersected(c, p))
+        end
+        if get_orientation(c) != get_orientation(p) && is_intersected(c, p)
+        # if yes, add a new corner to to_add at the intersection
+            if get_orientation(c) == :Vertical
+                if verbose
+                    println(Pos(get_pos(c).x, get_pos(p).y))
+                end
+                push!(to_add, Pos(get_pos(c).x, get_pos(p).y))
+            elseif get_orientation(c) == :Horizontal
+                if verbose
+                    println(Pos(get_pos(p).x, get_pos(c).y))
+                end
+                push!(to_add, Pos(get_pos(p).x, get_pos(c).y))
+            else
+                error("Unknown orientation: $(get_orientation(c))")
+            end
+        end
+    end
+    return
+end
+
 
 """
     placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
@@ -373,6 +432,7 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
     if verbose
         println("Placing s=$s")
     end
+
     # For each corner potentially available
     for o in corners
         if verbose
@@ -451,11 +511,22 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
                                 tothebottom(Pos(get_pos(o).x + get_dim(s).le, get_pos(o).y), solution; precision=precision))
             end
 
+
+
+            # compute projected corner intersection and add new corners
+            allprojected = filter(x -> is_projected(x), corners)
+            toaddprojected = filter(x -> is_projected(x), toadd)
+            for c in toaddprojected
+                upd_intersection!(toadd, c, convert(Vector{ProjectedPos}, allprojected))
+            end
+
             # remove corner
             push!(torem, o)
             
             # remove covered corners
             covered = coveredcorners(corners, get_pos(o), get_dim(solution[i]).le, get_dim(solution[i]).wi; precision)
+
+
             # for o2 in corners
             #     if leqtol(get_pos(o).x, o2.x, precision) && lessertol(o2.x, get_pos(o).x + get_dim(s).le, precision) && leqtol(get_pos(o).y, o2.y, precision) && lessertol(o2.x, get_pos(o).y + get_dim(s).wi, precision)
             #         push!(torem, o2)
@@ -548,7 +619,9 @@ function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, lo
         if verbose
             println("About to place stack n. $i, $s")
             if length(corners) > 10
-                println("\t10 first Available corners: $(corners[begin:10])")
+                # find the position chosen and show neighbor positions
+                proxy = first(filter(w -> get_pos(solution[i]).x - get_pos(corners[w]).x < 1, 1:length(corners)))
+                println("\t10 first Available corners: $(corners[max(proxy-5, 1):min(length(corners), proxy+5)])")
             else
                 println("\tAvailable corners: $corners")
 
