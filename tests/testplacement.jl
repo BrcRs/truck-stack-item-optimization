@@ -501,6 +501,11 @@ end
         p = ProjectedPos(Pos(0, 0), Pos(10, 0), :Horizontal)
         @test !is_intersected(p, Stack(Pos(0, 1), Dim(1, 1)))
 
+
+        p =  ProjectedPos(Pos(0, 0), Pos(0, 10), :Vertical)
+        @test is_intersected(p, Stack(Pos(0, 0), Dim(1, 1)))
+
+
     end
 
     @testset "upd!(corners, o::ProjectedPos, s::AbstractStack; precision=3)" begin
@@ -594,6 +599,23 @@ end
         end
 
         @test corners == [Pos(1, 0), ProjectedPos(Pos(3, 3.2), Pos(3, 6), :Vertical), Pos(4, 5)]
+
+
+        p = ProjectedPos(Pos(5, 0), Pos(5, 5), :Vertical)
+
+        corners = [p, Pos(7, 10)]
+        stacks = [
+            Stack(Pos(0, 5), Dim(5, 5)),
+            Stack(Pos(5, 0), Dim(5, 2)),
+
+            ]
+        for s in stacks
+            if is_intersected(p, s; verbose=false)
+                upd!(corners, p, s; verbose=true)
+            end
+        end
+
+        @test corners == [ProjectedPos(Pos(5, 2), Pos(5, 5), :Vertical), Pos(7, 10)]
 
 
 

@@ -116,26 +116,37 @@ end
 get_dim(s::Stack) = s.dim
 get_pos(s::Stack) = s.pos
 
-function upd!(corners, o::ProjectedPos, s::AbstractStack; precision=3)
+function upd!(corners, o::ProjectedPos, s::AbstractStack; precision=3, verbose=false)
     if get_orientation(o) == :Vertical
         # if the top of the stack is higher than the origin, the whole projected
         # corner is covered, thus we must delete it
+
+        if verbose
+            println("Stack $s")
+            println("greatertol(get_pos(s).y + get_dim(s).wi, get_origin(o).y, precision)")
+            println("greatertol($(get_pos(s).y) + $(get_dim(s).wi), $(get_origin(o).y), $precision) = ", greatertol(get_pos(s).y + get_dim(s).wi, get_origin(o).y, precision))
+            println()
+        end
+
         if greatertol(get_pos(s).y + get_dim(s).wi, get_origin(o).y, precision)
             filter!(x -> x != o, corners)
-            return
+        else
+            # else, give it the value of the height of the top of the stack
+            set_pos!(o, Pos(get_pos(o).x, get_pos(s).y + get_dim(s).wi))
         end
-        # else, give it the value of the height of the top of the stack
-        set_pos!(o, Pos(get_pos(o).x, get_pos(s).y + get_dim(s).wi))
+
     elseif get_orientation(o) == :Horizontal
+
         if greatertol(get_pos(s).x + get_dim(s).le, get_origin(o).x, precision)
             filter!(x -> x != o, corners)
-            return
+        else
+            set_pos!(o, Pos(get_pos(s).x + get_dim(s).le, get_pos(o).y))
         end
-        set_pos!(o, Pos(get_pos(s).x + get_dim(s).le, get_pos(o).y))
 
     else
         throw(ArgumentError("Unknown orientation \"$orientation\""))
     end
+
     return
 end
 
@@ -520,9 +531,10 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
                 upd_intersection!(toadd, c, convert(Vector{ProjectedPos}, allprojected))
             end
 
-            # remove corner
-            push!(torem, o)
-            
+            # remove corner UNLESS IT IS A PROJECTED CORNER
+            if !is_projected(o)
+                push!(torem, o)
+            end
             # remove covered corners
             covered = coveredcorners(corners, get_pos(o), get_dim(solution[i]).le, get_dim(solution[i]).wi; precision)
 
@@ -618,10 +630,10 @@ function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, lo
         torem, toadd = placestack!(solution, W, i, s, corners; precision=precision, loading_order=loading_order)
         if verbose
             println("About to place stack n. $i, $s")
-            if length(corners) > 10
+            if length(corners) > 20
                 # find the position chosen and show neighbor positions
                 proxy = first(filter(w -> get_pos(solution[i]).x - get_pos(corners[w]).x < 1, 1:length(corners)))
-                println("\t10 first Available corners: $(corners[max(proxy-5, 1):min(length(corners), proxy+5)])")
+                println("\t20 Available corners: $(corners[max(proxy-10, 1):min(length(corners), proxy+10)])")
             else
                 println("\tAvailable corners: $corners")
 
