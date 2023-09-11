@@ -193,39 +193,6 @@ function outofbound(pos, dim, W; precision=3)
     return greatertol(pos.y + dim.wi, W, precision)
 end
 
-"""Given a position, find the most to the left available position without 
-overlapping a placed stack."""
-function totheleft(pos::Pos, solution; precision=3)
-    # Find all stacks overlapping on y axis and with x < pos.x
-    boxesleft = findboxesleft(pos, Dim(10.0^-precision, 10.0^-precision), solution; precision=precision)
-
-    # Find the stack which extends the most to the right
-    rightsides = [get_pos(solution[k]).x + get_dim(solution[k]).le for k in boxesleft]
-    leftbound = isempty(rightsides) ? 0 : max(rightsides...)    
-
-    # return the Pos with x position as the right side of the stack
-    return eqtol(leftbound, get_pos(pos).x, precision) ? 
-                    Pos(get_pos(pos).x, get_pos(pos).y) : 
-       ProjectedPos(Pos(leftbound,      get_pos(pos).y), get_pos(pos), :Horizontal)
-end
-
-
-"""Given a position, find the most to the bottom available position without 
-overlapping a placed stack."""
-function tothebottom(pos::Pos, solution; precision=3)
-    # Find all stacks overlapping on x axis and with y < pos.y
-    boxesbot = findboxesbelow(pos, Dim(10.0^-precision, 10.0^-precision), solution; precision)
-
-    # Find the stack which extends the most to the top
-    topsides = [get_pos(solution[k]).y + get_dim(solution[k]).wi for k in boxesbot]
-    botbound = isempty(topsides) ? 0 : max(topsides...)    
-
-    # return the Pos with y position as the top side of the stack
-    return eqtol(botbound, pos.y, precision) ? 
-                    Pos(pos.x, pos.y) :
-       ProjectedPos(Pos(pos.x, botbound), pos, :Vertical)
-end
-
 """
     coveredcorners(corners::Vector{<:AbstractPos}, o::Pos, le, wi; precision=3, verbose=false)
 

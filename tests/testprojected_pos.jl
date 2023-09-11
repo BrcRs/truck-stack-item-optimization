@@ -21,6 +21,152 @@ end
 
 end
 
+
+@testset "totheleft" begin
+    """
+    +---+
+    | 1 |
+    +---p
+    """
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(1.0, 0.0)
+    @test totheleft(p, solution; precision=3) == Pos(1.0, 0.0)
+
+    """
+    +---+   
+    | 1 |   
+    +---+   p
+    """
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(2.0, 0.0)
+    @test totheleft(p, solution; precision=3) == ProjectedPos(Pos(1.0, 0.0), p, :Horizontal)
+
+    """
+    +---+   
+    | 1 |   p
+    +---+   
+    """
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(2.0, 0.5)
+    @test totheleft(p, solution; precision=3) == ProjectedPos(Pos(1.0, 0.5), p, :Horizontal)
+
+    """
+    +---+   p
+    | 1 |   
+    +---+   
+    """
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(2.0, 1)
+    @test totheleft(p, solution; precision=3) == ProjectedPos(Pos(0.0, 1.0), p, :Horizontal)
+
+    """
+    p    +---+
+         | 1 |   
+         +---+   
+    """
+    solution = Dict(1 => Stack(Pos(1, 0), Dim(1, 1)))
+    p = Pos(0.0, 1)
+    @test totheleft(p, solution; precision=3) == Pos(0.0, 1.0)
+
+    """
+         +---+
+         | 1 |   
+    p    +---+   
+    """
+    solution = Dict(1 => Stack(Pos(1, 0), Dim(1, 1)))
+    p = Pos(0.0, 0.0)
+    @test totheleft(p, solution; precision=3) == Pos(0.0, 0.0)
+
+
+    solution = Dict(1 => Stack(Pos(0, 5.58863), Dim(0.140078, 2.72428)))
+    p = Pos(97.2757, 7.53424)
+    @test totheleft(p, solution; precision=3) == ProjectedPos(Pos(0.140078, 7.53424), p, :Horizontal)
+
+
+end
+
+
+@testset "tothebottom" begin
+    """
+    +---+
+    | 1 |
+    +---p
+    """
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(1.0, 0.0)
+    @test tothebottom(p, solution; precision=3) == Pos(1.0, 0.0)
+
+    """
+    +---+   
+    | 1 |   
+    +---+   p
+    """
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(2.0, 0.0)
+    @test tothebottom(p, solution; precision=3) == Pos(2.0, 0.0)
+
+    """
+    +---+   
+    | 1 |   p
+    +---+   
+    """
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(2.0, 0.5)
+    @test tothebottom(p, solution; precision=3) == ProjectedPos(Pos(2.0, 0), p, :Vertical)
+
+    """
+    +---+   p
+    | 1 |   
+    +---+   
+    """
+    solution = Dict(1 => Stack(Pos(0, 0), Dim(1, 1)))
+    p = Pos(2.0, 1)
+    @test tothebottom(p, solution; precision=3) == ProjectedPos(Pos(2.0, 0.0), p, :Vertical)
+
+    """
+    p    +---+
+         | 1 |   
+         +---+   
+    """
+    solution = Dict(1 => Stack(Pos(1, 0), Dim(1, 1)))
+    p = Pos(0.0, 1)
+    @test tothebottom(p, solution; precision=3) == ProjectedPos(Pos(0.0, 0.0), p, :Vertical)
+
+    """
+         +---+
+         | 1 |   
+    p    +---+   
+    """
+    solution = Dict(1 => Stack(Pos(1, 0), Dim(1, 1)))
+    p = Pos(0.0, 0.0)
+    @test tothebottom(p, solution; precision=3) == Pos(0.0, 0.0)
+
+
+    """
+         +---+
+         | 1 |   
+         +---+p
+
+    """
+    solution = Dict(1 => Stack(Pos(1, 1), Dim(1, 1)))
+    p = Pos(2.0, 1.0)
+    @test tothebottom(p, solution; precision=3) == ProjectedPos(Pos(2.0, 0.0), p, :Vertical)
+
+    """
+         p
+
+         +---+
+         | 1 |   
+         +---+
+
+    """
+    solution = Dict(1 => Stack(Pos(1, 1), Dim(1, 1)))
+    p = Pos(1.0, 3.0)
+    @test tothebottom(p, solution; precision=3) == ProjectedPos(Pos(1.0, 2.0), p, :Vertical)
+
+end
+
+
 @testset "is_intersected" begin
     p = ProjectedPos(Pos(0, 0), Pos(0, 10), :Vertical)
     @test is_intersected(p, Stack(Pos(0, 0), Dim(1, 1)))

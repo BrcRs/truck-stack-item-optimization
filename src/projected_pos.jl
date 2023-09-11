@@ -1,18 +1,5 @@
 include("placement.jl")
 
-is_projected(pos::AbstractPos) = typeof(pos) == ProjectedPos
-
-
-function dummy_dim(pos::ProjectedPos; precision=3)
-    projdim = missing
-    if get_orientation(pos) == :Vertical
-        projdim = Dim(10.0^-precision, max(10.0^-precision, get_origin(pos).y - get_pos(pos).y))
-    elseif get_orientation(pos) == :Horizontal
-        projdim = Dim(max(10.0^-precision, get_origin(pos).x - get_pos(pos).x), 10.0^-precision)
-    end
-    return projdim
-end
-
 struct ProjectedPos <: AbstractPos
     p::Base.RefValue{Pos}
     origin::Pos
@@ -51,6 +38,54 @@ function set_pos!(propos::ProjectedPos, pos::Pos)
     # get_pos(propos) = pos
     propos.p[] = pos
 end
+
+is_projected(pos::AbstractPos) = typeof(pos) == ProjectedPos
+
+
+function dummy_dim(pos::ProjectedPos; precision=3)
+    projdim = missing
+    if get_orientation(pos) == :Vertical
+        projdim = Dim(10.0^-precision, max(10.0^-precision, get_origin(pos).y - get_pos(pos).y))
+    elseif get_orientation(pos) == :Horizontal
+        projdim = Dim(max(10.0^-precision, get_origin(pos).x - get_pos(pos).x), 10.0^-precision)
+    end
+    return projdim
+end
+
+
+"""Given a position, find the most to the left available position without 
+overlapping a placed stack."""
+function totheleft(pos::Pos, solution; precision=3)
+    # Find all stacks overlapping on y axis and with x < pos.x
+    boxesleft = findboxesleft(pos, Dim(10.0^-precision, 10.0^-precision), solution; precision=precision)
+
+    # Find the stack which extends the most to the right
+    rightsides = [get_pos(solution[k]).x + get_dim(solution[k]).le for k in boxesleft]
+    leftbound = isempty(rightsides) ? 0 : max(rightsides...)    
+
+    # return the Pos with x position as the right side of the stack
+    return eqtol(leftbound, get_pos(pos).x, precision) ? 
+                    Pos(get_pos(pos).x, get_pos(pos).y) : 
+       ProjectedPos(Pos(leftbound,      get_pos(pos).y), get_pos(pos), :Horizontal)
+end
+
+
+"""Given a position, find the most to the bottom available position without 
+overlapping a placed stack."""
+function tothebottom(pos::Pos, solution; precision=3)
+    # Find all stacks overlapping on x axis and with y < pos.y
+    boxesbot = findboxesbelow(pos, Dim(10.0^-precision, 10.0^-precision), solution; precision)
+
+    # Find the stack which extends the most to the top
+    topsides = [get_pos(solution[k]).y + get_dim(solution[k]).wi for k in boxesbot]
+    botbound = isempty(topsides) ? 0 : max(topsides...)    
+
+    # return the Pos with y position as the top side of the stack
+    return eqtol(botbound, pos.y, precision) ? 
+                    Pos(pos.x, pos.y) :
+       ProjectedPos(Pos(pos.x, botbound), pos, :Vertical)
+end
+
 
 
 function is_intersected(pos::ProjectedPos, s::AbstractStack; precision=3, verbose=false)
