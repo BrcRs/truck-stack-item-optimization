@@ -9,6 +9,14 @@ using Test
     include("testplacement.jl")
 end
 
+@testset "testprojected_pos.jl" begin
+    include("testprojected_pos.jl")
+end
+
+@testset "testplacement_algorithms.jl" begin
+    include("testplacement_algorithms.jl")
+end
+
 @testset "testordered_stacks.jl" begin
     include("testordered_stacks.jl")
 end
