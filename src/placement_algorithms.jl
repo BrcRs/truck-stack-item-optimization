@@ -430,23 +430,67 @@ Example to create the configuration above:
 And then fuse the right rectangles.
 
 """
-function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3)
+function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3, mk_squares=false, alpha=0.9, gamma=3)
     # println("========")
     rectangles = Dict(0 => Stack(Pos(0, 0), Dim(L, W)))
     nb_rects = 1
     movingL = [L/2]
     movingW = [W/2]
 
+    listL = nothing
+    listW = nothing
+    if mk_squares
+        listL = [(i, v) for (i, v) in enumerate(0:L/10:L)]
+        listW = [(i, v) for (i, v) in enumerate(0:W/10:W)]
+        weightsL = [0 for i in listL]
+        weightsW = [0 for i in listW]
+        shuffle!(listL)
+        shuffle!(listW)
+    end
+    step = alpha
+    
     # cut phase
     for i in 1:cutiter
         # println("---")
         # choose random cut orientation
-        orientation = rand(["x", "y"])
-        cut = 0.0
 
+        
+        orientation = nothing
+        if mk_squares
+            orient_proba = L / (L + W)
+            display(orient_proba)
+            if rand() <= orient_proba
+                orientation = "x"
+            else
+                orientation = "y"
+            end
+        else
+            orientation = rand(["x", "y"])
+        end
+
+        cut = nothing
         # choose a random cut coordinate
         if orientation == "x"
-            cut = rand() * L
+            if mk_squares
+                # Select zone with lowest count
+                listL = sort(listL; by=k -> weightsL[k[1]])
+                lowest_k = listL[convert(Int64, max(1, min(round(randexp()), L)))]
+                display(weightsL)
+                display(listL)
+                display(lowest_k)
+                println()
+                # draw random cut around location
+                cut = rand() * L * step^gamma + (1-step^gamma) * lowest_k[2]
+
+                # narrow down step
+                step *= alpha
+
+                # update weights
+                weightsL[lowest_k[1]] += 1
+
+            else
+                cut = rand() * L
+            end
             # cut = rand(1:L) # DEBUG
 
             # The following works
@@ -454,7 +498,26 @@ function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3)
             # push!(movingL, 1.5 * cut, 0.5 * cut)
             # filter!(x -> x != cut, movingL)
         else
-            cut = rand() * W
+            if mk_squares
+                # Select zone with lowest count
+                listW = sort(listW; by=k -> weightsW[k[1]])
+                lowest_k = listW[convert(Int64, max(1, min(round(randexp()), W)))]
+                display(weightsW)
+                display(listW)
+                display(lowest_k)
+                println()
+                # draw random cut around location
+                cut = rand() * W * step^gamma + (1-step^gamma) * lowest_k[2]
+
+                # narrow down step
+                step *= alpha
+
+                # update weights
+                weightsW[lowest_k[1]] += 1
+
+            else
+                cut = rand() * W
+            end
             # cut = rand(1:W) # DEBUG
 
             # The following works
