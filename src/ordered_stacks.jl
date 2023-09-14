@@ -1,6 +1,9 @@
 include("placement.jl")
 
-struct OrderedStack <: AbstractStack
+abstract type AbstractOrderedStack <: AbstractStack end
+
+
+struct OrderedStack <: AbstractOrderedStack
     stack::Stack
     supplier_order::Integer
     supplier_dock_order::Integer
