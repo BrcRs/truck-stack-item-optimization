@@ -76,7 +76,7 @@ function Base.copy(it::Item)
         it.supplier_dock,
         it.inventory_cost,
         it.nesting_height,
-        it.product # no deep copy necessary
+        it.product # no deep copy necessary because immutable
         )
 end
 
@@ -97,6 +97,16 @@ mutable struct ItemizedStack <: AbstractOrderedStack
         new(ordered_stack, items, weight, height, forced_orientation)
     end
 
+end
+
+function Base.copy(is::ItemizedStack)
+    return ItemizedStack(
+        is.ordered_stack,
+        copy(is.items),
+        is.weight,
+        is.height,
+        is.forced_orientation
+        )
 end
 
 function ItemizedStack(supplier_order, supplier_dock_order, plant_dock_order)
@@ -131,26 +141,18 @@ Base.hash(a::ItemizedStack, h::UInt) = hash(a.items, hash(:ItemizedStack, h))
 Base.:(==)(a::ItemizedStack, b::ItemizedStack) = isequal(a.items, b.items)
 # Base.length(a::ItemizedStack) = length(a.items)
 
+
+
 get_dim(is::ItemizedStack) = get_dim(is.ordered_stack)
 
 function get_height(is::ItemizedStack)
-    if isnothing(is.height)
-        height = sum(get_height(i) for i in is.items) - get_nesting_height(is.items[1])
-        set_height!(is, height)
-        return height
-    else
-        return is.height
-    end
+
+    return is.height
 end
 
 function get_weight(is::ItemizedStack)
-    if isnothing(is.weight)
-        weight = sum(get_weight(i) for i in is.items)
-        set_weight!(is, weight)
-        return weight
-    else
-        return is.weight
-    end
+
+    return is.weight
 end
 
 get_stackability_code(is::ItemizedStack) = isempty(is.items) ? nothing : get_stackability_code(is.items[1])
@@ -171,7 +173,7 @@ get_pos(is::ItemizedStack) = isnothing(is.ordered_stack) ? nothing : get_pos(is.
 get_dim(is::ItemizedStack) = isnothing(is.ordered_stack) ? nothing : get_dim(is.ordered_stack)
 
 Base.show(io::IO, is::ItemizedStack) = 
-    print(io, "ItemizedStack(Pos(", round(get_pos(is).x, digits=3), ", ", round(get_pos(is).y, digits=3), "), Dim(", round(get_dim(is).le, digits=3), ", ", round(get_dim(is).wi, digits=3), "), orders=", get_orders(is), ", ", length(get_items(is)), " item(s), height=", round(get_height(is), digits=3), ", weight=", round(get_weight(is), digits=3), ", ", get_forced_orientation(is), ")")
+    print(io, "ItemizedStack(", readable(get_pos(is)), ", ", readable(get_dim(is)), ", orders=", get_orders(is), ", ", length(get_items(is)), " item(s), height=", round(get_height(is), digits=3), ", weight=", round(get_weight(is), digits=3), ", ", get_forced_orientation(is), ")")
 
 function add_item!(is::ItemizedStack, it::Item)
     push!(get_items(is), it)
@@ -259,7 +261,7 @@ end
 function rand_products(min_products, max_products, max_weight, max_items_per_stack)
     products = Vector{Product}(undef, rand(min_products:max_products))
     for i in 1:length(products)
-        products[i] = Product(rand(1:max_items_per_stack), rand() * max_weight * max_items_per_stack)
+        products[i] = Product(rand(1:max_items_per_stack), rand() * max_weight)
     end
     return products
 end
@@ -444,6 +446,7 @@ function itemize(stacks::Dict{Integer, Stack}, H)::Vector{Pair{Integer, Itemized
         rand_subset_nb = rand(0:n)
         # create stack
         stack = ItemizedStack(os)
+        wsum = 0
         for i in 1:n
             orientation = nothing
             if i <= rand_subset_nb
@@ -453,6 +456,7 @@ function itemize(stacks::Dict{Integer, Stack}, H)::Vector{Pair{Integer, Itemized
                 # free
                 orientation = :Free
             end
+            wsum += w
             item = Item(
                 time_window,
                 dim,
@@ -467,10 +471,9 @@ function itemize(stacks::Dict{Integer, Stack}, H)::Vector{Pair{Integer, Itemized
                 inv_cost,
                 nesting_height,
                 p)
-            
-            add_item!(stack, item)
+            add_item!(stack, copy(item))
         end
-        push!(istacks, Pair(i, stack))
+        push!(istacks, Pair(i, copy(stack)))
     end
     return istacks
 end

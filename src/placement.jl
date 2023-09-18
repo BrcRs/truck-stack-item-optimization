@@ -9,6 +9,12 @@ using AutoHashEquals
     Dim(a, b) = a == 0 || b == 0 ? throw(ArgumentError("Dim($a, $b): Dimension can't be of size zero")) : new(a, b)
 end
 
+function readable(d::Dim)
+    return string("Dim(", round(d.le, digits=3),", ", round(d.wi, digits=3),")")
+end
+
+readable(a::Nothing) = "nothing"
+
 # function Dim(le, wi)
 #     if le == 0 || wi == 0
 #         throw(ArgumentError("Dimension can't be of size zero"))
@@ -21,6 +27,10 @@ abstract type AbstractPos end
 @auto_hash_equals struct Pos <: AbstractPos
     x
     y
+end
+
+function readable(p::Pos)
+    return string("Pos(", round(p.x, digits=3),", ", round(p.y, digits=3),")")
 end
 
 abstract type AbstractStack end

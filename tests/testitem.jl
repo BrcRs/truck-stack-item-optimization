@@ -14,7 +14,7 @@ include("../src/item.jl")
     W = 10
     plant = randstring(8)
 
-    products = rand_products(min_products, max_products, max_w, max_items_per_stack)
+    products = rand_products(min_products, max_products, max_w * max_items_per_stack, max_items_per_stack)
 
     items = rand_items(
         n, 
@@ -41,7 +41,7 @@ end
     L = 100
     W = 10
     plant = randstring(8)
-    products = rand_products(min_products, max_products, max_w, max_items_per_stack)
+    products = rand_products(min_products, max_products, max_w * max_items_per_stack, max_items_per_stack)
 
     items = rand_items(
         n, 
@@ -287,6 +287,46 @@ end
 
 end
 
+@testset "adding weight to stack" begin
+    mystack = ItemizedStack(1, 1, 1)
+
+    item = Item(
+    (earliest=1, latest=10),
+    Dim(1, 1),
+    # pos::Pos,
+    1,
+    10, # weight
+    "",
+    :Free,
+    "",
+    "",
+    "",
+    "",
+    1,
+    0,
+    Product(1000, 1000)
+    )
+
+    @test get_weight(mystack) == 0
+    
+    add_item!(mystack, copy(item))
+    
+    @test get_weight(mystack) == 10
+    
+    
+    add_item!(mystack, copy(item))
+
+    @test get_weight(mystack) == 20
+    
+    add_item!(mystack, copy(item))
+    
+    @test get_weight(mystack) == 30
+    
+    add_item!(mystack, copy(item))
+    
+    @test get_weight(mystack) == 40
+end
+
 @testset "make_stacks1" begin
 
     n = 100
@@ -298,7 +338,7 @@ end
     L = 100
     W = 10
     plant = randstring(8)
-    products = rand_products(min_products, max_products, max_w, max_items_per_stack)
+    products = rand_products(min_products, max_products, max_w * max_items_per_stack, max_items_per_stack)
 
     items = rand_items(
         n, 
@@ -387,7 +427,7 @@ end
     L = 1000
     W = 1000
     plant = randstring(8)
-    products = rand_products(min_products, max_products, max_w, max_items_per_stack)
+    products = rand_products(min_products, max_products, max_w * max_items_per_stack, max_items_per_stack)
 
     items = rand_items(
         n, 
