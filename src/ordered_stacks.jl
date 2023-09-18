@@ -4,7 +4,7 @@ abstract type AbstractOrderedStack <: AbstractStack end
 
 
 struct OrderedStack <: AbstractOrderedStack
-    stack::Stack
+    stack::Union{Nothing, Stack}
     supplier_order::Integer
     supplier_dock_order::Integer
     plant_dock_order::Integer
@@ -14,11 +14,17 @@ function OrderedStack(pos::Pos, dim::Dim, supplier_order, supplier_dock_order, p
     OrderedStack(Stack(pos, dim), supplier_order, supplier_dock_order, plant_dock_order)
 end
 
-get_dim(s::OrderedStack) = get_dim(s.stack)
-get_pos(s::OrderedStack) = get_pos(s.stack)
+function OrderedStack(supplier_order, supplier_dock_order, plant_dock_order)
+    OrderedStack(nothing, supplier_order, supplier_dock_order, plant_dock_order)
+end
+
+get_dim(s::OrderedStack) = isnothing(s.stack) ? nothing : get_dim(s.stack)
+get_pos(s::OrderedStack) = isnothing(s.stack) ? nothing : get_pos(s.stack)
 supplier_order(s::OrderedStack) = s.supplier_order
 supplier_dock_order(s::OrderedStack) = s.supplier_dock_order
 plant_dock_order(s::OrderedStack) = s.plant_dock_order
+
+get_orders(s::OrderedStack) = (supplier_order(s), supplier_dock_order(s), plant_dock_order(s))
 
 function can_be_placed(solution, o, s::OrderedStack, W, orientation::Symbol; precision=3, verbose=false)
     condition = missing

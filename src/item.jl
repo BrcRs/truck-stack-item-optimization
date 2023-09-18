@@ -9,8 +9,8 @@ include("ordered_stacks.jl")
     max_weight::Real
 end
 
-get_max_stackability(p::Product) = p.get_max_stackability
-get_max_weight(p::Product) = p.get_max_weight
+get_max_stackability(p::Product) = p.max_stackability
+get_max_weight(p::Product) = p.max_weight
 
 @auto_hash_equals struct Item
     time_window::@NamedTuple{earliest::Any, latest::Any}
@@ -42,25 +42,80 @@ get_supplier_dock(i::Item) = i.supplier_dock
 get_inventory_cost(i::Item) = i.inventory_cost
 get_nesting_height(i::Item) = i.nesting_height
 get_product(i::Item) = i.product
+get_max_weight(i::Item) = get_max_weight(i.product)
+get_max_stackability(i::Item) = get_max_stackability(i.product)
 
+Base.show(io::IO, it::Item) = 
+    print(io, 
+        "Item(timing=", (get_time_window(it).earliest, get_time_window(it).latest), 
+        ", Dim(", round(get_dim(it).le, digits=3), ", ", round(get_dim(it).wi, digits=3), 
+        "), h=", round(get_height(it), digits=3), 
+        ", w=", round(get_weight(it), digits=3), 
+        ", stackability=", get_stackability_code(it),
+        ", forient.=", get_forced_orientation(it),
+        ", plant&dock=", get_plant(it), " ", get_plant_dock(it),
+        # ", plant dock=", get_plant_dock(it),
+        ", supp.&dock=", get_supplier(it), " ", get_supplier_dock(it),
+        # ", supp. dock=", get_supplier_dock(it),
+        ", cost=", get_inventory_cost(it),
+        ", nesting=", get_nesting_height(it),
+        ", ", get_product(it))
 
-@auto_hash_equals struct ItemizedStack <: AbstractOrderedStack
+function Base.copy(it::Item)
+    return Item(
+        it.time_window,
+        it.dim,
+        # pos::Pos,
+        it.height,
+        it.weight,
+        it.stackability_code,
+        it.forced_orientation,
+        it.plant,
+        it.plant_dock,
+        it.supplier,
+        it.supplier_dock,
+        it.inventory_cost,
+        it.nesting_height,
+        it.product # no deep copy necessary
+        )
+end
+
+mutable struct ItemizedStack <: AbstractOrderedStack
     ordered_stack::OrderedStack
     items::Vector{Item}
-    weight::Union{Nothing, Real}
-    height::Union{Nothing, Real}
+    weight::Real
+    height::Real
+    forced_orientation::Symbol
+    function ItemizedStack(ordered_stack::OrderedStack,
+        items::Vector{Item},
+        weight::Real,
+        height::Real,
+        forced_orientation::Symbol)
+        if !(forced_orientation in [:Free, :Horizontal, :Vertical])
+            throw(ArgumentError("forced_orientation should be taken among [:Free, :Horizontal, :Vertical].\nGot $forced_orientation."))
+        end
+        new(ordered_stack, items, weight, height, forced_orientation)
+    end
 
 end
 
 function ItemizedStack(supplier_order, supplier_dock_order, plant_dock_order)
+    return ItemizedStack(supplier_order, supplier_dock_order, plant_dock_order, :Free)
+end
+
+function ItemizedStack(supplier_order, supplier_dock_order, plant_dock_order, forced_orientation)
     return ItemizedStack(
-        OrderedStack(nothing, nothing, supplier_order, supplier_dock_order, plant_dock_order),
+        OrderedStack(supplier_order, supplier_dock_order, plant_dock_order),
         Item[],
-        nothing,
-        nothing
+        0.0,
+        0.0,
+        forced_orientation
         )
 end
 
+Base.hash(a::ItemizedStack, h::UInt) = hash(a.items, hash(:ItemizedStack, h))
+Base.:(==)(a::ItemizedStack, b::ItemizedStack) = isequal(a.items, b.items)
+# Base.length(a::ItemizedStack) = length(a.items)
 
 get_dim(is::ItemizedStack) = get_dim(is.ordered_stack)
 
@@ -84,33 +139,57 @@ function get_weight(is::ItemizedStack)
     end
 end
 
-get_stackability_code(is::ItemizedStack) = isempty(items) ? missing : get_stackability_code(items[1])
-get_plant(is::ItemizedStack) =  isempty(items) ? missing : get_plant(items[1])
-get_plant_dock(is::ItemizedStack) = isempty(items) ? missing : get_plant_dock(items[1])
-get_supplier(is::ItemizedStack) = isempty(items) ? missing : get_supplier(items[1])
-get_supplier_dock(is::ItemizedStack) =isempty(items) ? missing : get_supplier_dock(items[1])
+get_stackability_code(is::ItemizedStack) = isempty(is.items) ? nothing : get_stackability_code(is.items[1])
+get_plant(is::ItemizedStack) =  isempty(is.items) ? nothing : get_plant(is.items[1])
+get_plant_dock(is::ItemizedStack) = isempty(is.items) ? nothing : get_plant_dock(is.items[1])
+get_supplier(is::ItemizedStack) = isempty(is.items) ? nothing : get_supplier(is.items[1])
+get_supplier_dock(is::ItemizedStack) =isempty(is.items) ? nothing : get_supplier_dock(is.items[1])
 get_items(is::ItemizedStack) = is.items
+get_orders(is::ItemizedStack) = get_orders(is.ordered_stack)
+get_forced_orientation(is::ItemizedStack) = is.forced_orientation
 
-get_pos(is::ItemizedStack) = get_pos(is.ordered_stack)
-get_dim(is::ItemizedStack) = get_dim(is.ordered_stack)
+get_pos(is::ItemizedStack) = isnothing(is.ordered_stack) ? nothing : get_pos(is.ordered_stack)
+get_dim(is::ItemizedStack) = isnothing(is.ordered_stack) ? nothing : get_dim(is.ordered_stack)
+
+Base.show(io::IO, is::ItemizedStack) = 
+    print(io, "ItemizedStack(", get_pos(is), ", ", get_dim(is), ", orders=", get_orders(is), ", ", length(get_items(is)), " item(s), height=", round(get_height(is), digits=3), ", weight=", round(get_weight(is), digits=3), ", ", get_forced_orientation(is), ")")
 
 function add_item!(is::ItemizedStack, it::Item)
     push!(get_items(is), it)
     is.weight += get_weight(it)
     is.height += get_height(it)
     # update forced orientation
-    if get_orientation(it) != :Free
-        if get_orientation(it) != get_orientation(is) && get_orientation(is) != :Free
+    if get_forced_orientation(it) != :Free
+        if get_forced_orientation(it) != get_forced_orientation(is) && get_forced_orientation(is) != :Free
             error("Stack already has a different forced orientation")
         end
-        is.orientation = get_orientation(it)
+        is.forced_orientation = get_forced_orientation(it)
     end
     if length(get_items(is)) == 1
         is.height += get_nesting_height(it)
         # update stackability code
-        is.stackability_code = get_stackability_code(it)
+        # is.stackability_code = get_stackability_code(it) # no need
         # upd dims
     end
+end
+
+function valid_stack(s, it, max_height)
+    return get_height(s) + get_height(it) <= max_height && 
+    get_weight(s) + get_weight(it) <= get_max_weight(it) && 
+    length(get_items(s)) <= get_max_stackability(it) &&
+    (get_forced_orientation(it) == :Free || get_forced_orientation(s) == :Free || get_forced_orientation(s) == get_forced_orientation(it))
+end
+
+function is_candidate_stack(stack, it)
+    return get_supplier(stack) == get_supplier(it) && 
+    get_supplier_dock(stack) == get_supplier_dock(it) && 
+    get_plant_dock(stack) == get_plant_dock(it) && 
+    get_stackability_code(stack) == get_stackability_code(it)
+end
+
+function find_candidate_stacks(it, stacks)
+    return filter(
+        x -> is_candidate_stack(x, it), stacks)
 end
 
 """
@@ -130,39 +209,32 @@ function make_stacks(items::Vector{Item}, plant_dock_orders, supplier_orders, su
         end
         candidate_stacks = stacks[get_supplier(it)]
         
-        filter!(
-            x -> get_supplier(x) == get_supplier(it) && 
-            get_supplier_dock(x) == get_supplier_dock(it) && 
-            get_plant_dock(x) == get_plant_dock(it) && 
-            get_stackability_code(x) == get_stackability_code(it), candidate_stacks)
+        candidate_stacks = find_candidate_stacks(it, candidate_stacks)
 
-            found_stack = false
-            # Choose a stack if height is ok and check max_weight too + max stackability
-            # also check orientation
-            for s in candidate_stacks
-                if get_height(s) + get_height(it) <= max_height && 
-                    get_weight(s) + get_weight(it) <= max_weight(it) && 
-                    length(get_items(s)) <= get_max_stackability(it) &&
-                    (get_orientation(s) == :Free || get_orientation(s) == get_orientation(it))
-                    add_item!(s, it)
-                    found_stack = true
-                    break
-                end
+        found_stack = false
+        # Choose a stack if height is ok and check max_weight too + max stackability
+        # also check orientation
+        for s in candidate_stacks
+            if valid_stack(s, it, max_height)
+                add_item!(s, it)
+                found_stack = true
+                break
             end
-            if !found_stack
-                # create new stack
-                # with good load orders
-                newstack = ItemizedStack(
-                    supplier_orders[get_supplier(it)], 
-                    supplier_dock_orders[get_supplier_dock(it)],
-                    plant_dock_orders[get_plant_dock(it)]
-                    )
-                add_item!(newstack, it)
+        end
+        if !found_stack
+            # create new stack
+            # with good load orders
+            newstack = ItemizedStack(
+                supplier_orders[get_supplier(it)], 
+                supplier_dock_orders[get_supplier(it)][get_supplier_dock(it)],
+                plant_dock_orders[get_plant_dock(it)]
+                )
+            add_item!(newstack, it)
 
-                push!(stacks[get_supplier(it)], newstack) 
-            end
+            push!(stacks[get_supplier(it)], newstack) 
+        end
     end
-
+    return stacks
 end
 
 function rand_items(n, min_products, max_products, max_height, max_weight, max_items_per_stack, L, W, plant; min_dim=0.001)
@@ -196,7 +268,7 @@ function rand_items(n, min_products, max_products, max_height, max_weight, max_i
     # create a random number of products
     products = Vector{Product}(undef, rand(min_products:max_products))
     for i in 1:length(products)
-        products[i] = Product(rand(1:max_items_per_stack), rand() * max_weight)
+        products[i] = Product(rand(1:max_items_per_stack), rand() * max_weight * max_items_per_stack)
     end
 
     plant_docks = []
