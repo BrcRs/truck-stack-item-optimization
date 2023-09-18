@@ -707,13 +707,7 @@ end
 end
 
 
-function testoutofbound(r, W)
-    @testset "out of bound" begin
-        for k in keys(r)
-            @test !outofbound(r[k].pos, r[k].dim, W)
-        end
-    end
-end
+
 
 @testset "coveredcorners" begin
     corners = [Pos(0, 0), Pos(5, 5), Pos(5, 0), Pos(0, 5), Pos(1, 1), Pos(0, 6), Pos(6, 0)]

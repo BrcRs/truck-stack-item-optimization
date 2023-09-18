@@ -14,13 +14,13 @@ include("../src/item.jl")
     W = 10
     plant = randstring(8)
 
+    products = rand_products(min_products, max_products, max_w, max_items_per_stack)
+
     items = rand_items(
         n, 
-        min_products, 
-        max_products, 
+        products,
         max_h, 
         max_w, 
-        max_items_per_stack, 
         L, 
         W, 
         plant; 
@@ -41,14 +41,13 @@ end
     L = 100
     W = 10
     plant = randstring(8)
+    products = rand_products(min_products, max_products, max_w, max_items_per_stack)
 
     items = rand_items(
         n, 
-        min_products, 
-        max_products, 
+        products,
         max_h, 
         max_w, 
-        max_items_per_stack, 
         L, 
         W, 
         plant; 
@@ -299,14 +298,13 @@ end
     L = 100
     W = 10
     plant = randstring(8)
+    products = rand_products(min_products, max_products, max_w, max_items_per_stack)
 
     items = rand_items(
         n, 
-        min_products, 
-        max_products, 
+        products, 
         max_h, 
         max_w, 
-        max_items_per_stack, 
         L, 
         W, 
         plant; 
@@ -389,14 +387,13 @@ end
     L = 1000
     W = 1000
     plant = randstring(8)
+    products = rand_products(min_products, max_products, max_w, max_items_per_stack)
 
     items = rand_items(
         n, 
-        min_products, 
-        max_products, 
+        products, 
         max_h, 
         max_w, 
-        max_items_per_stack, 
         L, 
         W, 
         plant; 
@@ -466,3 +463,4 @@ end
     @test m == n
 
 end
+

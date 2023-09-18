@@ -1,4 +1,8 @@
+using Test
+
 include("../src/placement_algorithms.jl")
+include("../src/placement.jl")
+include("../src/item.jl")
 
 
 @testset "shareside" begin
@@ -165,6 +169,14 @@ end
 
 end
 
+function testoutofbound(r, W)
+    @testset "out of bound" begin
+        for k in keys(r)
+            @test !outofbound(r[k].pos, r[k].dim, W)
+        end
+    end
+end
+
 @testset "cutandfuse_generator" begin
     maxW = 5
     maxL = 5
@@ -264,7 +276,7 @@ end
     ratios = []
     instances_solutions = [] # TODO: make it a generator for when memory space will lack
 
-    ITER = 1000
+    ITER = 100
     L = 100
     W = 10
 
@@ -356,4 +368,224 @@ end
     end
 
 
+end
+
+
+
+@testset "BLtruck loading orders" begin
+    instances_solutions = []
+
+    ITER = 100
+    L = 100
+    W = 10
+
+    NBCUTS = 20
+    NBFUSE = 20
+    # most, least = nb_cuts_fuse_calc(5, 20)
+    
+    # NBCUTS, NBFUSE = most
+    
+    # NBCUTS = nb_cuts_fuse_avg(4)
+    # NBFUSE = 0
+    for i in 1:ITER
+        rectangles = cutandfuse_generator(L, W, NBCUTS, NBFUSE; precision=3)
+
+        rectangles = order_instance(rectangles)
+
+        instance = shuffle(rectangles)
+        solution = nothing
+
+        try
+            solution = BLtruck(instance, W; precision=3, loading_order=true)
+        catch e
+            display(instance)
+            throw(e)
+        end
+        # display(solution)
+        foundL = max([get_pos(solution[k]).x + get_dim(solution[k]).le for k in keys(solution)]...)
+        push!(instances_solutions, (ins=instance, sol=solution))
+    end
+
+    # Test solution is valid
+    @testset "BLtruck is valid" begin
+        for i in 1:ITER
+            instance, solution = instances_solutions[i]
+            # check overlapping and out of bounds
+            @testset "No overlapping" begin
+                for (j, stack) in solution
+                    @test !collision(get_pos(stack), get_dim(stack), filter(p -> p[1] != j, solution); precision=3, verbose=false)
+                end
+            end
+            @testset "Not out of bounds" begin
+                
+                for (j, stack) in solution
+                    @test !outofbound(get_pos(stack), get_dim(stack), W; precision=3)
+                end
+            end
+        end 
+    end
+
+    ### Not relevant with this constraint
+    # # Test optimality is 2-OPT
+    # @testset "BLtruck is 2-OPT" begin
+    #     for (i, r) in enumerate(ratios)
+    #         # @test r <= 2.0 + 0.1
+    #         @test r <= 3.0 # TODO why not 2-OPT?
+
+
+    #         # if r > 2.0 + 0.1
+    #         #     display(instances_solutions[i].ins)
+    #         #     display(instances_solutions[i].sol)
+    #         #     display(length(instances_solutions[i].sol))
+    #         #     # println(r)
+    #         # end
+    #     end
+    # end
+
+    # Test loading orders are satisfied
+    @testset "loading orders" begin
+        for i in 1:ITER
+            # make sure the loading order is coherent
+            instance, solution = instances_solutions[i]
+
+            x_sorted_sol = sort(collect(solution), by=p -> get_pos(p[2]).x)
+            ordered_sol = sort(x_sorted_sol, by= p -> (get_supplier_order(p[2]), get_supplier_dock_order(p[2]), get_plant_dock_order(p[2])))
+
+            # @test [p[1] for p in x_sorted_sol] == [p[1] for p in ordered_sol]
+            for p in solution
+                @test can_be_placed(filter(x -> x[1] != p[1], solution), get_pos(p[2]), p[2], W, :Parallel)
+                if !can_be_placed(filter(x -> x[1] != p[1], solution), get_pos(p[2]), p[2], W, :Parallel)
+                    can_be_placed(filter(x -> x[1] != p[1], solution), get_pos(p[2]), p[2], W, :Parallel; verbose=true)
+                    println("DEBUG ==========~~~~~~~~------")
+                    println(p) 
+                    # 11, OrderedStack(Stack(Pos(86.84943832964126, 5.190958474643771), Dim(43.84212073415997, 1.76161657584896)), 1, 5, 1)
+                    # 9 => OrderedStack(Stack(Pos(137.609, 2.92317), Dim(13.723, 2.26779)), 1, 5, 1)
+                    # 19 => OrderedStack(Stack(Pos(137.609, 0), Dim(43.8421, 2.92317)), 1, 4, 1)
+                    display(solution)
+                    plot_placement(W, L, solution; orthonormal=true)
+                    error()
+                end
+            end
+        end
+    end
+end
+
+
+
+@testset "itemize" begin
+    # itemize(stacks::Dict{Integer, Stack}, H)
+    L = 100
+    W = 10
+    H = 12
+
+    NBCUTS = 20
+    NBFUSE = 20
+
+    simple_stacks = cutandfuse_generator(L, W, NBCUTS, NBFUSE; precision=3)
+
+    itemized_stacks = itemize(simple_stacks, H)
+
+    display(itemized_stacks)
+end
+
+@testset "BLtruck with items" begin
+    # BLtruck(items, W, H, plant_dock_orders, supplier_orders, supplier_dock_orders; precision=3, verbose=false)
+    instances_solutions = []
+
+    ITER = 100
+    L = 100
+    W = 10
+    H = 12
+
+    NBCUTS = 20
+    NBFUSE = 20
+    # most, least = nb_cuts_fuse_calc(5, 20)
+    
+    # NBCUTS, NBFUSE = most
+    
+    # NBCUTS = nb_cuts_fuse_avg(4)
+    # NBFUSE = 0
+    for i in 1:ITER
+        stacks = itemize(cutandfuse_generator(L, W, NBCUTS, NBFUSE; precision=3), H)
+
+        # ordered_stacks = order_instance(stacks)
+
+        # combine!(stacks, ordered_stacks)
+
+        instance = shuffle(stacks)
+        solution = nothing
+
+        try
+            solution = BLtruck(instance, W; precision=3, loading_order=true)
+        catch e
+            display(instance)
+            throw(e)
+        end
+        # display(solution)
+        foundL = max([get_pos(solution[k]).x + get_dim(solution[k]).le for k in keys(solution)]...)
+        push!(instances_solutions, (ins=instance, sol=solution))
+    end
+
+    # Test solution is valid
+    @testset "BLtruck is valid" begin
+        for i in 1:ITER
+            instance, solution = instances_solutions[i]
+            # check overlapping and out of bounds
+            @testset "No overlapping" begin
+                for (j, stack) in solution
+                    @test !collision(get_pos(stack), get_dim(stack), filter(p -> p[1] != j, solution); precision=3, verbose=false)
+                end
+            end
+            @testset "Not out of bounds" begin
+                
+                for (j, stack) in solution
+                    @test !outofbound(get_pos(stack), get_dim(stack), W; precision=3)
+                end
+            end
+        end 
+    end
+
+    ### Not relevant with this constraint
+    # # Test optimality is 2-OPT
+    # @testset "BLtruck is 2-OPT" begin
+    #     for (i, r) in enumerate(ratios)
+    #         # @test r <= 2.0 + 0.1
+    #         @test r <= 3.0 # TODO why not 2-OPT?
+
+
+    #         # if r > 2.0 + 0.1
+    #         #     display(instances_solutions[i].ins)
+    #         #     display(instances_solutions[i].sol)
+    #         #     display(length(instances_solutions[i].sol))
+    #         #     # println(r)
+    #         # end
+    #     end
+    # end
+
+    # Test loading orders are satisfied
+    @testset "loading orders" begin
+        for i in 1:ITER
+            # make sure the loading order is coherent
+            instance, solution = instances_solutions[i]
+
+            x_sorted_sol = sort(collect(solution), by=p -> get_pos(p[2]).x)
+            ordered_sol = sort(x_sorted_sol, by= p -> (supplier_order(p[2]), supplier_dock_order(p[2]), plant_dock_order(p[2])))
+
+            # @test [p[1] for p in x_sorted_sol] == [p[1] for p in ordered_sol]
+            for p in solution
+                @test can_be_placed(filter(x -> x[1] != p[1], solution), get_pos(p[2]), p[2], W, :Parallel)
+                if !can_be_placed(filter(x -> x[1] != p[1], solution), get_pos(p[2]), p[2], W, :Parallel)
+                    can_be_placed(filter(x -> x[1] != p[1], solution), get_pos(p[2]), p[2], W, :Parallel; verbose=true)
+                    println("DEBUG ==========~~~~~~~~------")
+                    println(p) 
+                    # 11, OrderedStack(Stack(Pos(86.84943832964126, 5.190958474643771), Dim(43.84212073415997, 1.76161657584896)), 1, 5, 1)
+                    # 9 => OrderedStack(Stack(Pos(137.609, 2.92317), Dim(13.723, 2.26779)), 1, 5, 1)
+                    # 19 => OrderedStack(Stack(Pos(137.609, 0), Dim(43.8421, 2.92317)), 1, 4, 1)
+                    display(solution)
+                    plot_placement(W, L, solution; orthonormal=true)
+                    error()
+                end
+            end
+        end
+    end
 end

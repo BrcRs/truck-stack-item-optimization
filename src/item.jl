@@ -81,7 +81,7 @@ function Base.copy(it::Item)
 end
 
 mutable struct ItemizedStack <: AbstractOrderedStack
-    ordered_stack::OrderedStack
+    ordered_stack::Union{Nothing, OrderedStack}
     items::Vector{Item}
     weight::Real
     height::Real
@@ -103,14 +103,28 @@ function ItemizedStack(supplier_order, supplier_dock_order, plant_dock_order)
     return ItemizedStack(supplier_order, supplier_dock_order, plant_dock_order, :Free)
 end
 
-function ItemizedStack(supplier_order, supplier_dock_order, plant_dock_order, forced_orientation)
+
+function ItemizedStack(os::OrderedStack)
+    return ItemizedStack(os, :Free)
+end
+
+function ItemizedStack(os::OrderedStack, forced_orientation)
     return ItemizedStack(
-        OrderedStack(supplier_order, supplier_dock_order, plant_dock_order),
+        os,
         Item[],
         0.0,
         0.0,
         forced_orientation
         )
+end
+
+function ItemizedStack(supplier_order, supplier_dock_order, plant_dock_order, forced_orientation)
+    return ItemizedStack(OrderedStack(supplier_order, supplier_dock_order, plant_dock_order), forced_orientation)
+end
+
+function set_ordered_stack!(is::ItemizedStack, os::OrderedStack)
+    is.ordered_stack = os
+    return
 end
 
 Base.hash(a::ItemizedStack, h::UInt) = hash(a.items, hash(:ItemizedStack, h))
@@ -145,6 +159,11 @@ get_plant_dock(is::ItemizedStack) = isempty(is.items) ? nothing : get_plant_dock
 get_supplier(is::ItemizedStack) = isempty(is.items) ? nothing : get_supplier(is.items[1])
 get_supplier_dock(is::ItemizedStack) =isempty(is.items) ? nothing : get_supplier_dock(is.items[1])
 get_items(is::ItemizedStack) = is.items
+
+get_supplier_order(is::ItemizedStack) = isnothing(is.ordered_stack) ? error("Can't get supplier order of nothing") : get_supplier_order(is.ordered_stack)
+get_supplier_dock_order(is::ItemizedStack) = isnothing(is.ordered_stack) ? error("Can't get supplier dock order of nothing") : get_supplier_dock_order(is.ordered_stack)
+get_plant_dock_order(is::ItemizedStack) = isnothing(is.ordered_stack) ? error("Can't get plant dock order of nothing") : get_plant_dock_order(is.ordered_stack)
+
 get_orders(is::ItemizedStack) = get_orders(is.ordered_stack)
 get_forced_orientation(is::ItemizedStack) = is.forced_orientation
 
@@ -152,7 +171,7 @@ get_pos(is::ItemizedStack) = isnothing(is.ordered_stack) ? nothing : get_pos(is.
 get_dim(is::ItemizedStack) = isnothing(is.ordered_stack) ? nothing : get_dim(is.ordered_stack)
 
 Base.show(io::IO, is::ItemizedStack) = 
-    print(io, "ItemizedStack(", get_pos(is), ", ", get_dim(is), ", orders=", get_orders(is), ", ", length(get_items(is)), " item(s), height=", round(get_height(is), digits=3), ", weight=", round(get_weight(is), digits=3), ", ", get_forced_orientation(is), ")")
+    print(io, "ItemizedStack(Pos(", round(get_pos(is).x, digits=3), ", ", round(get_pos(is).y, digits=3), "), Dim(", round(get_dim(is).le, digits=3), ", ", round(get_dim(is).wi, digits=3), "), orders=", get_orders(is), ", ", length(get_items(is)), " item(s), height=", round(get_height(is), digits=3), ", weight=", round(get_weight(is), digits=3), ", ", get_forced_orientation(is), ")")
 
 function add_item!(is::ItemizedStack, it::Item)
     push!(get_items(is), it)
@@ -237,7 +256,15 @@ function make_stacks(items::Vector{Item}, plant_dock_orders, supplier_orders, su
     return stacks
 end
 
-function rand_items(n, min_products, max_products, max_height, max_weight, max_items_per_stack, L, W, plant; min_dim=0.001)
+function rand_products(min_products, max_products, max_weight, max_items_per_stack)
+    products = Vector{Product}(undef, rand(min_products:max_products))
+    for i in 1:length(products)
+        products[i] = Product(rand(1:max_items_per_stack), rand() * max_weight * max_items_per_stack)
+    end
+    return products
+end
+
+function rand_items(n, products, max_height, max_weight, L, W, plant; min_dim=0.001)
 
     # Product(
     # max_stackability::Integer,
@@ -266,10 +293,10 @@ function rand_items(n, min_products, max_products, max_height, max_weight, max_i
     n_filled = 0
 
     # create a random number of products
-    products = Vector{Product}(undef, rand(min_products:max_products))
-    for i in 1:length(products)
-        products[i] = Product(rand(1:max_items_per_stack), rand() * max_weight * max_items_per_stack)
-    end
+    # products = Vector{Product}(undef, rand(min_products:max_products))
+    # for i in 1:length(products)
+    #     products[i] = Product(rand(1:max_items_per_stack), rand() * max_weight * max_items_per_stack)
+    # end
 
     plant_docks = []
     supplier_docks = Dict() # key: supplier
@@ -344,4 +371,106 @@ function rand_items(n, min_products, max_products, max_height, max_weight, max_i
     # return table
 
     return items
+end
+
+"""
+Assign ordered_stacks to ItemizedStacks
+"""
+function combine!(stacks::Dict{Integer, Stack}, ordered_stacks::Vector{Pair{Integer, OrderedStack}})
+    for (i, os) in ordered_stacks
+        set_ordered_stack!(stacks[i], os)
+    end
+
+    return
+end
+
+
+function itemize(stacks::Dict{Integer, Stack}, H)::Vector{Pair{Integer, ItemizedStack}}
+    ordered_stacks = order_instance(stacks)
+
+    istacks = []
+
+    # create a bunch of products
+    products = rand_products(1, length(stacks), 100.0, 100)
+    stackability_codes = Dict()
+    # for each stack
+    for (i, os) in ordered_stacks
+        # choose a random product
+        p = rand(products)
+
+        # choose a random number of items that satisfies product
+        n = rand(1:get_max_stackability(p))
+        
+        # choose a random weight that satisfies product
+        w = (1 + rand() * (get_max_weight(p) - 1)) / n
+
+        # choose a random nesting height
+        nesting_height = rand([0, rand() * 10])
+
+        # determine height of items
+        item_h = (H - nesting_height) / n
+
+        # assign random orientation between free and orientation of stack
+        stack_orient = get_dim(os).le > get_dim(os).wi ? :Horizontal : :Vertical
+        # forced_orientation = rand([])
+
+        # choose random time window
+        earliest = rand(0:365)
+        
+        time_window = (earliest=earliest, latest=rand(earliest:365))
+
+        # give dim of stack
+        dim = get_dim(os)
+
+        # choose a random stackability code (and store it)
+        stackability_code = nothing
+        if rand() > 0.8
+            candidate_codes = filter(p -> 
+                        (p[2].le == dim.le && p[2].wi == dim.wi) || 
+                        (p[2].le == dim.wi && p[2].wi == dim.le), stackability_codes)
+            if !isempty(candidate_codes)
+                stackability_code = rand(candidate_codes)[1]
+            end
+        end
+        if !isnothing(stackability_code)
+            stackability_code = randstring(8)
+            stackability_codes[stackability_code] = dim
+        end
+        # ignore plant, supplier and dock names
+        # choose random inventory cost
+        inv_cost = 1
+        items = []
+        # create items (with random subset that have forced orientation)
+        rand_subset_nb = rand(0:n)
+        # create stack
+        stack = ItemizedStack(os)
+        for i in 1:n
+            orientation = nothing
+            if i <= rand_subset_nb
+                # forced
+                orientation = stack_orient
+            else
+                # free
+                orientation = :Free
+            end
+            item = Item(
+                time_window,
+                dim,
+                item_h,
+                w,
+                stackability_code,
+                orientation,
+                "",
+                "",
+                "",
+                "",
+                inv_cost,
+                nesting_height,
+                p)
+            
+            add_item!(stack, item)
+        end
+        push!(istacks, Pair(i, stack))
+    end
+    return istacks
 end

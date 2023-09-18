@@ -20,11 +20,18 @@ end
 
 get_dim(s::OrderedStack) = isnothing(s.stack) ? nothing : get_dim(s.stack)
 get_pos(s::OrderedStack) = isnothing(s.stack) ? nothing : get_pos(s.stack)
-supplier_order(s::OrderedStack) = s.supplier_order
-supplier_dock_order(s::OrderedStack) = s.supplier_dock_order
-plant_dock_order(s::OrderedStack) = s.plant_dock_order
+get_supplier_order(s::OrderedStack) = s.supplier_order
+get_supplier_dock_order(s::OrderedStack) = s.supplier_dock_order
+get_plant_dock_order(s::OrderedStack) = s.plant_dock_order
 
-get_orders(s::OrderedStack) = (supplier_order(s), supplier_dock_order(s), plant_dock_order(s))
+get_orders(s::OrderedStack) = (get_supplier_order(s), get_supplier_dock_order(s), get_plant_dock_order(s))
+
+set_stack(os::OrderedStack, s::Stack) = OrderedStack(
+                                                s,
+                                                os.supplier_order,
+                                                os.supplier_dock_order,
+                                                os.plant_dock_order
+                                                )
 
 function can_be_placed(solution, o, s::OrderedStack, W, orientation::Symbol; precision=3, verbose=false)
     condition = missing
@@ -73,7 +80,7 @@ function leq_order(s1, s2)
     end
 end
 
-function order_instance(instance::Dict{T, Stack}) where T <: Integer
+function order_instance(instance::Dict{T, <:AbstractStack})::Vector{Pair{Integer, OrderedStack}} where T <: Integer
 
     # sort stacks by x value
     sorted_instance = sort(collect(instance), by=p -> get_pos(p[2]).x)

@@ -169,12 +169,19 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
     return torem, toadd
 end
 
+
+function BLtruck(items, W, H, plant_dock_orders, supplier_orders, supplier_dock_orders; precision=3, verbose=false)
+    stacks = make_stacks(items, plant_dock_orders, supplier_orders, supplier_dock_orders, H)
+    instance = [Pair(i, s) for (i, s) in enumerate(stacks)]
+    return BLtruck(instance, W; precision=precision, verbose=verbose, loading_order=true, items=true)
+end
+
 """
     BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
 
 Places stacks in a space of width `W` as to minimize to overall length of the solution.
 """
-function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
+function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, loading_order=false, items=false) where {T <: Integer, S <: AbstractStack}
     """Lengths must be greater than widths"""
     # TODO pretreatment?
     """One of the two dimensions must be lesser than W?"""
@@ -183,7 +190,7 @@ function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, lo
     ## If loading orders must be considered
     if loading_order
         # Sort the stacks
-        sort!(instance, by=p -> (supplier_order(p[2]), supplier_dock_order(p[2]), plant_dock_order(p[2])))
+        sort!(instance, by=p -> (get_supplier_order(p[2]), get_supplier_dock_order(p[2]), get_plant_dock_order(p[2])))
     end
 
     corners = AbstractPos[Pos(0, 0)]
@@ -370,7 +377,7 @@ function find_neighbors(rectangles, rectangle)
 
 end
 """
-    cutandfuse_generator(L, W, cutiter, fuseiter, precision=3)
+    cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3, mk_squares=false, alpha=0.9, gamma=3)::Dict{Integer, Stack}
 
 This algorithm works in two phases:
 1. Have a bigger rectangle, and cut it in two new rectangles.
@@ -430,7 +437,7 @@ Example to create the configuration above:
 And then fuse the right rectangles.
 
 """
-function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3, mk_squares=false, alpha=0.9, gamma=3)
+function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3, mk_squares=false, alpha=0.9, gamma=3)::Dict{Integer, Stack}
     # println("========")
     rectangles = Dict(0 => Stack(Pos(0, 0), Dim(L, W)))
     nb_rects = 1
@@ -498,7 +505,7 @@ function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3, mk_
             # push!(movingL, 1.5 * cut, 0.5 * cut)
             # filter!(x -> x != cut, movingL)
         else
-            if mk_squares
+            if mk_squares # TODO factorize with L
                 # Select zone with lowest count
                 listW = sort(listW; by=k -> weightsW[k[1]])
                 lowest_k = listW[convert(Int64, max(1, min(round(randexp()), W)))]
