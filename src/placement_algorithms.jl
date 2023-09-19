@@ -67,9 +67,9 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
                 # Add the stack to this corner in solution
                 solution[i] = loading_order ? 
                                                 OrderedStack(   Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le)), 
-                                                                s.supplier_order, 
-                                                                s.supplier_dock_order, 
-                                                                s.plant_dock_order) : 
+                                                                get_supplier_order(s), 
+                                                                get_supplier_dock_order(s), 
+                                                                get_plant_dock_order(s)) : 
                                                 Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le))
                 
                 # Add new corners
@@ -83,9 +83,9 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
                 # add to solution
                 solution[i] = loading_order ? 
                                                 OrderedStack(   Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).le, get_dim(s).wi)),
-                                                                s.supplier_order, 
-                                                                s.supplier_dock_order, 
-                                                                s.plant_dock_order) : 
+                                                                get_supplier_order(s), 
+                                                                get_supplier_dock_order(s), 
+                                                                get_plant_dock_order(s)) : 
                                                 Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).le, get_dim(s).wi))
 
                 # add new corners

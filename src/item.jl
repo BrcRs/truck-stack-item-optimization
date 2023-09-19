@@ -159,7 +159,8 @@ get_stackability_code(is::ItemizedStack) = isempty(is.items) ? nothing : get_sta
 get_plant(is::ItemizedStack) =  isempty(is.items) ? nothing : get_plant(is.items[1])
 get_plant_dock(is::ItemizedStack) = isempty(is.items) ? nothing : get_plant_dock(is.items[1])
 get_supplier(is::ItemizedStack) = isempty(is.items) ? nothing : get_supplier(is.items[1])
-get_supplier_dock(is::ItemizedStack) =isempty(is.items) ? nothing : get_supplier_dock(is.items[1])
+get_supplier_dock(is::ItemizedStack) = isempty(is.items) ? nothing : get_supplier_dock(is.items[1])
+get_ordered_stack(is::ItemizedStack) = isnothing(is.ordered_stack) ? nothing : is.ordered_stack
 get_items(is::ItemizedStack) = is.items
 
 get_supplier_order(is::ItemizedStack) = isnothing(is.ordered_stack) ? error("Can't get supplier order of nothing") : get_supplier_order(is.ordered_stack)
@@ -192,6 +193,10 @@ function add_item!(is::ItemizedStack, it::Item)
         # is.stackability_code = get_stackability_code(it) # no need
         # upd dims
     end
+end
+
+function can_be_placed(solution, o::Pos, s::ItemizedStack, W, orientation::Symbol; precision=3, verbose=false)
+    return can_be_placed(solution, o, get_ordered_stack(s), W, orientation; precision=precision, verbose=verbose)
 end
 
 function valid_stack(s, it, max_height)

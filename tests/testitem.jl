@@ -3,6 +3,8 @@ using Random
 
 include("../src/item.jl")
 
+println("testitem.jl outputs ---")
+
 @testset "rand_items" begin
     n = 100
     min_products = 1

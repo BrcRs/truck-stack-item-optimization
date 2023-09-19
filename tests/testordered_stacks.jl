@@ -13,7 +13,7 @@ include("../src/placement_visualizer.jl")
 
     res = order_instance(instance)
 
-    sorted_res = sort(res, by= p -> (supplier_order(p[2]), supplier_dock_order(p[2]), plant_dock_order(p[2])))
+    sorted_res = sort(res, by= p -> (get_supplier_order(p[2]), get_supplier_dock_order(p[2]), get_plant_dock_order(p[2])))
 
     @test res == sorted_res
 
@@ -24,7 +24,7 @@ include("../src/placement_visualizer.jl")
 
     res = order_instance(instance)
 
-    sorted_res = sort(res, by= p -> (supplier_order(p[2]), supplier_dock_order(p[2]), plant_dock_order(p[2])))
+    sorted_res = sort(res, by= p -> (get_supplier_order(p[2]), get_supplier_dock_order(p[2]), get_plant_dock_order(p[2])))
 
 
     @test res == sorted_res

@@ -3,6 +3,7 @@ using Test
 include("../src/placement_algorithms.jl")
 include("../src/placement.jl")
 include("../src/item.jl")
+include("../src/placement_visualizer.jl")
 
 
 @testset "shareside" begin
@@ -519,6 +520,7 @@ end
             solution = BLtruck(instance, W; precision=3, loading_order=true)
         catch e
             display(instance)
+            display(backtrace)
             throw(e)
         end
         # display(solution)
@@ -569,7 +571,7 @@ end
             instance, solution = instances_solutions[i]
 
             x_sorted_sol = sort(collect(solution), by=p -> get_pos(p[2]).x)
-            ordered_sol = sort(x_sorted_sol, by= p -> (supplier_order(p[2]), supplier_dock_order(p[2]), plant_dock_order(p[2])))
+            ordered_sol = sort(x_sorted_sol, by= p -> (get_supplier_order(p[2]), get_supplier_dock_order(p[2]), get_plant_dock_order(p[2])))
 
             # @test [p[1] for p in x_sorted_sol] == [p[1] for p in ordered_sol]
             for p in solution

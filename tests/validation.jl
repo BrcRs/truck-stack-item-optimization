@@ -25,3 +25,7 @@ end
     # include("testplacement_visualizer.jl")
     # Needs manual testing
 end
+
+@testset "testitem.jl" begin
+    include("testitem.jl")
+end

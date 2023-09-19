@@ -51,29 +51,45 @@ function can_be_placed(solution, o, s::OrderedStack, W, orientation::Symbol; pre
             condition *= leq_order(s, stack)
         end
         if verbose
-            println("mingreater_x")
-            display(mingreater_x)
+            println("mingreater_xs")
+            display(mingreater_xs)
             println("condition: $condition")
         end
     else
         condition = true
     end
-    return condition && can_be_placed(solution, o, s.stack, W, orientation; precision)
+    return condition && can_be_placed(solution, o, get_dim(s), W, orientation; precision)
 
 end
 
 """
 Return true if s1 is before s2 or equal priority.
 """
+# function leq_order(s1, s2)
+
+#     if s1.supplier_order < s2.supplier_order
+#         return true
+#     elseif s1.supplier_order == s2.supplier_order && s1.supplier_dock_order < s2.supplier_dock_order
+#         return true
+#     elseif s1.supplier_order == s2.supplier_order && s1.supplier_dock_order == s2.supplier_dock_order && s1.plant_dock_order < s2.plant_dock_order
+#         return true
+#     elseif s1.supplier_order == s2.supplier_order && s1.supplier_dock_order == s2.supplier_dock_order && s1.plant_dock_order == s2.plant_dock_order
+#         return true
+#     else
+#         return false
+#     end
+    
+# end
+
 function leq_order(s1, s2)
 
-    if s1.supplier_order < s2.supplier_order
+    if get_supplier_order(s1) < get_supplier_order(s2)
         return true
-    elseif s1.supplier_order == s2.supplier_order && s1.supplier_dock_order < s2.supplier_dock_order
+    elseif get_supplier_order(s1) == get_supplier_order(s2) && get_supplier_dock_order(s1) < get_supplier_dock_order(s2)
         return true
-    elseif s1.supplier_order == s2.supplier_order && s1.supplier_dock_order == s2.supplier_dock_order && s1.plant_dock_order < s2.plant_dock_order
+    elseif get_supplier_order(s1) == get_supplier_order(s2) && get_supplier_dock_order(s1) == get_supplier_dock_order(s2) && get_plant_dock_order(s1) < get_plant_dock_order(s2)
         return true
-    elseif s1.supplier_order == s2.supplier_order && s1.supplier_dock_order == s2.supplier_dock_order && s1.plant_dock_order == s2.plant_dock_order
+    elseif get_supplier_order(s1) == get_supplier_order(s2) && get_supplier_dock_order(s1) == get_supplier_dock_order(s2) && get_plant_dock_order(s1) == get_plant_dock_order(s2)
         return true
     else
         return false

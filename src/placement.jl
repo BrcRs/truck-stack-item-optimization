@@ -258,15 +258,19 @@ function is_secure(stack, solution; precision=3, verbose=false)
 end
 
 function can_be_placed(solution, o::Pos, s::Stack, W, orientation::Symbol; precision=3, verbose=false)
+    return can_be_placed(solution, o, get_dim(s), W, orientation; precision=precision, verbose=verbose)
+end
+
+function can_be_placed(solution, o::Pos, dim::Dim, W, orientation::Symbol; precision=3, verbose=false)
 
     res = nothing
 
     if orientation == :Perpendicular
-        res = leqtol(o.y + get_dim(s).le, W, precision) && !collision(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision)
+        res = leqtol(o.y + dim.le, W, precision) && !collision(Pos(o.x, o.y), Dim(dim.wi, dim.le), solution; precision)
     elseif orientation == :Parallel
-        res = leqtol(o.y + get_dim(s).wi, W, precision) && !collision(Pos(o.x, o.y), Dim(get_dim(s).le, get_dim(s).wi), solution; precision)
+        res = leqtol(o.y + dim.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(dim.le, dim.wi), solution; precision)
     else
-        throw(ArgumentError("orientation argument should either be :Perpendicular or :Parallel.\nUnkown flag: $orientation"))
+        throw(ArgumentError("orientation argument should either be :Perpendicular or :Parallel.\nUnknown flag: $orientation"))
     end 
     return res
     
