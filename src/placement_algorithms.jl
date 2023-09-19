@@ -2,11 +2,14 @@ include("placement.jl")
 include("projected_pos.jl")
 
 """
-    placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
+    placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vector{<:AbstractPos}; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
 
 Place stack `s` in `solution` in the first available corner in `corners`.
 Placing a stack leads to the creation of 2 new corners added to `toadd`.
+Additional corners are added when two orthogonal projected corners intersect.
 The corner taken is put in a list `torem` of corners to remove.
+
+Specifying `loading_order=true` makes sure OrderedStacks are placed and not standard Stacks.
 """
 function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vector{<:AbstractPos}; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
     torem = AbstractPos[]
@@ -70,7 +73,7 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
                                                                 get_supplier_order(s), 
                                                                 get_supplier_dock_order(s), 
                                                                 get_plant_dock_order(s)) : 
-                                                Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le))
+                                                Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le)) # TODO have a method create new stack or position_stack common to all AbstractStack
                 
                 # Add new corners
                 # corners must be placed as much to the left as possible
@@ -146,7 +149,7 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
             __________O________________________
 
             b is placed after a. It does not cover the O projected corner.
-            Hence, the X projected corner is never added.
+            Hence, the X projected corner remains but must be updated.
             """
 
             # stop iterating over corners
@@ -169,7 +172,10 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
     return torem, toadd
 end
 
+"""
 
+TODO remove since not compatible with how we will deal with weight constraints (add items one by one instead of creating stacks beforehand).
+"""
 function BLtruck(items, W, H, plant_dock_orders, supplier_orders, supplier_dock_orders; precision=3, verbose=false)
     stacks = make_stacks(items, plant_dock_orders, supplier_orders, supplier_dock_orders, H)
     instance = [Pair(i, s) for (i, s) in enumerate(stacks)]
@@ -180,6 +186,9 @@ end
     BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
 
 Places stacks in a space of width `W` as to minimize to overall length of the solution.
+
+If `loading_order=true` is specified, input stacks are sorted by loading order so that the loading orders constraint is satisfied.
+By placing the stacks in order of their loading orders, and due to how the algorithm works, the resulting solution satisfies loading orders.
 """
 function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, loading_order=false, items=false) where {T <: Integer, S <: AbstractStack}
     """Lengths must be greater than widths"""
@@ -379,6 +388,20 @@ end
 """
     cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3, mk_squares=false, alpha=0.9, gamma=3)::Dict{Integer, Stack}
 
+Generate a random instance of a placing problem (composed of simple Stack objects). 
+It works by first dividing the area of the truck randomly on the X and Y axis and 
+then fusing a `fuseiter` number of stacks together to reach complex configurations of solutions.
+
+If `mk_squares=true` is specified, cuts will be made as to harmonize the dimensions of the resulting stacks.
+As cutting iterations go on, the cuts become less and less random and will target 
+areas where fewer cuts have been made until then. `alpha` specifies how fast the 
+transition goes. The closer to 1, the slower. `gamma` also affects the speed at 
+which the transition goes. `gamma=1` will result in a linear transition, while 
+`gamma>1` will result in a transition that will be faster at the beginning and 
+slower as the number of iterations get higher.
+
+# Step by step explanation
+
 This algorithm works in two phases:
 1. Have a bigger rectangle, and cut it in two new rectangles.
 2. Do the step above a number of time for different rectangles
@@ -438,6 +461,9 @@ And then fuse the right rectangles.
 
 """
 function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3, mk_squares=false, alpha=0.9, gamma=3)::Dict{Integer, Stack}
+    if alpha > 1 || alpha < 0
+        throw(ArgumentError("alpha argument should be between 0 and 1."))
+    end
     # println("========")
     rectangles = Dict(0 => Stack(Pos(0, 0), Dim(L, W)))
     nb_rects = 1
@@ -538,13 +564,10 @@ function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3, mk_
         impacted = orientation == "x" ? findboxesabove(Pos(cut, 0), rectangles, precision=precision) :
                                         findboxesright(Pos(0, cut), rectangles, precision=precision)
         
-        # display(rectangles)
-        # println("cut: $cut on $orientation")
-        # println("impacted: $impacted")
+
 
         # For every impacted rectangle:
         for k in impacted
-            # println("-*-")
             # Update rectangle
             """
             ```
@@ -561,29 +584,13 @@ function cutandfuse_generator(L, W, cutiter, fuseiter; precision::Integer=3, mk_
             """
             olddim = Dim(rectangles[k].dim.le, rectangles[k].dim.wi)
             rectangles[k] = cutrectangle(orientation, rectangles[k], cut)
-            # println("rectangle $k becomes $(rectangles[k])")
-            # if orientation == "x"
-            #     # rectangles[k].dim.le = cut - rectangles[k].pos.x 
-            #     # rectangles[k].dim = Dim(cut - rectangles[k].pos.x , rectangles[k].dim.wi)
-            #     rectangles[k] = Stack(rectangles[k].pos, Dim(cut - rectangles[k].pos.x , rectangles[k].dim.wi))
-            # else
-            #     # rectangles[k].dim.wi = cut - rectangles[k].pos.y 
-            #     # rectangles[k].dim = Dim(rectangles[k].dim.le, cut - rectangles[k].pos.y)
-            #     rectangles[k] = Stack(rectangles[k].pos, Dim(rectangles[k].dim.le, cut - rectangles[k].pos.y))
-            # end
 
             # create new formed rectangle only if the cut actually cut the rectangle
             if rectangles[k].dim != olddim
                 nb_rects += 1
                 rectangles[nb_rects] = newrectangle(orientation, rectangles[k], olddim, cut)
             end
-            # println("New rectangle: $(rectangles[nb_rects])")
 
-            # if orientation == "x"
-            #     rectangles[i] = Stack(Pos(cut, rectangles[k].pos.y), Dim(rectangles[k].pos.x + olddim.le - cut, olddim.wi))
-            # else
-            #     rectangles[i] = Stack(Pos(rectangles[k].pos.x, cut), Dim(olddim.le, rectangles[k].pos.y + olddim.wi - cut))
-            # end
         end
     end
 

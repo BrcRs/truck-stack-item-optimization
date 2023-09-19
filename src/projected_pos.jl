@@ -1,5 +1,12 @@
 include("placement.jl")
 
+
+"""
+A ProjectedPos is a position whose origin is not against the ground nor the driver's 
+cabin on the left. Thus, we imagine a line going from the origin to the left if 
+Horizontal or to the ground if Vertical. The actual position (which is "projected") 
+is the most distant position from the origin on the line without anything between it and the origin. 
+"""
 struct ProjectedPos <: AbstractPos
     p::Base.RefValue{Pos}
     origin::Pos
@@ -87,7 +94,12 @@ function tothebottom(pos::Pos, solution; precision=3)
 end
 
 
+"""
+    is_intersected(pos::ProjectedPos, s::AbstractStack; precision=3, verbose=false)
 
+Return if ProjectedPos pos is intersected by s, or in other terms, if s is 
+between pos's origin and pos's projected pos.
+"""
 function is_intersected(pos::ProjectedPos, s::AbstractStack; precision=3, verbose=false)
 
     
@@ -101,6 +113,12 @@ function is_intersected(pos::ProjectedPos, s::AbstractStack; precision=3, verbos
     return  is_intersected(get_pos(pos), projdim, get_pos(s), get_dim(s); precision=precision, verbose=verbose)
 end
 
+"""
+    is_intersected(p1::ProjectedPos, p2::ProjectedPos; precision=3, verbose=false)
+
+Return if ProjectedPos p1 is intersected by p2::ProjectedPos, or in other terms, if p2's line is 
+between p1's origin and p1's projected pos.
+"""
 function is_intersected(p1::ProjectedPos, p2::ProjectedPos; precision=3, verbose=false)
 
     projdim1 = dummy_dim(p1; precision=precision)
@@ -115,6 +133,13 @@ function is_intersected(p1::ProjectedPos, p2::ProjectedPos; precision=3, verbose
     return  is_intersected(get_pos(p1), projdim1, get_pos(p2), projdim2; precision=precision, verbose=verbose)
 end
 
+"""
+
+Update the projected position of o::ProjectedPos in function of intersecting s::AbstractStack.
+If the stack covers the origin, o is removed. Else, we find the most distant 
+position on the line of o without breaking the line (this position is given by s, 
+it is either the y value of its top or the x value of its right side).
+"""
 function upd!(corners, o::ProjectedPos, s::AbstractStack; precision=3, verbose=false)
     if get_orientation(o) == :Vertical
         # if the top of the stack is higher than the origin, the whole projected
@@ -149,7 +174,12 @@ function upd!(corners, o::ProjectedPos, s::AbstractStack; precision=3, verbose=f
     return
 end
 
+"""
+    upd_intersection!(to_add, c::ProjectedPos, allprojected::Vector{ProjectedPos}; verbose=false)
 
+c is a new ProjectedPos. Iterate over all known projectedpos to determine is c 
+intersect any. If yes, then create a new position at the intersection (added to `to_add`).
+"""
 function upd_intersection!(to_add, c::ProjectedPos, allprojected::Vector{ProjectedPos}; verbose=false)
     # for each projected pos
     for p in allprojected

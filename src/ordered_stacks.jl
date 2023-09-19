@@ -32,7 +32,15 @@ set_stack(os::OrderedStack, s::Stack) = OrderedStack(
                                                 os.supplier_dock_order,
                                                 os.plant_dock_order
                                                 )
+"""
+    can_be_placed(solution, o, s::OrderedStack, W, orientation::Symbol; precision=3, verbose=false)
 
+Return `true` if `OrderedStack` `s` can be placed in `solution` at position `o` 
+with given `orientation` (should be either `:Horizontal` or `:Vertical`).
+
+In this method we check the loading orders to determine if a stack can be placed 
+then call the standard can_be_placed method taking simple Stacks to check for collisions.
+"""
 function can_be_placed(solution, o, s::OrderedStack, W, orientation::Symbol; precision=3, verbose=false)
     condition = missing
     # Make sure no other stack already placed and with greater x position has a lower loading order
@@ -65,22 +73,6 @@ end
 """
 Return true if s1 is before s2 or equal priority.
 """
-# function leq_order(s1, s2)
-
-#     if s1.supplier_order < s2.supplier_order
-#         return true
-#     elseif s1.supplier_order == s2.supplier_order && s1.supplier_dock_order < s2.supplier_dock_order
-#         return true
-#     elseif s1.supplier_order == s2.supplier_order && s1.supplier_dock_order == s2.supplier_dock_order && s1.plant_dock_order < s2.plant_dock_order
-#         return true
-#     elseif s1.supplier_order == s2.supplier_order && s1.supplier_dock_order == s2.supplier_dock_order && s1.plant_dock_order == s2.plant_dock_order
-#         return true
-#     else
-#         return false
-#     end
-    
-# end
-
 function leq_order(s1, s2)
 
     if get_supplier_order(s1) < get_supplier_order(s2)
@@ -96,6 +88,12 @@ function leq_order(s1, s2)
     end
 end
 
+"""
+    order_instance(instance::Dict{T, <:AbstractStack})::Vector{Pair{Integer, OrderedStack}} where T <: Integer
+
+Take an instance of presumably unordered stacks and based on their positions 
+(especially X axis) generate random valid loading orders (supplier, supplier dock, plant dock).
+"""
 function order_instance(instance::Dict{T, <:AbstractStack})::Vector{Pair{Integer, OrderedStack}} where T <: Integer
 
     # sort stacks by x value

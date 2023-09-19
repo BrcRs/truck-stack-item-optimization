@@ -5,8 +5,8 @@ include("placement.jl")
 include("ordered_stacks.jl")
 
 @auto_hash_equals struct Product
-    max_stackability::Integer
-    max_weight::Real
+    max_stackability::Integer # max number of items an item of product can support
+    max_weight::Real # max weight an item of product can support 
 end
 
 get_max_stackability(p::Product) = p.max_stackability
@@ -80,6 +80,9 @@ function Base.copy(it::Item)
         )
 end
 
+"""
+An ordered stack which can hold items.
+"""
 mutable struct ItemizedStack <: AbstractOrderedStack
     ordered_stack::Union{Nothing, OrderedStack}
     items::Vector{Item}
@@ -176,6 +179,12 @@ get_dim(is::ItemizedStack) = isnothing(is.ordered_stack) ? nothing : get_dim(is.
 Base.show(io::IO, is::ItemizedStack) = 
     print(io, "ItemizedStack(", readable(get_pos(is)), ", ", readable(get_dim(is)), ", orders=", get_orders(is), ", ", length(get_items(is)), " item(s), height=", round(get_height(is), digits=3), ", weight=", round(get_weight(is), digits=3), ", ", get_forced_orientation(is), ")")
 
+
+"""
+    add_item!(is::ItemizedStack, it::Item)
+
+Add item `it` to stack `is`, updating weight, height, and maybe orientation.
+"""
 function add_item!(is::ItemizedStack, it::Item)
     push!(get_items(is), it)
     is.weight += get_weight(it)
@@ -195,10 +204,21 @@ function add_item!(is::ItemizedStack, it::Item)
     end
 end
 
+
+"""
+    can_be_placed(solution, o::Pos, s::ItemizedStack, W, orientation::Symbol; precision=3, verbose=false)
+
+Return true if stack `s` can be placed in partial solution `solution` without breaking any constraint.
+"""
 function can_be_placed(solution, o::Pos, s::ItemizedStack, W, orientation::Symbol; precision=3, verbose=false)
     return can_be_placed(solution, o, get_ordered_stack(s), W, orientation; precision=precision, verbose=verbose)
 end
 
+"""
+    valid_stack(s, it, max_height)
+
+Return true if item `it` can be added to stack `s` without breaking any dynamic constraint.
+"""
 function valid_stack(s, it, max_height)
     return get_height(s) + get_height(it) <= max_height && 
     get_weight(s) + get_weight(it) <= get_max_weight(it) && 
@@ -206,6 +226,11 @@ function valid_stack(s, it, max_height)
     (get_forced_orientation(it) == :Free || get_forced_orientation(s) == :Free || get_forced_orientation(s) == get_forced_orientation(it))
 end
 
+"""
+    is_candidate_stack(stack, it)
+
+Return true if stack `s` has the same loading order as `it` and the same stackability code.
+"""
 function is_candidate_stack(stack, it)
     return get_supplier(stack) == get_supplier(it) && 
     get_supplier_dock(stack) == get_supplier_dock(it) && 
@@ -213,13 +238,23 @@ function is_candidate_stack(stack, it)
     get_stackability_code(stack) == get_stackability_code(it)
 end
 
+"""
+    find_candidate_stacks(it, stacks)
+
+Return candidate stacks in `stacks` in regard to item `it`.
+"""
 function find_candidate_stacks(it, stacks)
     return filter(
         x -> is_candidate_stack(x, it), stacks)
 end
 
 """
-For a same truck
+    make_stacks(items::Vector{Item}, plant_dock_orders, supplier_orders, supplier_dock_orders, max_height)
+
+Return stacks made up of input `items` as to satisfy loading orders and stackability code aswell as dynamic constraints such
+as height, weight, etc...
+
+Items are supposed to have the same truck and thus the same plant.
 """
 function make_stacks(items::Vector{Item}, plant_dock_orders, supplier_orders, supplier_dock_orders, max_height)
     # TODO check all items have same plant
@@ -263,6 +298,12 @@ function make_stacks(items::Vector{Item}, plant_dock_orders, supplier_orders, su
     return stacks
 end
 
+"""
+    rand_products(min_products, max_products, max_weight, max_items_per_stack)
+
+Generate a random number between min_products and max_products of products of weight randomly taken between 0 and `max_weight` and
+max items between 1 and `max_items_per_stack`.
+"""
 function rand_products(min_products, max_products, max_weight, max_items_per_stack)
     products = Vector{Product}(undef, rand(min_products:max_products))
     for i in 1:length(products)
@@ -271,6 +312,21 @@ function rand_products(min_products, max_products, max_weight, max_items_per_sta
     return products
 end
 
+"""
+    rand_items(n, products, max_height, max_weight, L, W, plant; min_dim=0.001)
+
+Generate `n` items of random properties. 
+
+# Arguments
+- `n`: the number of items to generate.
+- `products`: products from which items should be generated.
+- `max_height`: maximum height of an item.
+- `max_weight`: maximum weight of an item.
+- `L`: length of a truck. # TODO replace with maxlength
+- `H`: height of a truck. # TODO same
+- `plant`: code for the plant.
+- `min_dim=0.001`: minimum value of length of width of an item.
+"""
 function rand_items(n, products, max_height, max_weight, L, W, plant; min_dim=0.001)
 
     # Product(
@@ -298,12 +354,6 @@ function rand_items(n, products, max_height, max_weight, L, W, plant; min_dim=0.
     # Allocate table
     items = Vector{Union{Missing, Item}}(missing, n)
     n_filled = 0
-
-    # create a random number of products
-    # products = Vector{Product}(undef, rand(min_products:max_products))
-    # for i in 1:length(products)
-    #     products[i] = Product(rand(1:max_items_per_stack), rand() * max_weight * max_items_per_stack)
-    # end
 
     plant_docks = []
     supplier_docks = Dict() # key: supplier
@@ -391,10 +441,16 @@ function combine!(stacks::Dict{Integer, Stack}, ordered_stacks::Vector{Pair{Inte
     return
 end
 
+"""
 
+Take `stack::Stack` and generate items to return ItemizedStacks. Is used when 
+randomly generating an instance of itemizedstacks reusing the simple stack instance generator.
+"""
 function itemize(stacks::Dict{Integer, Stack}, H)::Vector{Pair{Integer, ItemizedStack}}
+    # give loading orders to stacks
     ordered_stacks = order_instance(stacks)
 
+    # list of itemizedstacks
     istacks = []
 
     # create a bunch of products

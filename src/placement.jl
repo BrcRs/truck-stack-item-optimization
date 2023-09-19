@@ -227,6 +227,12 @@ function coveredcorners(corners::Vector{<:AbstractPos}, o::Pos, le, wi; precisio
     return torem
 end
 
+
+"""
+    is_secure(stack, solution; precision=3, verbose=false)
+
+Return `true` if the stack is either against the truck's driver cabin or directly against (on its left) to another stack.  
+"""
 function is_secure(stack, solution; precision=3, verbose=false)
     if eqtol(get_pos(stack).x, 0, precision)
         if verbose
@@ -261,6 +267,11 @@ function can_be_placed(solution, o::Pos, s::Stack, W, orientation::Symbol; preci
     return can_be_placed(solution, o, get_dim(s), W, orientation; precision=precision, verbose=verbose)
 end
 
+"""
+    can_be_placed(solution, o::Pos, dim::Dim, W, orientation::Symbol; precision=3, verbose=false)
+
+Return `true` if a stack of dimension dim can be placed at position o without colliding with another stack or getting out of bounds.
+"""
 function can_be_placed(solution, o::Pos, dim::Dim, W, orientation::Symbol; precision=3, verbose=false)
 
     res = nothing
