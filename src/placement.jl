@@ -42,7 +42,9 @@ end
 get_pos(pos::Pos) = pos
 
 
-
+function newStack(s::Stack, p::Pos, d::Dim)
+    return Stack(p, d)
+end
 
 
 

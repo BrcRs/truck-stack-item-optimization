@@ -32,6 +32,16 @@ set_stack(os::OrderedStack, s::Stack) = OrderedStack(
                                                 os.supplier_dock_order,
                                                 os.plant_dock_order
                                                 )
+
+# OrderedStack(   Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le)), 
+# get_supplier_order(s), 
+# get_supplier_dock_order(s), 
+# get_plant_dock_order(s))
+
+function newStack(os::OrderedStack, p::Pos, d::Dim)
+    return OrderedStack(Stack(p, d), get_supplier_order(os), get_supplier_dock_order(os), get_plant_dock_order(os))
+end
+
 """
     can_be_placed(solution, o, s::OrderedStack, W, orientation::Symbol; precision=3, verbose=false)
 

@@ -1,6 +1,11 @@
 include("placement.jl")
 include("projected_pos.jl")
 
+
+
+
+
+
 """
     placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vector{<:AbstractPos}; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
 
@@ -34,6 +39,7 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
 
         # if the stack fits oriented with its length perpendicular to the 
         # width of the truck and it doesn't overlap with another stack
+        # + check weight if ItemizedStack
         if can_be_placed(solution, get_pos(o), s, W, :Perpendicular; precision)
         # if leqtol(o.y + get_dim(s).le, W, precision) && !collision(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision)
             # the stack can be placed in this orientation
@@ -68,13 +74,13 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
             placed = true
             if orientation == :Perpendicular
                 # Add the stack to this corner in solution
-                solution[i] = loading_order ? 
-                                                OrderedStack(   Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le)), 
-                                                                get_supplier_order(s), 
-                                                                get_supplier_dock_order(s), 
-                                                                get_plant_dock_order(s)) : 
-                                                Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le)) # TODO have a method create new stack or position_stack common to all AbstractStack
-                
+                # solution[i] = loading_order ? 
+                #                                 OrderedStack(   Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le)), 
+                #                                                 get_supplier_order(s), 
+                #                                                 get_supplier_dock_order(s), 
+                #                                                 get_plant_dock_order(s)) : 
+                #                                 Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le)) # DONE have a method create new stack or position_stack common to all AbstractStack
+                solution[i] = newStack(s, Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).wi, get_dim(s).le))
                 # Add new corners
                 # corners must be placed as much to the left as possible
                 # or as much to the bottom as possible
@@ -84,12 +90,13 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
 
             if orientation == :Parallel
                 # add to solution
-                solution[i] = loading_order ? 
-                                                OrderedStack(   Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).le, get_dim(s).wi)),
-                                                                get_supplier_order(s), 
-                                                                get_supplier_dock_order(s), 
-                                                                get_plant_dock_order(s)) : 
-                                                Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).le, get_dim(s).wi))
+                # solution[i] = loading_order ? 
+                #                                 OrderedStack(   Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).le, get_dim(s).wi)),
+                #                                                 get_supplier_order(s), 
+                #                                                 get_supplier_dock_order(s), 
+                #                                                 get_plant_dock_order(s)) : 
+                #                                 Stack(Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).le, get_dim(s).wi))
+                solution[i] = newStack(s, Pos(get_pos(o).x, get_pos(o).y), Dim(get_dim(s).le, get_dim(s).wi))
 
                 # add new corners
                 push!(toadd, 
@@ -172,15 +179,15 @@ function placestack!(solution::Dict{T, S}, W, i, s::AbstractStack, corners::Vect
     return torem, toadd
 end
 
-"""
+# """
 
-TODO remove since not compatible with how we will deal with weight constraints (add items one by one instead of creating stacks beforehand).
-"""
-function BLtruck(items, W, H, plant_dock_orders, supplier_orders, supplier_dock_orders; precision=3, verbose=false)
-    stacks = make_stacks(items, plant_dock_orders, supplier_orders, supplier_dock_orders, H)
-    instance = [Pair(i, s) for (i, s) in enumerate(stacks)]
-    return BLtruck(instance, W; precision=precision, verbose=verbose, loading_order=true, items=true)
-end
+# TODO remove since not compatible with how we will deal with weight constraints (add items one by one instead of creating stacks beforehand).
+# """
+# function BLtruck(items, W, H, plant_dock_orders, supplier_orders, supplier_dock_orders; precision=3, verbose=false)
+#     stacks = make_stacks(items, plant_dock_orders, supplier_orders, supplier_dock_orders, H)
+#     instance = [Pair(i, s) for (i, s) in enumerate(stacks)]
+#     return BLtruck(instance, W; precision=precision, verbose=verbose, loading_order=true, items=true)
+# end
 
 """
     BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
@@ -190,7 +197,7 @@ Places stacks in a space of width `W` as to minimize to overall length of the so
 If `loading_order=true` is specified, input stacks are sorted by loading order so that the loading orders constraint is satisfied.
 By placing the stacks in order of their loading orders, and due to how the algorithm works, the resulting solution satisfies loading orders.
 """
-function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, loading_order=false, items=false) where {T <: Integer, S <: AbstractStack}
+function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
     """Lengths must be greater than widths"""
     # TODO pretreatment?
     """One of the two dimensions must be lesser than W?"""
@@ -229,6 +236,52 @@ function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, lo
             println("\t$i : $(solution[i]) was placed and added the new corners: $toadd")
             println("\tIt covered the following corners: $torem")
         end
+        
+        # remove corners waiting to be removed
+        filter!(x -> !(x in torem), corners)
+
+        # Add corners to the list of available corners
+        push!(corners, toadd...)
+        sort!(corners, by= o -> (get_pos(o).x, get_pos(o).y) ) # TODO instead of sorting put elements in right place
+        # toadd = Pos[]
+        # torem = Pos[]
+    end
+
+    return solution
+end
+
+function BLtruck(instance::Vector{Item}, W, H, supplier_orders, supplier_dock_orders, plant_dock_orders; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
+    """Lengths must be greater than widths"""
+    # TODO pretreatment?
+    """One of the two dimensions must be lesser than W?"""
+    # TODO
+
+
+    ## If loading orders must be considered
+    if loading_order
+        # Sort the stacks
+        sort!(instance, by=item -> (
+                            get_supplier_order(supplier_orders[get_supplier(item)]), 
+                            get_supplier_dock_order(supplier_dock_orders[get_supplier_dock(item)]), 
+                            get_plant_dock_order(plant_dock_orders[get_plant_dock(item)])))
+    end
+
+    corners = AbstractPos[Pos(0, 0)]
+    solution = Dict{Integer, ItemizedStack}()
+    # torem = Pos[]
+    # toadd = Pos[]
+
+
+    # For each item to place
+    for (i, it) in enumerate(instance)
+
+        if !issorted(corners, by= o -> (get_pos(o).x, get_pos(o).y))
+            display(corners)
+            error("Not sorted")
+        end
+        torem, toadd = placeitem!(solution, W, H, i, it, corners,
+                                supplier_orders, supplier_dock_orders, plant_dock_orders
+                                ; precision=precision)
         
         # remove corners waiting to be removed
         filter!(x -> !(x in torem), corners)
