@@ -104,7 +104,7 @@ end
 Take an instance of presumably unordered stacks and based on their positions 
 (especially X axis) generate random valid loading orders (supplier, supplier dock, plant dock).
 """
-function order_instance(instance::Dict{T, <:AbstractStack})::Vector{Pair{Integer, OrderedStack}} where T <: Integer
+function order_instance(instance::Dict{T, <:AbstractStack})::Tuple{Vector{Pair{Integer, OrderedStack}}, Int64, Int64, Int64} where T <: Integer
 
     # sort stacks by x value
     sorted_instance = sort(collect(instance), by=p -> get_pos(p[2]).x)
@@ -128,6 +128,6 @@ function order_instance(instance::Dict{T, <:AbstractStack})::Vector{Pair{Integer
         end
     end
 
-    return res
+    return res, supplier, supplier_dock, plant_dock
 
 end

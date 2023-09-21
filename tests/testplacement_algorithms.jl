@@ -391,7 +391,7 @@ end
     for i in 1:ITER
         rectangles = cutandfuse_generator(L, W, NBCUTS, NBFUSE; precision=3)
 
-        rectangles = order_instance(rectangles)
+        rectangles, supplier, supplier_dock, plant_dock = order_instance(rectangles)
 
         instance = shuffle(rectangles)
         solution = nothing
@@ -473,7 +473,7 @@ end
 
 
 
-@testset "itemize" begin
+@testset "itemize!" begin
     # itemize(stacks::Dict{Integer, Stack}, H)
     L = 100
     W = 10
@@ -484,7 +484,29 @@ end
 
     simple_stacks = cutandfuse_generator(L, W, NBCUTS, NBFUSE; precision=3)
 
-    itemized_stacks = itemize(simple_stacks, H)
+    truck = Truck(
+        Dim(L, W), 
+        H, 
+        1500,  # max_stack_density
+        100000, # max_stack_weight
+        Dict(), 
+        Dict(), 
+        Dict(), 
+        Dict(
+            "front" => Dict(
+                "middle" => 3800, 
+                "gravity_center" => 1040, 
+                "harness" => 3330), 
+            "harness" => Dict("rear" => 7630), 
+            "gravity_center" => Dict("rear" => 2350), 
+            "trailer" => Dict("harness" => 1670)),
+        7300,
+        7808,
+        12000,
+        31500)
+
+
+    itemized_stacks = itemize!(truck, simple_stacks)
 
     display(itemized_stacks)
 end
@@ -494,9 +516,31 @@ end
     instances_solutions = []
 
     ITER = 100
-    L = 100
-    W = 10
-    H = 12
+    L = 14500
+    W = 2400
+    H = 2800
+    max_weight = 30000 # ?
+    truck = Truck(
+        Dim(L, W), 
+        H, 
+        1500,  # max_stack_density
+        100000, # max_stack_weight
+        Dict(), 
+        Dict(), 
+        Dict(), 
+        Dict(
+            "front" => Dict(
+                "middle" => 3800, 
+                "gravity_center" => 1040, 
+                "harness" => 3330), 
+            "harness" => Dict("rear" => 7630), 
+            "gravity_center" => Dict("rear" => 2350), 
+            "trailer" => Dict("harness" => 1670)),
+        7300,
+        7808,
+        12000,
+        31500)
+        
 
     NBCUTS = 20
     NBFUSE = 20
@@ -507,7 +551,7 @@ end
     # NBCUTS = nb_cuts_fuse_avg(4)
     # NBFUSE = 0
     for i in 1:ITER
-        stacks = itemize(cutandfuse_generator(L, W, NBCUTS, NBFUSE; precision=3), H)
+        stacks = itemize!(truck, cutandfuse_generator(get_dim(truck).le, get_dim(truck).wi, NBCUTS, NBFUSE; precision=3))
 
         # ordered_stacks = order_instance(stacks)
 
@@ -517,7 +561,7 @@ end
         solution = nothing
 
         try
-            solution = BLtruck(instance, W; precision=3, loading_order=true)
+            solution = BLtruck(instance, truck; precision=3, loading_order=true)
         catch e
             display(instance)
             display(backtrace)
@@ -565,7 +609,7 @@ end
     # end
 
     # Test loading orders are satisfied
-    @testset "loading orders" begin
+    @testset "loading orders and weight" begin
         for i in 1:ITER
             # make sure the loading order is coherent
             instance, solution = instances_solutions[i]
@@ -590,4 +634,15 @@ end
             end
         end
     end
+
+    # @testset "weight constraints last check" begin
+    #     for i in 1:ITER
+    #         # make sure the loading order is coherent
+    #         instance, solution = instances_solutions[i]
+
+    #         # @test [p[1] for p in x_sorted_sol] == [p[1] for p in ordered_sol]
+    #         @test 
+    #     end
+
+    # end
 end

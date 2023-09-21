@@ -1,5 +1,6 @@
 include("placement.jl")
 include("projected_pos.jl")
+include("item.jl")
 
 
 
@@ -250,21 +251,18 @@ function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, lo
     return solution
 end
 
-function BLtruck(instance::Vector{Item}, W, H, supplier_orders, supplier_dock_orders, plant_dock_orders; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
+function BLtruck(instance::Vector{Item}, truck; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
     """Lengths must be greater than widths"""
     # TODO pretreatment?
     """One of the two dimensions must be lesser than W?"""
     # TODO
 
 
-    ## If loading orders must be considered
-    if loading_order
-        # Sort the stacks
-        sort!(instance, by=item -> (
-                            get_supplier_order(supplier_orders[get_supplier(item)]), 
-                            get_supplier_dock_order(supplier_dock_orders[get_supplier_dock(item)]), 
-                            get_plant_dock_order(plant_dock_orders[get_plant_dock(item)])))
-    end
+    # Sort the stacks
+    sort!(instance, by=item -> (
+                        get_supplier_order(get_supplier_orders(truck)[get_supplier(item)]), 
+                        get_supplier_dock_order(get_supplier_dock_orders(truck)[get_supplier_dock(item)]), 
+                        get_plant_dock_order(get_plant_dock_orders(truck)[get_plant_dock(item)])))
 
     corners = AbstractPos[Pos(0, 0)]
     solution = Dict{Integer, ItemizedStack}()
@@ -279,9 +277,7 @@ function BLtruck(instance::Vector{Item}, W, H, supplier_orders, supplier_dock_or
             display(corners)
             error("Not sorted")
         end
-        torem, toadd = placeitem!(solution, W, H, i, it, corners,
-                                supplier_orders, supplier_dock_orders, plant_dock_orders
-                                ; precision=precision)
+        torem, toadd = placeitem!(solution, truck, i, it, corners; precision=precision)
         
         # remove corners waiting to be removed
         filter!(x -> !(x in torem), corners)
