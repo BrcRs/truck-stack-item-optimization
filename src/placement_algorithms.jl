@@ -199,6 +199,8 @@ If `loading_order=true` is specified, input stacks are sorted by loading order s
 By placing the stacks in order of their loading orders, and due to how the algorithm works, the resulting solution satisfies loading orders.
 """
 function BLtruck(instance::Vector{Pair{T, S}}, W; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
+    println("press enter BLtruck for stacks")
+    readline()
     """Lengths must be greater than widths"""
     # TODO pretreatment?
     """One of the two dimensions must be lesser than W?"""
@@ -256,7 +258,8 @@ function BLtruck(instance::Vector{Item}, truck; precision=3, verbose=false) wher
     # TODO pretreatment?
     """One of the two dimensions must be lesser than W?"""
     # TODO
-
+    println("press enter c")
+    readline()
 
     # Sort the stacks
     sort!(instance, by=item -> (
@@ -272,7 +275,8 @@ function BLtruck(instance::Vector{Item}, truck; precision=3, verbose=false) wher
 
     # For each item to place
     for (i, it) in enumerate(instance)
-
+        println("press enter d", i)
+        readline()
         if !issorted(corners, by= o -> (get_pos(o).x, get_pos(o).y))
             display(corners)
             error("Not sorted")

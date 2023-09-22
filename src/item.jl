@@ -13,11 +13,17 @@ struct Truck
     supplier_orders::Dict{String, Integer}
     supplier_dock_orders::Dict{String, Dict{String, Integer}}
     plant_dock_orders::Dict{String, Integer}
-    distances::Dict{String, Dict{String, Real}}
-    w_empty_trailer::Real
-    w_tractor::Real
-    max_w_middle::Real
-    max_w_rear::Real
+
+    CM::Real # weight of the tractor
+    CJ_fm::Real #  distance between the front and middle axles of the tractor
+    CJ_fc::Real # distance between the front axle and the center of gravity of the tractor
+    CJ_fh::Real # distance between the front axle and the harness of the tractor
+    EM::Real #  weight of the empty trailer
+    EJ_hr::Real # distance between the harness and the rear axle of the trailer
+    EJ_cr::Real #  distance between the center of gravity of the trailer and the rear axle
+    EJ_eh::Real #  distance between the start of the trailer and the harness
+    EM_mr::Real # max weight on the rear axle of the trailer
+    EM_mm::Real # max weight on the middle axle of the trailer
 end
 
 get_dim(truck::Truck) = truck.dim
@@ -29,11 +35,19 @@ get_supplier_dock_orders(truck::Truck) = truck.supplier_dock_orders
 get_supplier_dock_order(truck::Truck, supplier, supplier_dock) = truck.supplier_dock_orders[supplier][supplier_dock]
 
 get_plant_dock_orders(truck::Truck) = truck.plant_dock_orders
-get_distances(truck::Truck) = truck.distances
-get_w_empty_trailer(truck::Truck) = truck.w_empty_trailer
-get_w_tractor(truck::Truck) = truck.w_tractor
-get_max_w_middle(truck::Truck) = truck.max_w_middle
-get_max_w_rear(truck::Truck) = truck.max_w_rear
+
+get_CM(truck::Truck) = truck.CM
+get_CJ_fm(truck::Truck) = truck.CJ_fm
+get_CJ_fc(truck::Truck) = truck.CJ_fc
+get_CJ_fh(truck::Truck) = truck.CJ_fh
+get_EM(truck::Truck) = truck.EM
+get_EJ_hr(truck::Truck) = truck.EJ_hr
+get_EJ_cr(truck::Truck) = truck.EJ_cr
+get_EJ_eh(truck::Truck) = truck.EJ_eh
+get_EM_mr(truck::Truck) = truck.EM_mr
+get_EM_mm(truck::Truck) = truck.EM_mm
+
+get_suppliers(truck::Truck) = collect(keys(get_supplier_orders(truck)))
 
 function set_supplier_orders!(truck, d)
     merge!(truck.supplier_orders, d)
@@ -125,6 +139,37 @@ function Base.copy(it::Item)
         )
 end
 
+function simpleItem(product;
+    time_window=(earliest=1, latest=2),
+    dim=Dim(1, 1),
+    # pos::Pos,
+    height=1,
+    weight=1,
+    stackability_code="",
+    forced_orientation=:Free,
+    plant="",
+    plant_dock="",
+    supplier="",
+    supplier_dock="",
+    inventory_cost=1,
+    nesting_height=0    
+    )
+    return Item(time_window,
+    dim,
+    height,
+    weight,
+    stackability_code,
+    forced_orientation,
+    plant,
+    plant_dock,
+    supplier,
+    supplier_dock,
+    inventory_cost,
+    nesting_height,
+    product)
+
+end
+
 """
 An ordered stack which can hold items.
 """
@@ -148,6 +193,7 @@ mutable struct ItemizedStack <: AbstractOrderedStack
     end
 
 end
+ 
 
 function Base.copy(is::ItemizedStack)
     return ItemizedStack(
@@ -190,7 +236,7 @@ function set_ordered_stack!(is::ItemizedStack, os::OrderedStack)
 end
 
 Base.hash(a::ItemizedStack, h::UInt) = hash(a.items, hash(:ItemizedStack, h))
-Base.:(==)(a::ItemizedStack, b::ItemizedStack) = isequal(a.items, b.items)
+Base.:(==)(a::ItemizedStack, b::ItemizedStack) = isequal(a.items, b.items) # TODO problem when 2 different stacks have an identical item
 # Base.length(a::ItemizedStack) = length(a.items)
 
 
@@ -200,6 +246,29 @@ get_dim(is::ItemizedStack) = get_dim(is.ordered_stack)
 function get_height(is::ItemizedStack)
 
     return is.height
+end
+
+function set_height(truck::Truck, h)
+    return Truck(
+        truck.dim,
+        h,
+        truck.max_stack_density,
+        truck.max_stack_weight,
+        truck.supplier_orders,
+        truck.supplier_dock_orders,
+        truck.plant_dock_orders,
+    
+        truck.CM,
+        truck.CJ_fm,
+        truck.CJ_fc,
+        truck.CJ_fh,
+        truck.EM,
+        truck.EJ_hr,
+        truck.EJ_cr,
+        truck.EJ_eh,
+        truck.EM_mr,
+        truck.EM_mm,
+    )
 end
 
 function get_weight(is::ItemizedStack)
@@ -267,7 +336,7 @@ end
 
 Return true if stack `s` can be placed in partial solution `solution` without breaking any constraint.
 """
-function can_be_placed(solution, o::Pos, s::ItemizedStack, truck, orientation::Symbol; precision=3, verbose=false)
+function can_be_placed(solution, o::Pos, s::ItemizedStack, truck::Truck, orientation::Symbol; precision=3, verbose=false)
 
     # check weight constraints
     weight_constraint = valid_axle_pressure(collect(values(solution)), s, truck; fastexit=true, precision=precision)
@@ -280,16 +349,24 @@ end
 
 Return true if item `it` can be added to stack `s` without breaking any dynamic constraint.
 """
-function valid_stack(stacks, s, it, truck; fastexit=false, precision=3)
+function valid_stack(stacks, s, it, truck; fastexit=false, precision=3, verbose=false)
 
     # tm_t, ej_e, ej_r, em_h, em_r, em_m = dist_stacks_to_trailer(stacks, s, get_weight(it), truck)
-
-    return leqtol(get_height(s) + get_height(it), get_height(truck), precision = precision) && 
-    leqtol(get_weight(s) + get_weight(it), get_max_weight(it); precision = precision) && # TODO might remove get_weight(it) since we want to limit the weight on bottom item
+    if verbose
+        println(1, " ", leqtol(get_height(s) + get_height(it), get_height(truck), precision))
+        println(2, " ", leqtol(get_weight(s) + get_weight(it), get_max_weight(it), precision))
+        println(3, " ", length(get_items(s)) <= get_minmax_stackability(s))
+        println(4, " ", get_forced_orientation(it) == :Free || get_forced_orientation(s) == :Free || get_forced_orientation(s) == get_forced_orientation(it))
+        println(5, " ", leqtol((get_weight(s) + get_weight(it))/(get_dim(s).le * get_dim(s).wi), get_max_stack_density(truck), precision))
+        println(6, " ", leqtol(get_weight(s) + get_weight(it), get_max_stack_weight(truck), precision))
+        println(7, " ", valid_axle_pressure(stacks, s, it, truck; fastexit=fastexit, precision=precision))
+    end
+    return leqtol(get_height(s) + get_height(it), get_height(truck), precision) && 
+    leqtol(get_weight(s) + get_weight(it), get_max_weight(it), precision) && # TODO might remove get_weight(it) since we want to limit the weight on bottom item
     length(get_items(s)) <= get_minmax_stackability(s) && # we need to find the smallest max_stackability of the pile
     (get_forced_orientation(it) == :Free || get_forced_orientation(s) == :Free || get_forced_orientation(s) == get_forced_orientation(it)) &&
-    leqtol((get_weight(s) + get_weight(it))/(get_dim(s).le * get_dim(s).wi), get_max_stack_density(truck), precision = precision) && # check density
-    leqtol(get_weight(s) + get_weight(it), get_max_stack_weight(truck), precision=precision) && # check max weight
+    leqtol((get_weight(s) + get_weight(it))/(get_dim(s).le * get_dim(s).wi), get_max_stack_density(truck), precision) && # check density
+    leqtol(get_weight(s) + get_weight(it), get_max_stack_weight(truck), precision) && # check max weight
     valid_axle_pressure(stacks, s, it, truck; fastexit=fastexit, precision=precision)
 end
 
@@ -302,32 +379,41 @@ function valid_axle_pressure(stacks, stack::ItemizedStack, item::Item, truck; fa
     return valid_axle_pressure(stacks, dummystack, truck; fastexit=fastexit, precision=precision)
 end
 
-function valid_axle_pressure(stacks, s::ItemizedStack, truck; fastexit=false, precision=3)
 
+function valid_axle_pressure(stacks, s::ItemizedStack, truck::Truck; fastexit=false, precision=3, verbose=false)
+    if verbose
+        println("enter valid_axle_pressure")
+    end
     # take stacks of all suppliers at first
     sortedsuppliers = sort(get_suppliers(truck), by= x -> get_supplier_orders(truck)[x])
-
+    filteredstacks = copy(stacks)
+    
+    display(sortedsuppliers)
     while !isempty(sortedsuppliers)
 
         if fastexit
-            if !(get_supplier(it) in sortedsuppliers)
+            if !(get_supplier(s) in sortedsuppliers)
                 break
             end
         end
 
         # find corresponding stacks
-        filteredstacks = filterpersupplier(stacks, sortedsuppliers)
+        filteredstacks = filter(x -> get_supplier(x) in sortedsuppliers, filteredstacks)
         
         # calculate pressure on middle and rear axles
-        # tm_t, ej_e, ej_r, em_h, em_r, em_m = dist_stacks_to_trailer(filteredstacks, s, (get_supplier(it) in sortedsuppliers ? get_weight(it) : 0.0), truck)
-        if get_supplier(it) in sortedsuppliers
+        tm_t, ej_e, ej_r, em_h, em_r, em_m = nothing, nothing, nothing, nothing, nothing, nothing
+        if get_supplier(s) in sortedsuppliers
             tm_t, ej_e, ej_r, em_h, em_r, em_m = dist_stacks_to_trailer(filteredstacks, s, truck)
         else
             tm_t, ej_e, ej_r, em_h, em_r, em_m = dist_stacks_to_trailer(filteredstacks, truck)
         end
+        if verbose
+            display(sortedsuppliers)
+            display((tm_t, ej_e, ej_r, em_h, em_r, em_m))
+        end
 
-        if !(leqtol(em_m, get_max_w_middle(truck), precision=precision) && # max weight on middle axle
-            leqtol(em_r, get_max_w_rear(truck), precision=precision)) # max weight on rear axle
+        if !(leqtol(em_m, get_EM_mm(truck), precision) && # max weight on middle axle
+            leqtol(em_r, get_EM_mr(truck), precision)) # max weight on rear axle
             return false
         end
         # if ok, remove the last supplier
@@ -364,17 +450,17 @@ end
 
 function dist_stacks_to_trailer(allstacks, truck)
 
-    tm_t = sum(get_weight(s) for s in allstacks)
+    tm_t = isempty(allstacks) ? 0.0 : sum(get_weight(s) for s in allstacks)
 
-    ej_e = sum((get_pos(s).x + get_dim(s).le/2) * get_weight(s) for s in allstacks) / tm_t
+    ej_e = isempty(allstacks) ? 0 : sum((get_pos(s).x + get_dim(s).le/2) * get_weight(s) for s in allstacks) / tm_t
 
-    ej_r = get_distances(truck)["trailer"]["harness"] + get_distances(truck)["harness"]["rear"] - ej_e
+    ej_r = get_EJ_eh(truck) + get_EJ_hr(truck) - ej_e
 
-    em_h = (tm_t * ej_r + get_w_empty_trailer(truck) * get_distances(truck)["gravity_center"]["rear"]) / get_distances(truck)["harness"]["rear"]
+    em_h = (tm_t * ej_r + get_EM(truck) * get_EJ_cr(truck)) / get_EJ_hr(truck)
 
-    em_r = tm_t + get_w_empty_trailer(truck) - em_h
+    em_r = tm_t + get_EM(truck) - em_h
 
-    em_m = (get_w_tractor(truck) * get_distances(truck)["front"]["gravity_center"] + em_h * get_distances(truck)["front"]["harness"]) / get_distances(truck)["front"]["middle"]
+    em_m = (get_CM(truck) * get_CJ_fc(truck) + em_h * get_CJ_fh(truck)) / get_CJ_fm(truck)
 
     return tm_t, ej_e, ej_r, em_h, em_r, em_m
 
@@ -606,9 +692,15 @@ function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integ
     ordered_stacks, nbsupplier, nbsupplier_dock, nbplant_dock = order_instance(stacks)
 
     # create suppliers, supplier docks and plant docks based on order of stacks
-    suppliers = Dict(i => randstring(8) for i in 1:nbsupplier)
-    supplier_docks = Dict(i => randstring(8) for i in 1:nbsupplier_dock)
-    plant_docks = Dict(i => randstring(8) for i in 1:nbplant_dock)
+    suppliers = Dict()
+    supplier_docks = Dict()
+    plant_docks = Dict()
+    for (i, os) in ordered_stacks
+        suppliers[get_supplier_order(os)] = randstring(8)
+        supplier_docks[get_supplier_dock_order(os)] = randstring(8)
+        plant_docks[get_plant_dock_order(os)] = randstring(8)
+    end
+
     # TODO make sure drawn names aren't the same
     supplier_supplier_dock = Dict()
 
@@ -675,6 +767,7 @@ function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integ
             stackability_codes[stackability_code] = dim
         end
         
+
         # retieve plant (ignored), supplier and dock names from orders
         plant = ""
         supplier = suppliers[get_supplier_order(os)]
@@ -720,9 +813,9 @@ function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integ
 
     set_supplier_dock_orders!(truck, Dict(
                                         supplier => Dict(
-                                                supplier_dock => supplier_dock_orders[supplier_dock]) 
-                                                for supplier_dock in supplier_supplier_dock[supplier]) 
-                                        for supplier in values(suppliers))
+                                                supplier_dock => supplier_dock_orders[supplier_dock]
+                                                for supplier_dock in supplier_supplier_dock[supplier])
+                                        for supplier in values(suppliers)))
 
 
 
@@ -741,13 +834,16 @@ function placeitem!(solution::Dict{T, S}, truck::Truck, i, item::Item, corners::
     found_stack = false
     # Choose a stack if height is ok and check max_weight too + max stackability
     # also check orientation # TODO improve complexity of the operation of doing the same calculation on all stacks
+    println("for s in candidate_stacks")
     for s in candidate_stacks
+        print(".")
         if valid_stack(collect(values(solution)), s, item, truck; fastexit=true, precision=precision)
             add_item!(s, item)
             found_stack = true
             break
         end
     end
+    println()
 
     # if no valid stack found create new stack containing the item and place item with standard placestack! function 
     if !found_stack
