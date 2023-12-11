@@ -28,6 +28,8 @@ _Solution returned by our algorithm:_
 
 ![solution returned by our algorithm](BLtruck-cropped.png)
 
+The truck is symbolized by a red zone with dotted border seen from above. Each rectangle represents a stack. Here we present an example of an instance of the single-truck packing problem and the result output by our algorithm. In this example we ignore weight constraints and plant/supplier orders.
+
 ## Content of this branch
 
 The code is in `src/` directory. Tests are grouped by source file in the `tests/` directory.
