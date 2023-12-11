@@ -13,20 +13,21 @@ of width W and length L. The plot will appear in your browser and is interactive
 allowing to zoom, pan, etc. Stack names are displayed in the center of their 
 corresponding stacks.
 """
-function plot_placement(W, L, solution::Dict{T, S}; orthonormal=false) where {T <: Integer, S <: AbstractStack}
+function plot_placement(W, L, solution::Dict{T, S}; orthonormal=false, labels=true, max_x=nothing) where {T <: Integer, S <: AbstractStack}
     solution_vector = [s for s in solution]
     rectangles = [rectangle(s) for (i, s) in solution_vector]
 
     # find furthest x coordinate
-    max_x = max([get_pos(s).x + get_dim(s).le for (i, s) in solution_vector]...) * 1.1
-
+    if isnothing(max_x)
+        max_x = max([get_pos(s).x + get_dim(s).le for (i, s) in solution_vector]...) * 1.1
+    end
     annotations = (
 
     x=[get_pos(s).x + get_dim(s).le/2 for (i, s) in solution_vector],
 
     y=[get_pos(s).y + get_dim(s).wi/2 for (i, s) in solution_vector],
 
-    text=[text("Stack $i", 8) for (i, s) in solution_vector],
+    text=labels ? [text("Stack $i", 8) for (i, s) in solution_vector] : [text("", 8) for (i, s) in solution_vector],
 
     )
 
