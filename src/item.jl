@@ -36,6 +36,9 @@ get_supplier_dock_order(truck::Truck, supplier, supplier_dock) = truck.supplier_
 
 get_plant_dock_orders(truck::Truck) = truck.plant_dock_orders
 
+get_supplier_order(truck::Truck, supplier) = get_supplier_orders(truck)[supplier]
+get_plant_dock_order(truck::Truck, plant_dock) = get_plant_dock_orders(truck)[plant_dock]
+
 get_CM(truck::Truck) = truck.CM
 get_CJ_fm(truck::Truck) = truck.CJ_fm
 get_CJ_fc(truck::Truck) = truck.CJ_fc
@@ -339,6 +342,7 @@ Return true if stack `s` can be placed in partial solution `solution` without br
 function can_be_placed(solution, o::Pos, s::ItemizedStack, truck::Truck, orientation::Symbol; precision=3, verbose=false)
 
     # check weight constraints
+    # TODO provide valid_axle_pressure the stack `s` with position pos
     weight_constraint = valid_axle_pressure(collect(values(solution)), s, truck; fastexit=true, precision=precision)
 
     return weight_constraint && can_be_placed(solution, o, get_ordered_stack(s), get_dim(truck).wi, orientation; precision=precision, verbose=verbose)
@@ -823,10 +827,10 @@ function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integ
 end
 
 
-function placeitem!(solution::Dict{T, S}, truck::Truck, i, item::Item, corners::Vector{<:AbstractPos}; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
+function placeitem!(solution::Dict{T, S}, truck::Truck, item::Item, corners::Vector{<:AbstractPos}; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
 
 
-    ind = max(keys(solution)) + 1
+    ind = isnothing(solution) || isempty(solution) ? 1 : max(collect(keys(solution))...) + 1
     # first find an existing stack which works for the item
     
     candidate_stacks = find_candidate_stacks(item, [p[2] for p in solution])
@@ -853,10 +857,13 @@ function placeitem!(solution::Dict{T, S}, truck::Truck, i, item::Item, corners::
             get_supplier_orders(truck)[get_supplier(item)], 
             get_supplier_dock_orders(truck)[get_supplier(item)][get_supplier_dock(item)],
             get_plant_dock_orders(truck)[get_plant_dock(item)]
-            )
+            ) # created with no position
+            # TODO this will create an error because valid_axle_pressure will 
+            # use this stack to see if the axle pressure is ok, but the stack
+            # is never given a position (which should be the corner (each corner) in this case)
         add_item!(newstack, item)
 
-        placestack!(solution, W, i, newstack, corners; precision=precision, verbose=verbose, loading_order=true) # DONE check weight constraints when adding a new stack
+        placestack!(solution, truck, ind, newstack, corners; precision=precision, verbose=verbose, loading_order=true) # DONE check weight constraints when adding a new stack
         # solution[ind] = copy(newstack)
     end
 

@@ -560,16 +560,22 @@ end
         solution = nothing
         println("press enter b")
         readline()
-        try
-            error("Why is BLtruck for stacks called here?")
-            solution = BLtruck(instance, truck; precision=3, loading_order=true)
-        catch e
-            println("press enter error")
-            readline()
-            display(instance)
-            display(backtrace)
-            throw(e)
-        end
+
+        # you want to get the items from the stacks, shuffle them and give it to BLtruck
+        items = [x for s in instance for x in get_items(s[2])]
+        shuffle!(items)
+        solution = BLtruck(items, truck; precision=3)
+
+        # try
+        #     error("Why is BLtruck for stacks called here?")
+        #     solution = BLtruck(instance, truck; precision=3, loading_order=true)
+        # catch e
+        #     println("press enter error")
+        #     readline()
+        #     display(instance)
+        #     display(backtrace)
+        #     throw(e)
+        # end
         println("press enter what")
         readline()
         # display(solution)
