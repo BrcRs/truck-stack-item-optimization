@@ -3,66 +3,8 @@ using Random
 
 include("placement.jl")
 include("ordered_stacks.jl")
+include("truck.jl")
 
-
-struct Truck
-    dim::Dim
-    height::Real
-    max_stack_density::Real
-    max_stack_weight::Real
-    supplier_orders::Dict{String, Integer}
-    supplier_dock_orders::Dict{String, Dict{String, Integer}}
-    plant_dock_orders::Dict{String, Integer}
-
-    CM::Real # weight of the tractor
-    CJ_fm::Real #  distance between the front and middle axles of the tractor
-    CJ_fc::Real # distance between the front axle and the center of gravity of the tractor
-    CJ_fh::Real # distance between the front axle and the harness of the tractor
-    EM::Real #  weight of the empty trailer
-    EJ_hr::Real # distance between the harness and the rear axle of the trailer
-    EJ_cr::Real #  distance between the center of gravity of the trailer and the rear axle
-    EJ_eh::Real #  distance between the start of the trailer and the harness
-    EM_mr::Real # max weight on the rear axle of the trailer
-    EM_mm::Real # max weight on the middle axle of the trailer
-end
-
-get_dim(truck::Truck) = truck.dim
-get_height(truck::Truck) = truck.height
-get_max_stack_density(truck::Truck) = truck.max_stack_density
-get_max_stack_weight(truck::Truck) = truck.max_stack_weight
-get_supplier_orders(truck::Truck) = truck.supplier_orders
-get_supplier_dock_orders(truck::Truck) = truck.supplier_dock_orders
-get_supplier_dock_order(truck::Truck, supplier, supplier_dock) = truck.supplier_dock_orders[supplier][supplier_dock]
-
-get_plant_dock_orders(truck::Truck) = truck.plant_dock_orders
-
-get_supplier_order(truck::Truck, supplier) = get_supplier_orders(truck)[supplier]
-get_plant_dock_order(truck::Truck, plant_dock) = get_plant_dock_orders(truck)[plant_dock]
-
-get_CM(truck::Truck) = truck.CM
-get_CJ_fm(truck::Truck) = truck.CJ_fm
-get_CJ_fc(truck::Truck) = truck.CJ_fc
-get_CJ_fh(truck::Truck) = truck.CJ_fh
-get_EM(truck::Truck) = truck.EM
-get_EJ_hr(truck::Truck) = truck.EJ_hr
-get_EJ_cr(truck::Truck) = truck.EJ_cr
-get_EJ_eh(truck::Truck) = truck.EJ_eh
-get_EM_mr(truck::Truck) = truck.EM_mr
-get_EM_mm(truck::Truck) = truck.EM_mm
-
-get_suppliers(truck::Truck) = collect(keys(get_supplier_orders(truck)))
-
-function set_supplier_orders!(truck, d)
-    merge!(truck.supplier_orders, d)
-end
-function set_supplier_dock_orders!(truck, d)
-    merge!(truck.supplier_dock_orders, d)
-
-end
-function set_plant_dock_orders!(truck, d)
-    merge!(truck.plant_dock_orders, d)
-
-end
 
 
 
@@ -295,7 +237,17 @@ get_orders(is::ItemizedStack) = get_orders(is.ordered_stack)
 get_forced_orientation(is::ItemizedStack) = is.forced_orientation
 
 get_pos(is::ItemizedStack) = isnothing(is.ordered_stack) ? nothing : get_pos(is.ordered_stack)
-get_dim(is::ItemizedStack) = isnothing(is.ordered_stack) ? nothing : get_dim(is.ordered_stack)
+function get_dim(is::ItemizedStack) 
+    if isnothing(is.ordered_stack) || isnothing(get_dim(is.ordered_stack))
+        if !isempty(get_items(is))
+            return get_dim(get_items(is)[1])
+        else
+            return nothing
+        end
+    else 
+        return get_dim(is.ordered_stack)
+    end
+end
 
 get_minmax_stackability(is::ItemizedStack) = is.minmax_stackability
 
@@ -329,7 +281,7 @@ function add_item!(is::ItemizedStack, it::Item)
         is.height += get_nesting_height(it)
         # update stackability code
         # is.stackability_code = get_stackability_code(it) # no need
-        # upd dims
+        # no need to update dims because easily computable
     end
 end
 
@@ -343,9 +295,12 @@ function can_be_placed(solution, o::Pos, s::ItemizedStack, truck::Truck, orienta
 
     # check weight constraints
     # TODO provide valid_axle_pressure the stack `s` with position pos
+    # instantiate pos and dim
+    os = set_stack(get_ordered_stack(s), Stack(o, get_dim(s)))
+    set_ordered_stack!(s, os)
     weight_constraint = valid_axle_pressure(collect(values(solution)), s, truck; fastexit=true, precision=precision)
 
-    return weight_constraint && can_be_placed(solution, o, get_ordered_stack(s), get_dim(truck).wi, orientation; precision=precision, verbose=verbose)
+    return weight_constraint && can_be_placed(solution, o, get_ordered_stack(s), truck, orientation; precision=precision, verbose=verbose)
 end
 
 """
@@ -392,7 +347,7 @@ function valid_axle_pressure(stacks, s::ItemizedStack, truck::Truck; fastexit=fa
     sortedsuppliers = sort(get_suppliers(truck), by= x -> get_supplier_orders(truck)[x])
     filteredstacks = copy(stacks)
     
-    display(sortedsuppliers)
+    # display(sortedsuppliers)
     while !isempty(sortedsuppliers)
 
         if fastexit
@@ -828,7 +783,8 @@ end
 
 
 function placeitem!(solution::Dict{T, S}, truck::Truck, item::Item, corners::Vector{<:AbstractPos}; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
-
+    torem = AbstractPos[]
+    toadd = AbstractPos[]
 
     ind = isnothing(solution) || isempty(solution) ? 1 : max(collect(keys(solution))...) + 1
     # first find an existing stack which works for the item
@@ -838,16 +794,16 @@ function placeitem!(solution::Dict{T, S}, truck::Truck, item::Item, corners::Vec
     found_stack = false
     # Choose a stack if height is ok and check max_weight too + max stackability
     # also check orientation # TODO improve complexity of the operation of doing the same calculation on all stacks
-    println("for s in candidate_stacks")
+    # println("for s in candidate_stacks")
     for s in candidate_stacks
-        print(".")
+        # print(".")
         if valid_stack(collect(values(solution)), s, item, truck; fastexit=true, precision=precision)
             add_item!(s, item)
             found_stack = true
             break
         end
     end
-    println()
+    # println()
 
     # if no valid stack found create new stack containing the item and place item with standard placestack! function 
     if !found_stack
@@ -858,14 +814,12 @@ function placeitem!(solution::Dict{T, S}, truck::Truck, item::Item, corners::Vec
             get_supplier_dock_orders(truck)[get_supplier(item)][get_supplier_dock(item)],
             get_plant_dock_orders(truck)[get_plant_dock(item)]
             ) # created with no position
-            # TODO this will create an error because valid_axle_pressure will 
-            # use this stack to see if the axle pressure is ok, but the stack
-            # is never given a position (which should be the corner (each corner) in this case)
-        add_item!(newstack, item)
 
-        placestack!(solution, truck, ind, newstack, corners; precision=precision, verbose=verbose, loading_order=true) # DONE check weight constraints when adding a new stack
+        add_item!(newstack, item)
+        # display(get_items(newstack))
+        torem, toadd = placestack!(solution, truck, ind, newstack, corners; precision=precision, verbose=verbose, loading_order=true) # DONE check weight constraints when adding a new stack
         # solution[ind] = copy(newstack)
     end
 
-
+    return torem, toadd
 end

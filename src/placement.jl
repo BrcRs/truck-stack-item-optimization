@@ -3,15 +3,9 @@ using AutoHashEquals
 # 1 => length
 # 2 => width
 
-@auto_hash_equals struct Dim
-    le # le:length corresponds to x axis of a truck
-    wi # wi:width corresponds to y axis
-    Dim(a, b) = a == 0 || b == 0 ? throw(ArgumentError("Dim($a, $b): Dimension can't be of size zero")) : new(a, b)
-end
-
-function readable(d::Dim)
-    return string("Dim(", round(d.le, digits=3),", ", round(d.wi, digits=3),")")
-end
+include("truck.jl")
+include("dim.jl")
+include("pos.jl")
 
 readable(a::Nothing) = "nothing"
 
@@ -22,16 +16,6 @@ readable(a::Nothing) = "nothing"
 #     return Dim(le, wi)
 # end
 
-abstract type AbstractPos end
-
-@auto_hash_equals struct Pos <: AbstractPos
-    x
-    y
-end
-
-function readable(p::Pos)
-    return string("Pos(", round(p.x, digits=3),", ", round(p.y, digits=3),")")
-end
 
 abstract type AbstractStack end
 struct Stack <: AbstractStack
@@ -270,12 +254,12 @@ function can_be_placed(solution, o::Pos, s::Stack, W, orientation::Symbol; preci
 end
 
 """
-    can_be_placed(solution, o::Pos, dim::Dim, W, orientation::Symbol; precision=3, verbose=false)
+    can_be_placed(solution, o::Pos, dim::Dim, truck::Truck, orientation::Symbol; precision=3, verbose=false)
 
 Return `true` if a stack of dimension dim can be placed at position o without colliding with another stack or getting out of bounds.
 """
-function can_be_placed(solution, o::Pos, dim::Dim, W, orientation::Symbol; precision=3, verbose=false)
-
+function can_be_placed(solution, o::Pos, dim::Dim, truck::Truck, orientation::Symbol; precision=3, verbose=false)
+    W = get_dim(truck).wi
     res = nothing
 
     if orientation == :Perpendicular

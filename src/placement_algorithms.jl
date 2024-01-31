@@ -177,19 +177,17 @@ function placestack!(solution::Dict{T, S}, truck::Truck, i, s::AbstractStack, co
         println("verbose\n", verbose)
         error("The stack can't be placed")
     end
+    # TODO in the case of itemized stacks with weight constraints, there is a 
+    # probability that the sequence of items guides the algo in a direction which later
+    # makes impossible to place a stack because not enough room and placing the 
+    # stack at the back would mess up the weight constraints
+    # TODO to verify that the weight constraints are indeed the problem here
+    # TODO and dismiss stacks that overflow from truck when checking weight constraints (not part of solution)?
+    # TODO or consider a list of stacks which could not be placed
+    # TODO imagine a new truck for stacks which overflow
 
     return torem, toadd
 end
-
-# """
-
-# TODO remove since not compatible with how we will deal with weight constraints (add items one by one instead of creating stacks beforehand).
-# """
-# function BLtruck(items, W, H, plant_dock_orders, supplier_orders, supplier_dock_orders; precision=3, verbose=false)
-#     stacks = make_stacks(items, plant_dock_orders, supplier_orders, supplier_dock_orders, H)
-#     instance = [Pair(i, s) for (i, s) in enumerate(stacks)]
-#     return BLtruck(instance, W; precision=precision, verbose=verbose, loading_order=true, items=true)
-# end
 
 """
     BLtruck(instance::Vector{Pair{T, S}}, truck::Truck; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
@@ -200,8 +198,8 @@ If `loading_order=true` is specified, input stacks are sorted by loading order s
 By placing the stacks in order of their loading orders, and due to how the algorithm works, the resulting solution satisfies loading orders.
 """
 function BLtruck(instance::Vector{Pair{T, S}}, truck::Truck; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
-    println("press enter BLtruck for stacks")
-    readline()
+    # println("press enter BLtruck for stacks")
+    # readline()
     """Lengths must be greater than widths"""
     # TODO pretreatment?
     """One of the two dimensions must be lesser than W?"""
@@ -261,8 +259,8 @@ function BLtruck(instance::Vector{Item}, truck::Truck; precision=3, verbose=fals
     # TODO pretreatment?
     """One of the two dimensions must be lesser than W?"""
     # TODO
-    println("press enter c")
-    readline()
+    # println("press enter c")
+    # readline()
 
     # Sort the stacks
     sort!(instance, by=item -> (
@@ -282,8 +280,8 @@ function BLtruck(instance::Vector{Item}, truck::Truck; precision=3, verbose=fals
 
     # For each item to place
     for (i, it) in enumerate(instance)
-        println("press enter d", i)
-        readline()
+        # println("press enter d", i)
+        # readline()
         if !issorted(corners, by= o -> (get_pos(o).x, get_pos(o).y))
             display(corners)
             error("Not sorted")

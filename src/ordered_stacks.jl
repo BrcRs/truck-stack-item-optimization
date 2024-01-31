@@ -51,7 +51,7 @@ with given `orientation` (should be either `:Horizontal` or `:Vertical`).
 In this method we check the loading orders to determine if a stack can be placed 
 then call the standard can_be_placed method taking simple Stacks to check for collisions.
 """
-function can_be_placed(solution, o, s::OrderedStack, W, orientation::Symbol; precision=3, verbose=false)
+function can_be_placed(solution, o, s::OrderedStack, truck::Truck, orientation::Symbol; precision=3, verbose=false)
     condition = missing
     # Make sure no other stack already placed and with greater x position has a lower loading order
     # take the stack with lower x among those with x > o.x
@@ -76,7 +76,7 @@ function can_be_placed(solution, o, s::OrderedStack, W, orientation::Symbol; pre
     else
         condition = true
     end
-    return condition && can_be_placed(solution, o, get_dim(s), W, orientation; precision)
+    return condition && can_be_placed(solution, o, get_dim(s), truck, orientation; precision)
 
 end
 
