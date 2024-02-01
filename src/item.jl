@@ -805,6 +805,7 @@ function placeitem!(solution::Dict{T, S}, truck::Truck, item::Item, corners::Vec
     end
     # println()
 
+    placed = true
     # if no valid stack found create new stack containing the item and place item with standard placestack! function 
     if !found_stack
         # create new stack
@@ -817,9 +818,9 @@ function placeitem!(solution::Dict{T, S}, truck::Truck, item::Item, corners::Vec
 
         add_item!(newstack, item)
         # display(get_items(newstack))
-        torem, toadd = placestack!(solution, truck, ind, newstack, corners; precision=precision, verbose=verbose, loading_order=true) # DONE check weight constraints when adding a new stack
+        torem, toadd, placed = placestack!(solution, truck, ind, newstack, corners; precision=precision, verbose=verbose, loading_order=true) # DONE check weight constraints when adding a new stack
         # solution[ind] = copy(newstack)
     end
 
-    return torem, toadd
+    return torem, toadd, placed
 end

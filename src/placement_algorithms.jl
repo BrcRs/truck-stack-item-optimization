@@ -167,26 +167,24 @@ function placestack!(solution::Dict{T, S}, truck::Truck, i, s::AbstractStack, co
         end
     end
 
-    if !placed
-        println("solution\n", solution)
-        println("W\n", W)
-        println("i\n", i)
-        println("s\n", s)
-        println("corners\n", corners)
-        println("precision\n", precision)
-        println("verbose\n", verbose)
-        error("The stack can't be placed")
-    end
-    # TODO in the case of itemized stacks with weight constraints, there is a 
+    # if !placed
+    #     println("solution\n", solution)
+    #     println("W\n", W)
+    #     println("i\n", i)
+    #     println("s\n", s)
+    #     println("corners\n", corners)
+    #     println("precision\n", precision)
+    #     println("verbose\n", verbose)
+    #     # error("The stack can't be placed") # TODO not happy with disabling this error for instances without items
+    # end
+    # DONE in the case of itemized stacks with weight constraints, there is a 
     # probability that the sequence of items guides the algo in a direction which later
     # makes impossible to place a stack because not enough room and placing the 
     # stack at the back would mess up the weight constraints
     # TODO to verify that the weight constraints are indeed the problem here
-    # TODO and dismiss stacks that overflow from truck when checking weight constraints (not part of solution)?
-    # TODO or consider a list of stacks which could not be placed
-    # TODO imagine a new truck for stacks which overflow
+    # DONE consider a list of items which could not be placed
 
-    return torem, toadd
+    return torem, toadd, placed
 end
 
 """
@@ -223,7 +221,7 @@ function BLtruck(instance::Vector{Pair{T, S}}, truck::Truck; precision=3, verbos
             display(corners)
             error("Not sorted")
         end
-        torem, toadd = placestack!(solution, truck, i, s, corners; precision=precision, loading_order=loading_order)
+        torem, toadd, placed = placestack!(solution, truck, i, s, corners; precision=precision, loading_order=loading_order)
         if verbose
             println("About to place stack n. $i, $s")
             if length(corners) > 20
@@ -267,13 +265,11 @@ function BLtruck(instance::Vector{Item}, truck::Truck; precision=3, verbose=fals
                         get_supplier_order(truck, get_supplier(item)), 
                         get_supplier_dock_order(truck, get_supplier(item), get_supplier_dock(item)), 
                         get_plant_dock_order(truck, get_plant_dock(item))))
-    # sort!(instance, by=item -> (
-    #                     get_supplier_orders(truck)[get_supplier(item)], 
-    #                     get_supplier_dock_orders(truck)[get_supplier_dock(item)], 
-    #                     get_plant_dock_orders(truck)[get_plant_dock(item)]))
+    # TODO additional treatment over the sequence of items could improve the values of the solutions
 
     corners = AbstractPos[Pos(0, 0)]
     solution = Dict{Integer, ItemizedStack}()
+    notplaced = Vector{Item}()
     # torem = Pos[]
     # toadd = Pos[]
 
@@ -286,19 +282,22 @@ function BLtruck(instance::Vector{Item}, truck::Truck; precision=3, verbose=fals
             display(corners)
             error("Not sorted")
         end
-        torem, toadd = placeitem!(solution, truck, it, corners; precision=precision)
-        
-        # remove corners waiting to be removed
-        filter!(x -> !(x in torem), corners)
+        torem, toadd, placed = placeitem!(solution, truck, it, corners; precision=precision)
+        if !placed
+            push!(notplaced, it)
+        else
+            # remove corners waiting to be removed
+            filter!(x -> !(x in torem), corners)
 
-        # Add corners to the list of available corners
-        push!(corners, toadd...)
-        sort!(corners, by= o -> (get_pos(o).x, get_pos(o).y) ) # TODO instead of sorting put elements in right place
-        # toadd = Pos[]
-        # torem = Pos[]
+            # Add corners to the list of available corners
+            push!(corners, toadd...)
+            sort!(corners, by= o -> (get_pos(o).x, get_pos(o).y) ) # TODO instead of sorting put elements in right place
+            # toadd = Pos[]
+            # torem = Pos[]
+        end
     end
 
-    return solution
+    return solution, notplaced
 end
 
 """
