@@ -1,3 +1,5 @@
+using AutoHashEquals
+
 
 @auto_hash_equals struct Dim
     le # le:length corresponds to x axis of a truck

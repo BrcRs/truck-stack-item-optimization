@@ -1,6 +1,6 @@
 import Pkg
 # Pkg.add(["Test", "HTTP", "JSON"])
-Pkg.add(["Test", "Coverage", "AutoHashEquals", "Plots", "Documenter"])
+Pkg.add(["Test", "Coverage", "AutoHashEquals", "Plots", "Documenter", "Tables"])
 # using OAuth, HTTP, JSON
 using Test
 
@@ -30,3 +30,8 @@ end
     # include("testplacement_visualizer.jl")
     # Needs manual testing
 end
+
+@testset "testto_csv.jl" begin
+    include("testto_csv.jl")
+end
+

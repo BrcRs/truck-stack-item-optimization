@@ -1,3 +1,4 @@
+using AutoHashEquals
 
 abstract type AbstractPos end
 

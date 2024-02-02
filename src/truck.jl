@@ -2,10 +2,11 @@ include("dim.jl")
 include("pos.jl")
 
 struct Truck
+    id::String
     dim::Dim
     height::Real
     max_stack_density::Real
-    max_stack_weight::Real
+    max_stack_weight::Real # TMm? TODO
     supplier_orders::Dict{String, Integer}
     supplier_dock_orders::Dict{String, Dict{String, Integer}}
     plant_dock_orders::Dict{String, Integer}
@@ -22,6 +23,17 @@ struct Truck
     EM_mm::Real # max weight on the middle axle of the trailer
 end
 
+function Truck(
+    dim, height, max_stack_density, max_stack_weight, supplier_orders, 
+    supplier_dock_orders, plant_dock_orders, CM, CJ_fm, CJ_fc, CJ_fh, EM,
+    EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm
+) 
+    return Truck("", dim, height, max_stack_density, max_stack_weight, supplier_orders, 
+    supplier_dock_orders, plant_dock_orders, CM, CJ_fm, CJ_fc, CJ_fh, EM,
+    EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
+end
+
+get_id(truck::Truck) = truck.id
 get_dim(truck::Truck) = truck.dim
 get_height(truck::Truck) = truck.height
 get_max_stack_density(truck::Truck) = truck.max_stack_density

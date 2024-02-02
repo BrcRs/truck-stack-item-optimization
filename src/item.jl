@@ -17,6 +17,7 @@ get_max_stackability(p::Product) = p.max_stackability
 get_max_weight(p::Product) = p.max_weight
 
 @auto_hash_equals struct Item
+    id::String
     time_window::@NamedTuple{earliest::Any, latest::Any}
     dim::Dim
     # pos::Pos
@@ -33,6 +34,44 @@ get_max_weight(p::Product) = p.max_weight
     product::Product
 end
 
+function Item(
+    time_window,
+    dim::Dim,
+    # pos::Pos
+    height,
+    weight,
+    stackability_code,
+    forced_orientation,
+    plant,
+    plant_dock,
+    supplier,
+    supplier_dock,
+    inventory_cost,
+    nesting_height,
+    product
+)
+
+    return Item(
+        "",
+        time_window,
+        dim,
+        # pos::Pos
+        height,
+        weight,
+        stackability_code,
+        forced_orientation,
+        plant,
+        plant_dock,
+        supplier,
+        supplier_dock,
+        inventory_cost,
+        nesting_height,
+        product
+    )
+
+end
+
+get_id(item::Item) = item.id
 get_time_window(i::Item) = i.time_window
 get_dim(i::Item) = i.dim
 get_height(i::Item) = i.height
@@ -67,6 +106,7 @@ Base.show(io::IO, it::Item) =
 
 function Base.copy(it::Item)
     return Item(
+        it.id,
         it.time_window,
         it.dim,
         # pos::Pos,
@@ -119,13 +159,15 @@ end
 An ordered stack which can hold items.
 """
 mutable struct ItemizedStack <: AbstractOrderedStack
+    id::String
     ordered_stack::Union{Nothing, OrderedStack}
     items::Vector{Item}
     weight::Real
     height::Real
     forced_orientation::Symbol
     minmax_stackability::Number
-    function ItemizedStack(ordered_stack::OrderedStack,
+
+    function ItemizedStack(id::String, ordered_stack::OrderedStack,
         items::Vector{Item},
         weight::Real,
         height::Real,
@@ -134,14 +176,33 @@ mutable struct ItemizedStack <: AbstractOrderedStack
         if !(forced_orientation in [:Free, :Horizontal, :Vertical])
             throw(ArgumentError("forced_orientation should be taken among [:Free, :Horizontal, :Vertical].\nGot $forced_orientation."))
         end
-        new(ordered_stack, items, weight, height, forced_orientation, minmax_stackability)
+        new(id, ordered_stack, items, weight, height, forced_orientation, minmax_stackability)
     end
 
 end
  
+function ItemizedStack(
+    ordered_stack::OrderedStack,
+    items::Vector{Item},
+    weight::Real,
+    height::Real,
+    forced_orientation::Symbol,
+    minmax_stackability::Number
+)
+    return ItemizedStack(
+        "", 
+        ordered_stack,
+        items,
+        weight,
+        height,
+        forced_orientation,
+        minmax_stackability
+    )
+end
 
 function Base.copy(is::ItemizedStack)
     return ItemizedStack(
+        is.id,
         is.ordered_stack,
         copy(is.items),
         is.weight,
@@ -184,7 +245,7 @@ Base.hash(a::ItemizedStack, h::UInt) = hash(a.items, hash(:ItemizedStack, h))
 Base.:(==)(a::ItemizedStack, b::ItemizedStack) = isequal(a.items, b.items) # TODO problem when 2 different stacks have an identical item
 # Base.length(a::ItemizedStack) = length(a.items)
 
-
+get_id(stack::ItemizedStack) = stack.id
 
 get_dim(is::ItemizedStack) = get_dim(is.ordered_stack)
 
@@ -250,6 +311,17 @@ function get_dim(is::ItemizedStack)
 end
 
 get_minmax_stackability(is::ItemizedStack) = is.minmax_stackability
+
+
+get_loaded_length(stacks::Vector{ItemizedStack}) = max([get_pos(item).x + get_dim(item).le for item in stacks]...)
+
+get_loaded_volume(stacks::Vector{ItemizedStack}) = sum([get_dim(stack).wi * get_dim(stack).le for stack in stacks])
+
+get_loaded_weight(stacks::Vector{ItemizedStack}) = sum([get_weight(stack) for stack in stacks])
+
+function set_id!(stack::ItemizedStack, id::String)
+    stack.id = id
+end
 
 Base.show(io::IO, is::ItemizedStack) = 
     print(io, "ItemizedStack(", readable(get_pos(is)), ", ", readable(get_dim(is)), ", orders=", get_orders(is), ", ", length(get_items(is)), " item(s), height=", round(get_height(is), digits=3), ", weight=", round(get_weight(is), digits=3), ", ", get_forced_orientation(is), ")")
@@ -325,7 +397,7 @@ function valid_stack(stacks, s, it, truck; fastexit=false, precision=3, verbose=
     length(get_items(s)) <= get_minmax_stackability(s) && # we need to find the smallest max_stackability of the pile
     (get_forced_orientation(it) == :Free || get_forced_orientation(s) == :Free || get_forced_orientation(s) == get_forced_orientation(it)) &&
     leqtol((get_weight(s) + get_weight(it))/(get_dim(s).le * get_dim(s).wi), get_max_stack_density(truck), precision) && # check density
-    leqtol(get_weight(s) + get_weight(it), get_max_stack_weight(truck), precision) && # check max weight
+    leqtol(get_weight(s) + get_weight(it), get_max_stack_weight(truck), precision) && # check max weight # TODO there is a mistake here? Sum weights of all stacks?
     valid_axle_pressure(stacks, s, it, truck; fastexit=fastexit, precision=precision)
 end
 
@@ -721,7 +793,7 @@ function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integ
                 stackability_code = rand(candidate_codes)[1]
             end
         end
-        if !isnothing(stackability_code)
+        if isnothing(stackability_code)
             stackability_code = randstring(8)
             stackability_codes[stackability_code] = dim
         end
@@ -740,10 +812,11 @@ function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integ
         rand_subset_nb = rand(0:n)
         # create stack
         stack = ItemizedStack(os)
+        set_id!(stack, string(get_id(truck), "_", i))
         wsum = 0
-        for i in 1:n
+        for j in 1:n
             orientation = nothing
-            if i <= rand_subset_nb
+            if j <= rand_subset_nb
                 # forced
                 orientation = stack_orient
             else
@@ -752,6 +825,7 @@ function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integ
             end
             wsum += w
             item = Item(
+                string(i, "_", j),
                 time_window,
                 dim,
                 item_h,
@@ -764,7 +838,8 @@ function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integ
                 supplier_dock,
                 inv_cost,
                 nesting_height,
-                p)
+                p
+            )
             add_item!(stack, copy(item))
         end
         push!(istacks, Pair(i, copy(stack)))
