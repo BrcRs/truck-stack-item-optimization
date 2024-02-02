@@ -442,7 +442,18 @@ end
             # end
         end
     end
-
+    println("Mean length ratio")
+    display(mean(ratios))
+    println("Min length ratio")
+    display(min(ratios...))
+    println("25% quantile length ratio")
+    display(quantile(ratios, 0.25))
+    println("Median length ratio")
+    display(median(ratios))
+    println("75% quantile length ratio")
+    display(quantile(ratios, 0.75))
+    println("Max length ratio")
+    display(max(ratios...))
 
 end
 
@@ -455,7 +466,7 @@ end
     L = 100
     W = 10
     H = 12
-
+    ratios = []
     
     truck = Truck(
         Dim(L, W), 
@@ -502,6 +513,8 @@ end
         end
         # display(solution)
         foundL = max([get_pos(solution[k]).x + get_dim(solution[k]).le for k in keys(solution)]...)
+        ratio = foundL / L
+        push!(ratios, ratio)
         push!(instances_solutions, (ins=instance, sol=solution))
     end
 
@@ -540,6 +553,19 @@ end
     #         # end
     #     end
     # end
+
+    println("Mean length ratio")
+    display(mean(ratios))
+    println("Min length ratio")
+    display(min(ratios...))
+    println("25% quantile length ratio")
+    display(quantile(ratios, 0.25))
+    println("Median length ratio")
+    display(median(ratios))
+    println("75% quantile length ratio")
+    display(quantile(ratios, 0.75))
+    println("Max length ratio")
+    display(max(ratios...))
 
     # Test loading orders are satisfied
     @testset "loading orders" begin
