@@ -13,19 +13,20 @@ end
     include("testprojected_pos.jl")
 end
 
-@testset "testplacement_algorithms.jl" begin
-    include("testplacement_algorithms.jl")
-end
-
 @testset "testordered_stacks.jl" begin
     include("testordered_stacks.jl")
 end
 
+@testset "testitem.jl" begin
+    include("testitem.jl")
+end
+
+@testset "testplacement_algorithms.jl" begin
+    include("testplacement_algorithms.jl")
+end
+
+
 @testset "testplacement_visualizer.jl" begin
     # include("testplacement_visualizer.jl")
     # Needs manual testing
-end
-
-@testset "testitem.jl" begin
-    include("testitem.jl")
 end

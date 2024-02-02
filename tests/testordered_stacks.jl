@@ -11,7 +11,7 @@ include("../src/placement_visualizer.jl")
         4 => Stack(Pos(4, 1), Dim(4, 9))
     )
 
-    res = order_instance(instance)
+    res, supplier, supplier_dock, plant_dock = order_instance(instance)
 
     sorted_res = sort(res, by= p -> (get_supplier_order(p[2]), get_supplier_dock_order(p[2]), get_plant_dock_order(p[2])))
 
@@ -22,7 +22,7 @@ include("../src/placement_visualizer.jl")
     )
 
 
-    res = order_instance(instance)
+    res, supplier, supplier_dock, plant_dock = order_instance(instance)
 
     sorted_res = sort(res, by= p -> (get_supplier_order(p[2]), get_supplier_dock_order(p[2]), get_plant_dock_order(p[2])))
 
@@ -72,6 +72,34 @@ end
 end
 
 @testset "can_be_placed" begin
+
+    L = 10
+    W = 10
+    H = 12
+
+    
+    truck = Truck(
+        Dim(L, W), 
+        H, 
+        1500,  # max_stack_density
+        100000, # max_stack_weight
+        Dict(), 
+        Dict(), 
+        Dict(), 
+        7808,
+        3800,
+        1040,
+        3330,
+        7300,
+        7630,
+        2350,
+        1670,
+        31500,
+        12000
+        )
+
+
+
     # can_be_placed(solution, o, s::OrderedStack, W, orientation::Symbol; precision=3)
     solution = Dict(
         1 => OrderedStack(Pos(0, 0), Dim(1, 1), 1, 1, 1),
@@ -82,13 +110,13 @@ end
         6 => OrderedStack(Pos(5, 0), Dim(1, 1), 1, 3, 1)
     )
 
-    @test can_be_placed(solution, Pos(4, 1), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 2, 3), 10, :Parallel, verbose=false)
-    @test can_be_placed(solution, Pos(4, 1), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 2, 4), 10, :Parallel, verbose=false)
-    @test can_be_placed(solution, Pos(4, 1), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 2, 5), 10, :Parallel, verbose=false)
-    @test can_be_placed(solution, Pos(4, 1), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 3, 1), 10, :Parallel, verbose=false)
+    @test can_be_placed(solution, Pos(4, 1), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 2, 3), truck, :Parallel, verbose=false)
+    @test can_be_placed(solution, Pos(4, 1), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 2, 4), truck, :Parallel, verbose=false)
+    @test can_be_placed(solution, Pos(4, 1), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 2, 5), truck, :Parallel, verbose=false)
+    @test can_be_placed(solution, Pos(4, 1), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 3, 1), truck, :Parallel, verbose=false)
 
-    @test !can_be_placed(solution, Pos(4, 1), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 3, 2), 10, :Parallel, verbose=false)
-    @test !can_be_placed(solution, Pos(4, 1), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 3, 3), 10, :Parallel, verbose=false)
+    @test !can_be_placed(solution, Pos(4, 1), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 3, 2), truck, :Parallel, verbose=false)
+    @test !can_be_placed(solution, Pos(4, 1), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 3, 3), truck, :Parallel, verbose=false)
 
     solution = Dict(
         1 => OrderedStack(Pos(5, 0), Dim(1, 1), 1, 1, 1),
@@ -98,7 +126,7 @@ end
         5 => OrderedStack(Pos(5, 0), Dim(1, 1), 1, 1, 5),
         6 => OrderedStack(Pos(5, 0), Dim(1, 1), 1, 1, 6),
     )
-    @test !can_be_placed(solution, Pos(2, 0), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 1, 2), 10, :Parallel, verbose=false)
+    @test !can_be_placed(solution, Pos(2, 0), OrderedStack(Pos(0, 0), Dim(1, 1), 1, 1, 2), truck, :Parallel, verbose=false)
 
 end
 
