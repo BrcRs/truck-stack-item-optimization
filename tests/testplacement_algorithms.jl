@@ -316,6 +316,12 @@ end
     placestack!(r, truck, 3, Stack(Pos(193.604, 0), Dim(96.8021, 2.49442)), [Pos(5.85725, 5.85725), Pos(193.604, 0)]; precision=3, verbose=true)
     @test r[3].pos == Pos(5.85725, 5.85725)
 
+    # ordered stacks cases are tested with the ordered specialized can_be_placed function in ordered_stack.jl
+
+    # same for itemized stacks cases
+
+
+
 end
 
 
@@ -598,7 +604,7 @@ end
 
 
     itemized_stacks = itemize!(truck, simple_stacks)
-
+    # TODO objective test needed here
     # display(itemized_stacks)
 end
 

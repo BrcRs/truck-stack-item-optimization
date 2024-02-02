@@ -69,6 +69,8 @@ end
     display(newstack)
 
     # readline()
+
+    # TODO add @test 
 end
 
 
@@ -605,6 +607,10 @@ end
     @test get_weight(mystack) == 40
 end
 
+
+
+# TODO test placeitem!
+
 # @testset "make_stacks1" begin
 
 #     n = 100
@@ -779,40 +785,5 @@ end
 #     # sum items and make sure == n
 #     m = sum([length(get_items(s)) for supplier in keys(stacks) for s in stacks[supplier]])
 #     @test m == n
-
-# end
-
-
-
-# @testset "can_be_placed" begin
-#     """
-#     can_be_placed(solution, o::Pos, s::ItemizedStack, truck::Truck, orientation::Symbol; precision=3, verbose=false)
-
-#     Return true if stack `s` can be placed in partial solution `solution` without breaking any constraint.
-#     """
-#     # can_be_placed(solution, o::Pos, s::ItemizedStack, truck::Truck, orientation::Symbol; precision=3, verbose=false)
-
-#     # make simple stacks to add to solution
-#     stacks = Dict(
-#         i => ItemizedStack(1, 1, i) for i in 1:5
-#         )
-#     max_stackability, max_weight = 10, 10
-#     p = Product(1000, 1000)
-
-#     items = [simpleItem()]
-
-#     add_item!(stack, i)
-#     # find corners
-#     error("WIP")
-#     # make a test stack
-
-#     # make a truck
-
-#     # determine orientation
-
-#     # only test weight related constraints
-
-#     can_be_placed(solution, o::Pos, s::ItemizedStack, truck::Truck, orientation::Symbol; precision=3, verbose=false)
-
 
 # end

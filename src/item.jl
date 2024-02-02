@@ -294,7 +294,7 @@ Return true if stack `s` can be placed in partial solution `solution` without br
 function can_be_placed(solution, o::Pos, s::ItemizedStack, truck::Truck, orientation::Symbol; precision=3, verbose=false)
 
     # check weight constraints
-    # TODO provide valid_axle_pressure the stack `s` with position pos
+    # DONE provide valid_axle_pressure the stack `s` with position pos
     # instantiate pos and dim
     os = set_stack(get_ordered_stack(s), Stack(o, get_dim(s)))
     set_ordered_stack!(s, os)
