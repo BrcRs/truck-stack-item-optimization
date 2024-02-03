@@ -1,5 +1,6 @@
 using CSV
 using Tables
+using OrderedCollections
 
 include("item.jl")
 
@@ -9,26 +10,34 @@ include("item.jl")
 
 function solution_to_csv(truck, solution, directory; append=true)
 
-    truck_mat = Dict{String, Any}()
-    stack_mat = Dict{String, Vector{Any}}()
-    item_mat = Dict{String, Vector{Any}}()
+    truck_mat = OrderedDict{String, Vector{Any}}()
+    stack_mat = OrderedDict{String, Vector{Any}}()
+    item_mat = OrderedDict{String, Vector{Any}}()
+
+    truck_cols = [
+        "Id truck", "Loaded length", "Weight of loaded items", "Volume of loaded items", "EMm", 
+        "EMr"
+    ]
+    for col in truck_cols
+        truck_mat[col] = Vector{Any}()
+    end
 
     # truck: columns needed
     # - Id truck
-    truck_mat["Id truck"] = get_id(truck)
+    push!(truck_mat["Id truck"], get_id(truck))
     # - Loaded length
-    truck_mat["Loaded length"] = get_loaded_length([p[2] for p in solution])
+    push!(truck_mat["Loaded length"], get_loaded_length([p[2] for p in solution]))
     # - Weight of loaded items
-    truck_mat["Weight of loaded items"] = get_loaded_weight([p[2] for p in solution])
+    push!(truck_mat["Weight of loaded items"], get_loaded_weight([p[2] for p in solution]))
     # - Volume of loaded items
-    truck_mat["Volume of loaded items"] = get_loaded_volume([p[2] for p in solution])
+    push!(truck_mat["Volume of loaded items"], get_loaded_volume([p[2] for p in solution]))
     
     tm_t, ej_e, ej_r, em_h, em_r, em_m = 
         dist_stacks_to_trailer([p[2] for p in solution], truck)
     # - EMm
-    truck_mat["EMm"] = em_m
+    push!(truck_mat["EMm"], em_m)
     # - EMr
-    truck_mat["EMr"] = em_r
+    push!(truck_mat["EMr"], em_r)
     # then four unnamed columns (EMr?)
     # TODO
 
@@ -118,10 +127,76 @@ function solution_to_csv(truck, solution, directory; append=true)
     CSV.write(joinpath(directory, "output_trucks.csv"), truck_tab, append=append, writeheader=!append)
     CSV.write(joinpath(directory, "output_stacks.csv"), stack_tab, append=append, writeheader=!append)
     CSV.write(joinpath(directory, "output_items.csv"), item_tab, append=append, writeheader=!append)
-    error("Columns are not in order")
-    error("Truck file is messed up")
+    # error("Columns are not in order")
+    # error("Truck file is messed up")
 end
 
+function write_input(trucks, items, directory)
+
+    truck_mat = OrderedDict{String, Vector{Any}}()
+    item_mat = OrderedDict{String, Vector{Any}}()
+
+
+    truck_cols = [
+        "Item ident", "Supplier code", "Supplier dock", "Plant code", "Plant dock", 
+        "Product code", "Package code", "Number of items", "Length", "Width", "Height", "Weight",
+        "Nesting height", "Stackability code", "Forced orientation", "Earliest arrival time",
+        "Latest arrival time", "Inventory cost", "Max stackability"
+    ]
+    for col in truck_cols
+        truck_mat[col] = Vector{Any}()
+    end
+
+    item_cols = [
+        "Supplier code", "Supplier loading order", "Supplier dock", "Supplier dock loading order",
+        "Plant code", "Plant dock", "Plant dock loading order", "Product code", "Arrival time",
+        "Id truck", "Length", "Width", "Height", "Max weight", "Stack with multiple docks",
+        "Max density", "Max weight on the bottom item in stacks", "Cost", "EMmm", "EMmr", "CM"
+        "CJfm", "CJfc", "CJfh", "EM", "EJhr", "EJcr", "EJeh"
+    ]
+    for col in item_cols
+        item_mat[col] = Vector{Any}()
+    end
+
+    # write item infos
+    # Item ident, Supplier code, Supplier dock, Plant code, Plant dock, 
+    # Product code, Package code, Number of items, Length, Width, Height, Weight,
+    # Nesting height, Stackability code, Forced orientation, Earliest arrival time,
+    # Latest arrival time, Inventory cost, Max stackability
+
+    for item in items
+        push!(item_mat["Item ident"], get_id(item))
+        push!(item_mat["Supplier code"], get_supplier(item))
+        push!(item_mat["Supplier dock"], get_supplier_dock(item))
+        push!(item_mat["Plant code"], get_plant(item))
+        push!(item_mat["Plant dock"], get_plant_dock(item))
+        push!(item_mat["Product code"], get_code(get_product(item)))
+        push!(item_mat["Package code"], error("What is a package code?")) # looks like a little label to use for visualisation
+        push!(item_mat["Number of items"], error("What does that mean?"))
+        # An item with an item ident can exist in several copies. TODO
+        push!(item_mat["Length"], get_dim(item).le)
+        push!(item_mat["Width"], get_dim(item).wi)
+        push!(item_mat["Height"], get_height(item))
+        push!(item_mat["Weight"], get_weight(item))
+        push!(item_mat["Nesting height"], get_nesting_height(item))
+        push!(item_mat["Stackability code"], get_stackability_code(item))
+        push!(item_mat["Forced orientation"], get_forced_orientation(item))
+        push!(item_mat["Earliest arrival time,"], get_time_window(item)[1])
+        push!(item_mat["Latest arrival time"], get_time_window(item)[2])
+        push!(item_mat["Inventory cost"], get_inventory_cost(item))
+        push!(item_mat["Max stackability"], get_max_stackability(get_product(item)))
+
+    end
+
+    # write truck infos
+    # Supplier code, Supplier loading order, Supplier dock, Supplier dock loading order,
+    # Plant code, Plant dock, Plant dock loading order, Product code, Arrival time,
+    # Id truck, Length, Width, Height, Max weight, Stack with multiple docks,
+    # Max density, Max weight on the bottom item in stacks, Cost, EMmm, EMmr, CM
+    # CJfm, CJfc, CJfh, EM, EJhr, EJcr, EJeh
+    
+
+end
 
 # # for testing purposes, I need a functoin which takes output files and creates
 # # a Truck and a solution::Vector{Pair{Integer, ItemizedStack}}
