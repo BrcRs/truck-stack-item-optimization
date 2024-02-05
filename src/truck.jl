@@ -6,10 +6,12 @@ struct Truck
     dim::Dim
     height::Real
     max_stack_density::Real
-    max_stack_weight::Real # TMm? TODO
+    max_stack_weights::Dict{String, Real} 
+    TMm::Real # Max authorized loading weight of truck t
     supplier_orders::Dict{String, Integer}
     supplier_dock_orders::Dict{String, Dict{String, Integer}}
     plant_dock_orders::Dict{String, Integer}
+
 
     CM::Real # weight of the tractor
     CJ_fm::Real #  distance between the front and middle axles of the tractor
@@ -22,13 +24,13 @@ struct Truck
     EM_mr::Real # max weight on the rear axle of the trailer
     EM_mm::Real # max weight on the middle axle of the trailer
 end
-
+error("TODO Implement max_stack_weights that depends also on product")
 function Truck(
-    dim, height, max_stack_density, max_stack_weight, supplier_orders, 
+    dim, height, max_stack_density, max_stack_weights, supplier_orders, 
     supplier_dock_orders, plant_dock_orders, CM, CJ_fm, CJ_fc, CJ_fh, EM,
     EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm
 ) 
-    return Truck("", dim, height, max_stack_density, max_stack_weight, supplier_orders, 
+    return Truck("", dim, height, max_stack_density, max_stack_weights, supplier_orders, 
     supplier_dock_orders, plant_dock_orders, CM, CJ_fm, CJ_fc, CJ_fh, EM,
     EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
 end
@@ -37,7 +39,7 @@ get_id(truck::Truck) = truck.id
 get_dim(truck::Truck) = truck.dim
 get_height(truck::Truck) = truck.height
 get_max_stack_density(truck::Truck) = truck.max_stack_density
-get_max_stack_weight(truck::Truck) = truck.max_stack_weight
+get_max_stack_weights(truck::Truck) = truck.max_stack_weights
 get_supplier_orders(truck::Truck) = truck.supplier_orders
 get_supplier_dock_orders(truck::Truck) = truck.supplier_dock_orders
 get_supplier_dock_order(truck::Truck, supplier, supplier_dock) = truck.supplier_dock_orders[supplier][supplier_dock]

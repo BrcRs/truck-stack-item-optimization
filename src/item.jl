@@ -25,6 +25,8 @@ get_code(p::Product) = p.code
 
 @auto_hash_equals struct Item
     id::String
+    package_code::String
+    copy_number::Integer
     time_window::@NamedTuple{earliest::Any, latest::Any}
     dim::Dim
     # pos::Pos
@@ -60,6 +62,8 @@ function Item(
 
     return Item(
         "",
+        "",
+        -1,
         time_window,
         dim,
         # pos::Pos
@@ -79,6 +83,8 @@ function Item(
 end
 
 get_id(item::Item) = item.id
+get_package_code(item::Item) = item.package_code
+get_copy_number(item::Item) = item.copy_number
 get_time_window(i::Item) = i.time_window
 get_dim(i::Item) = i.dim
 get_height(i::Item) = i.height
@@ -261,7 +267,7 @@ function get_height(is::ItemizedStack)
     return is.height
 end
 
-function set_height(truck::Truck, h)
+function set_height(truck::Truck, h) # TODO use original constructor here
     return Truck(
         truck.dim,
         h,
@@ -396,7 +402,7 @@ function valid_stack(stacks, s, it, truck; fastexit=false, precision=3, verbose=
         println(3, " ", length(get_items(s)) <= get_minmax_stackability(s))
         println(4, " ", get_forced_orientation(it) == :Free || get_forced_orientation(s) == :Free || get_forced_orientation(s) == get_forced_orientation(it))
         println(5, " ", leqtol((get_weight(s) + get_weight(it))/(get_dim(s).le * get_dim(s).wi), get_max_stack_density(truck), precision))
-        println(6, " ", leqtol(get_weight(s) + get_weight(it), get_max_stack_weight(truck), precision))
+        println(6, " ", leqtol(get_weight(s) + get_weight(it), get_max_stack_weight(truck, get_product(get_items(s)[1])), precision))
         println(7, " ", valid_axle_pressure(stacks, s, it, truck; fastexit=fastexit, precision=precision))
     end
     return leqtol(get_height(s) + get_height(it), get_height(truck), precision) && 
@@ -404,7 +410,8 @@ function valid_stack(stacks, s, it, truck; fastexit=false, precision=3, verbose=
     length(get_items(s)) <= get_minmax_stackability(s) && # we need to find the smallest max_stackability of the pile
     (get_forced_orientation(it) == :Free || get_forced_orientation(s) == :Free || get_forced_orientation(s) == get_forced_orientation(it)) &&
     leqtol((get_weight(s) + get_weight(it))/(get_dim(s).le * get_dim(s).wi), get_max_stack_density(truck), precision) && # check density
-    leqtol(get_weight(s) + get_weight(it), get_max_stack_weight(truck), precision) && # check max weight # TODO there is a mistake here? Sum weights of all stacks?
+    leqtol(get_weight(s) + get_weight(it), get_max_stack_weights(truck)[get_code(get_product(get_items(s)[1]))], precision) && # check max weight 
+    # We don't check max weight because if BLtruck is called then it means the max weight of truck is already satisfied
     valid_axle_pressure(stacks, s, it, truck; fastexit=fastexit, precision=precision)
 end
 
@@ -833,6 +840,8 @@ function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integ
             wsum += w
             item = Item(
                 string(i, "_", j),
+                string(i),
+                string(j), # TODO is this right?
                 time_window,
                 dim,
                 item_h,

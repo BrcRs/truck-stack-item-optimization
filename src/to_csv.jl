@@ -131,7 +131,7 @@ function solution_to_csv(truck, solution, directory; append=true)
     # error("Truck file is messed up")
 end
 
-function write_input(trucks, items, directory)
+function write_input(truck, items, directory)
 
     truck_mat = OrderedDict{String, Vector{Any}}()
     item_mat = OrderedDict{String, Vector{Any}}()
@@ -164,16 +164,28 @@ function write_input(trucks, items, directory)
     # Nesting height, Stackability code, Forced orientation, Earliest arrival time,
     # Latest arrival time, Inventory cost, Max stackability
 
+    count_packages = Dict{String, Integer}()
+
     for item in items
+        count_packages[get_package_code(item)] = 
+            haskey(count_packages, get_package_code(item)) ? 
+            count_packages[get_package_code(item)] + 1 : 1
+    end
+
+    products = Set{Product}()
+
+    for item in items
+        push!(products, get_product(item))
+
         push!(item_mat["Item ident"], get_id(item))
         push!(item_mat["Supplier code"], get_supplier(item))
         push!(item_mat["Supplier dock"], get_supplier_dock(item))
         push!(item_mat["Plant code"], get_plant(item))
         push!(item_mat["Plant dock"], get_plant_dock(item))
         push!(item_mat["Product code"], get_code(get_product(item)))
-        push!(item_mat["Package code"], error("What is a package code?")) # looks like a little label to use for visualisation
-        push!(item_mat["Number of items"], error("What does that mean?"))
-        # An item with an item ident can exist in several copies. TODO
+        push!(item_mat["Package code"], get_package_code(item)) # Copies of the same item share package code
+        push!(item_mat["Number of items"], count_packages[get_package_code(item)])
+        # An item with an item ident can exist in several copies. DONE
         push!(item_mat["Length"], get_dim(item).le)
         push!(item_mat["Width"], get_dim(item).wi)
         push!(item_mat["Height"], get_height(item))
@@ -186,8 +198,9 @@ function write_input(trucks, items, directory)
         push!(item_mat["Inventory cost"], get_inventory_cost(item))
         push!(item_mat["Max stackability"], get_max_stackability(get_product(item)))
 
+        
+        
     end
-
     # write truck infos
     # Supplier code, Supplier loading order, Supplier dock, Supplier dock loading order,
     # Plant code, Plant dock, Plant dock loading order, Product code, Arrival time,
@@ -195,6 +208,45 @@ function write_input(trucks, items, directory)
     # Max density, Max weight on the bottom item in stacks, Cost, EMmm, EMmr, CM
     # CJfm, CJfc, CJfh, EM, EJhr, EJcr, EJeh
     
+
+    for supplier in keys(get_supplier_orders(truck))
+        for supplier_dock in keys(get_supplier_dock_orders(truck)[supplier])
+            for plant_dock in get_plant_dock_orders(truck)
+                for product in products
+                    push!(truck_mat["Supplier code"], supplier)
+                    push!(truck_mat["Supplier loading order"], get_supplier_orders(truck)[supplier])
+                    push!(truck_mat["Supplier dock"], supplier_dock)
+                    push!(truck_mat["Supplier dock loading order,"], get_supplier_dock_order(truck, supplier, supplier_dock))
+                    push!(truck_mat["Plant code"], string("P", get_id(truck)))
+                    push!(truck_mat["Plant dock"], plant_dock)
+                    push!(truck_mat["Plant dock loading order"], get_plant_dock_orders(truck)[plant_dock])
+                    push!(truck_mat["Product code"], product)
+                    push!(truck_mat["Arrival time,"], 0)
+                    push!(truck_mat["Id truck"], get_id(truck))
+                    push!(truck_mat["Length"], get_dim(truck).le)
+                    push!(truck_mat["Width"], get_dim(truck).wi)
+                    push!(truck_mat["Height"], get_height(truck))
+                    push!(truck_mat["Max weight"], get_TMm(truck))
+                    error("Continue implementing this function")
+                    push!(truck_mat["Stack with multiple docks,"], ["Stack with multiple docks,"])
+                    push!(truck_mat["Max density"], )
+                    push!(truck_mat["Max weight on the bottom item in stacks"], ["Max weight on the bottom item in stacks"])
+                    push!(truck_mat["Cost"], ["Cost"])
+                    push!(truck_mat["EMmm"], ["EMmm"])
+                    push!(truck_mat["EMmr"], ["EMmr"])
+                    push!(truck_mat["CM"], ["CM"])
+                    push!(truck_mat["CJfm"], )
+                    push!(truck_mat["CJfc"], ["CJfc"])
+                    push!(truck_mat["CJfh"], ["CJfh"])
+                    push!(truck_mat["EM"], ["EM"])
+                    push!(truck_mat["EJhr"], ["EJhr"])
+                    push!(truck_mat["EJcr"], ["EJcr"])
+                    push!(truck_mat["EJeh"], ["EJeh"])
+                end
+            end
+        end
+    end
+
 
 end
 
