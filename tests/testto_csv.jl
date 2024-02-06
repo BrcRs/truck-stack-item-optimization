@@ -17,10 +17,12 @@ include("../src/placement_algorithms.jl")
         Dim(L, W), 
         H, 
         1500,  # max_stack_density
-        100000, # max_stack_weight
+        Dict(), # max_stack_weights
+        100000000,
         Dict(), 
         Dict(), 
         Dict(), 
+        10.0,
         7808,
         3800,
         1040,
@@ -34,7 +36,7 @@ include("../src/placement_algorithms.jl")
         )
         
 
-    NBCUTS = 20
+    NBCUTS = 10
     NBFUSE = 20
 
     t = time()
@@ -54,6 +56,14 @@ include("../src/placement_algorithms.jl")
     # you want to get the items from the stacks, shuffle them and give it to BLtruck
     items = [x for s in instance for x in get_items(s[2])]
     shuffle!(items)
+
+    # # Create max_stack_weights for truck # already done in itemize
+    # for item in items
+    #     if !haskey(truck, get_code(get_product(item)))
+    #         add_max_stack_weights!(truck, get_product(item), 100000)
+    #     end
+    # end
+
     notplaced = []
     try
         solution, notplaced = BLtruck(items, truck; precision=3)
@@ -71,6 +81,9 @@ include("../src/placement_algorithms.jl")
     ratio = foundL / L
     println("Elapsed: ", time() - t, "s")
 
+    # remove items which peek out of the truck
+    filtered_items = filter(x -> !(x in notplaced), items)
+
     directory = "test_visu"
     if !isdir(directory)
         mkdir(directory)
@@ -79,6 +92,6 @@ include("../src/placement_algorithms.jl")
     for (i, stack) in solution
         set_id!(stack, string(get_id(truck), "_", i))
     end
-
+    write_input(truck, filtered_items, directory; append=false)
     solution_to_csv(truck, solution, directory, append=false)
 end

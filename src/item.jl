@@ -4,23 +4,10 @@ using Random
 include("placement.jl")
 include("ordered_stacks.jl")
 include("truck.jl")
+include("product.jl")
 
 
 
-
-@auto_hash_equals struct Product
-    code::String
-    max_stackability::Integer # max number of items an item of product can support
-    max_weight::Real # max weight an item of product can support 
-end
-
-function Product(max_stackability, max_weight)
-    return Product("", max_stackability, max_weight)
-end
-
-get_max_stackability(p::Product) = p.max_stackability
-get_max_weight(p::Product) = p.max_weight
-get_code(p::Product) = p.code
 
 
 @auto_hash_equals struct Item
@@ -32,7 +19,7 @@ get_code(p::Product) = p.code
     # pos::Pos
     height::Real
     weight::Real
-    stackability_code
+    stackability_code::String
     forced_orientation::Symbol
     plant
     plant_dock
@@ -103,7 +90,10 @@ get_max_stackability(i::Item) = get_max_stackability(i.product)
 
 Base.show(io::IO, it::Item) = 
     print(io, 
-        "Item(timing=", (get_time_window(it).earliest, get_time_window(it).latest), 
+        "Item(id=", get_id(it),
+        ", pkg code=", get_package_code(it),
+        ", cp num=", get_copy_number(it),
+        ", timing=", (get_time_window(it).earliest, get_time_window(it).latest), 
         ", Dim(", round(get_dim(it).le, digits=3), ", ", round(get_dim(it).wi, digits=3), 
         "), h=", round(get_height(it), digits=3), 
         ", w=", round(get_weight(it), digits=3), 
@@ -120,6 +110,8 @@ Base.show(io::IO, it::Item) =
 function Base.copy(it::Item)
     return Item(
         it.id,
+        it.package_code,
+        it.copy_number,
         it.time_window,
         it.dim,
         # pos::Pos,
@@ -144,7 +136,7 @@ function simpleItem(product;
     height=1,
     weight=1,
     stackability_code="",
-    forced_orientation=:Free,
+    forced_orientation=:none,
     plant="",
     plant_dock="",
     supplier="",
@@ -186,8 +178,8 @@ mutable struct ItemizedStack <: AbstractOrderedStack
         height::Real,
         forced_orientation::Symbol,
         minmax_stackability::Number)
-        if !(forced_orientation in [:Free, :Horizontal, :Vertical])
-            throw(ArgumentError("forced_orientation should be taken among [:Free, :Horizontal, :Vertical].\nGot $forced_orientation."))
+        if !(forced_orientation in [:none, :lengthwise, :widthwise])
+            throw(ArgumentError("forced_orientation should be taken among [:none, :lengthwise, :widthwise].\nGot $forced_orientation."))
         end
         new(id, ordered_stack, items, weight, height, forced_orientation, minmax_stackability)
     end
@@ -226,12 +218,12 @@ function Base.copy(is::ItemizedStack)
 end
 
 function ItemizedStack(supplier_order, supplier_dock_order, plant_dock_order)
-    return ItemizedStack(supplier_order, supplier_dock_order, plant_dock_order, :Free)
+    return ItemizedStack(supplier_order, supplier_dock_order, plant_dock_order, :none)
 end
 
 
 function ItemizedStack(os::OrderedStack)
-    return ItemizedStack(os, :Free)
+    return ItemizedStack(os, :none)
 end
 
 function ItemizedStack(os::OrderedStack, forced_orientation)
@@ -265,29 +257,6 @@ get_dim(is::ItemizedStack) = get_dim(is.ordered_stack)
 function get_height(is::ItemizedStack)
 
     return is.height
-end
-
-function set_height(truck::Truck, h) # TODO use original constructor here
-    return Truck(
-        truck.dim,
-        h,
-        truck.max_stack_density,
-        truck.max_stack_weight,
-        truck.supplier_orders,
-        truck.supplier_dock_orders,
-        truck.plant_dock_orders,
-    
-        truck.CM,
-        truck.CJ_fm,
-        truck.CJ_fc,
-        truck.CJ_fh,
-        truck.EM,
-        truck.EJ_hr,
-        truck.EJ_cr,
-        truck.EJ_eh,
-        truck.EM_mr,
-        truck.EM_mm,
-    )
 end
 
 function get_weight(is::ItemizedStack)
@@ -356,8 +325,8 @@ function add_item!(is::ItemizedStack, it::Item)
     is.height += get_height(it)
     is.minmax_stackability = min(is.minmax_stackability, get_max_stackability(it))
     # update forced orientation
-    if get_forced_orientation(it) != :Free
-        if get_forced_orientation(it) != get_forced_orientation(is) && get_forced_orientation(is) != :Free
+    if get_forced_orientation(it) != :none
+        if get_forced_orientation(it) != get_forced_orientation(is) && get_forced_orientation(is) != :none
             error("Stack already has a different forced orientation")
         end
         is.forced_orientation = get_forced_orientation(it)
@@ -400,15 +369,15 @@ function valid_stack(stacks, s, it, truck; fastexit=false, precision=3, verbose=
         println(1, " ", leqtol(get_height(s) + get_height(it), get_height(truck), precision))
         println(2, " ", leqtol(get_weight(s) + get_weight(it), get_max_weight(it), precision))
         println(3, " ", length(get_items(s)) <= get_minmax_stackability(s))
-        println(4, " ", get_forced_orientation(it) == :Free || get_forced_orientation(s) == :Free || get_forced_orientation(s) == get_forced_orientation(it))
+        println(4, " ", get_forced_orientation(it) == :none || get_forced_orientation(s) == :none || get_forced_orientation(s) == get_forced_orientation(it))
         println(5, " ", leqtol((get_weight(s) + get_weight(it))/(get_dim(s).le * get_dim(s).wi), get_max_stack_density(truck), precision))
-        println(6, " ", leqtol(get_weight(s) + get_weight(it), get_max_stack_weight(truck, get_product(get_items(s)[1])), precision))
+        println(6, " ", leqtol(get_weight(s) + get_weight(it), get_max_stack_weights(truck)[get_code(get_product(get_items(s)[1]))], precision))
         println(7, " ", valid_axle_pressure(stacks, s, it, truck; fastexit=fastexit, precision=precision))
     end
     return leqtol(get_height(s) + get_height(it), get_height(truck), precision) && 
-    leqtol(get_weight(s) + get_weight(it), get_max_weight(it), precision) && # TODO might remove get_weight(it) since we want to limit the weight on bottom item
+    leqtol(get_weight(s) + get_weight(it) - get_weight(get_items(s)[1]), get_max_weight(get_items(s)[1]), precision) && # TODO might remove get_weight(it) since we want to limit the weight on bottom item
     length(get_items(s)) <= get_minmax_stackability(s) && # we need to find the smallest max_stackability of the pile
-    (get_forced_orientation(it) == :Free || get_forced_orientation(s) == :Free || get_forced_orientation(s) == get_forced_orientation(it)) &&
+    (get_forced_orientation(it) == :none || get_forced_orientation(s) == :none || get_forced_orientation(s) == get_forced_orientation(it)) &&
     leqtol((get_weight(s) + get_weight(it))/(get_dim(s).le * get_dim(s).wi), get_max_stack_density(truck), precision) && # check density
     leqtol(get_weight(s) + get_weight(it), get_max_stack_weights(truck)[get_code(get_product(get_items(s)[1]))], precision) && # check max weight 
     # We don't check max weight because if BLtruck is called then it means the max weight of truck is already satisfied
@@ -592,8 +561,9 @@ max items between 1 and `max_items_per_stack`.
 """
 function rand_products(min_products, max_products, max_weight, max_items_per_stack)
     products = Vector{Product}(undef, rand(min_products:max_products))
+    # TODO make sure codes are unique
     for i in 1:length(products)
-        products[i] = Product(rand(1:max_items_per_stack), rand() * max_weight)
+        products[i] = Product(randstring(8), rand(1:max_items_per_stack), rand() * max_weight)
     end
     return products
 end
@@ -662,7 +632,7 @@ function rand_items(n, products, max_height, max_weight, L, W, plant; min_dim=0.
         height = max([1, rand() * max_height]...)
         weight = max([1, rand() * max_weight]...)
         stackability_code = randstring(8)
-        forced_orientation = rand([:Free, :Horizontal, :Vertical])
+        forced_orientation = rand([:none, :lengthwise, :widthwise])
 
         plant_dock = nothing
         # choose existing or new dock
@@ -741,7 +711,7 @@ function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integ
     supplier_docks = Dict()
     plant_docks = Dict()
     for (i, os) in ordered_stacks
-        suppliers[get_supplier_order(os)] = randstring(8)
+        suppliers[get_supplier_order(os)] = convert(Int32, round(rand() * 10^7))
         supplier_docks[get_supplier_dock_order(os)] = randstring(8)
         plant_docks[get_plant_dock_order(os)] = randstring(8)
     end
@@ -759,7 +729,12 @@ function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integ
     istacks = []
 
     # create a bunch of products
-    products = rand_products(1, length(stacks), 100.0, 100)
+    products = rand_products(1, length(stacks), 100.0, 20)
+
+    for p in products
+        add_max_stack_weights!(truck, p, 100000)
+    end
+
     stackability_codes = Dict()
     # for each stack
     for (i, os) in ordered_stacks
@@ -786,7 +761,7 @@ function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integ
         item_h = (get_height(truck) - nesting_height) / n
 
         # assign random orientation between free and orientation of stack
-        stack_orient = get_dim(os).le > get_dim(os).wi ? :Horizontal : :Vertical
+        stack_orient = get_dim(os).le > get_dim(os).wi ? :lengthwise : :widthwise
         # forced_orientation = rand([])
 
         # choose random time window
@@ -835,13 +810,13 @@ function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integ
                 orientation = stack_orient
             else
                 # free
-                orientation = :Free
+                orientation = :none
             end
             wsum += w
             item = Item(
                 string(i, "_", j),
                 string(i),
-                string(j), # TODO is this right?
+                j, # TODO is this right?
                 time_window,
                 dim,
                 item_h,
