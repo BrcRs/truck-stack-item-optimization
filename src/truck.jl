@@ -1,17 +1,19 @@
 include("dim.jl")
 include("pos.jl")
+include("product.jl")
 
 struct Truck
     id::String
     dim::Dim
     height::Real
     max_stack_density::Real
-    max_stack_weights::Dict{String, Real} 
+    max_stack_weights::Dict{String, Real} # string is product code
     TMm::Real # Max authorized loading weight of truck t
-    supplier_orders::Dict{String, Integer}
-    supplier_dock_orders::Dict{String, Dict{String, Integer}}
+    supplier_orders::Dict{Integer, Integer}
+    supplier_dock_orders::Dict{Integer, Dict{String, Integer}}
     plant_dock_orders::Dict{String, Integer}
 
+    cost::Integer
 
     CM::Real # weight of the tractor
     CJ_fm::Real #  distance between the front and middle axles of the tractor
@@ -24,15 +26,19 @@ struct Truck
     EM_mr::Real # max weight on the rear axle of the trailer
     EM_mm::Real # max weight on the middle axle of the trailer
 end
-error("TODO Implement max_stack_weights that depends also on product")
+
 function Truck(
     dim, height, max_stack_density, max_stack_weights, supplier_orders, 
-    supplier_dock_orders, plant_dock_orders, CM, CJ_fm, CJ_fc, CJ_fh, EM,
+    supplier_dock_orders, plant_dock_orders, cost, CM, CJ_fm, CJ_fc, CJ_fh, EM,
     EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm
 ) 
     return Truck("", dim, height, max_stack_density, max_stack_weights, supplier_orders, 
-    supplier_dock_orders, plant_dock_orders, CM, CJ_fm, CJ_fc, CJ_fh, EM,
+    supplier_dock_orders, plant_dock_orders, cost, CM, CJ_fm, CJ_fc, CJ_fh, EM,
     EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
+end
+
+function add_max_stack_weights!(truck::Truck, product::Product, max_stack_weight)
+    truck.max_stack_weights[get_code(product)] = max_stack_weight
 end
 
 get_id(truck::Truck) = truck.id
@@ -49,6 +55,8 @@ get_plant_dock_orders(truck::Truck) = truck.plant_dock_orders
 get_supplier_order(truck::Truck, supplier) = get_supplier_orders(truck)[supplier]
 get_plant_dock_order(truck::Truck, plant_dock) = get_plant_dock_orders(truck)[plant_dock]
 
+get_cost(truck::Truck) = truck.cost
+
 get_CM(truck::Truck) = truck.CM
 get_CJ_fm(truck::Truck) = truck.CJ_fm
 get_CJ_fc(truck::Truck) = truck.CJ_fc
@@ -59,6 +67,8 @@ get_EJ_cr(truck::Truck) = truck.EJ_cr
 get_EJ_eh(truck::Truck) = truck.EJ_eh
 get_EM_mr(truck::Truck) = truck.EM_mr
 get_EM_mm(truck::Truck) = truck.EM_mm
+
+get_TMm(truck::Truck) = truck.TMm
 
 get_suppliers(truck::Truck) = collect(keys(get_supplier_orders(truck)))
 
@@ -72,4 +82,32 @@ end
 function set_plant_dock_orders!(truck, d)
     merge!(truck.plant_dock_orders, d)
 
+end
+
+
+function set_height(truck::Truck, h)
+    return Truck(
+        truck.id,
+        truck.dim,
+        h,
+        truck.max_stack_density,
+        truck.max_stack_weights,
+        truck.TMm,
+        truck.supplier_orders,
+        truck.supplier_dock_orders,
+        truck.plant_dock_orders,
+
+        truck.cost,
+
+        truck.CM,
+        truck.CJ_fm,
+        truck.CJ_fc,
+        truck.CJ_fh,
+        truck.EM,
+        truck.EJ_hr,
+        truck.EJ_cr,
+        truck.EJ_eh,
+        truck.EM_mr,
+        truck.EM_mm,
+    )
 end
