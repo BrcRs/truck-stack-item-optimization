@@ -28,11 +28,11 @@ struct Truck
 end
 
 function Truck(
-    dim, height, max_stack_density, max_stack_weights, supplier_orders, 
+    dim::Dim, height, max_stack_density, max_stack_weights, TMm, supplier_orders, 
     supplier_dock_orders, plant_dock_orders, cost, CM, CJ_fm, CJ_fc, CJ_fh, EM,
     EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm
 ) 
-    return Truck("", dim, height, max_stack_density, max_stack_weights, supplier_orders, 
+    return Truck("", dim, height, max_stack_density, max_stack_weights, TMm, supplier_orders, 
     supplier_dock_orders, plant_dock_orders, cost, CM, CJ_fm, CJ_fc, CJ_fh, EM,
     EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
 end

@@ -241,10 +241,12 @@ end
         Dim(L, W), 
         H, 
         1500,  # max_stack_density
-        100000, # max_stack_weight
+        Dict(), # max_stack_weight
+        100000,
         Dict(), 
         Dict(), 
         Dict(), 
+        10, # cost
         7808,
         3800,
         1040,
@@ -276,10 +278,12 @@ end
         Dim(L, W), 
         H, 
         1500,  # max_stack_density
-        100000, # max_stack_weight
+        Dict(), # max_stack_weight
+        100000,
         Dict(), 
         Dict(), 
         Dict(), 
+        10, # cost
         7808,
         3800,
         1040,
@@ -341,10 +345,12 @@ end
         Dim(L, W), 
         H, 
         1500,  # max_stack_density
-        100000, # max_stack_weight
+        Dict(), # max_stack_weight
+        100000,
         Dict(), 
         Dict(), 
         Dict(), 
+        10, # cost
         7808,
         3800,
         1040,
@@ -472,10 +478,12 @@ end
         Dim(L, W), 
         H, 
         1500,  # max_stack_density
-        100000, # max_stack_weight
+        Dict(), # max_stack_weight
+        100000,
         Dict(), 
         Dict(), 
         Dict(), 
+        10, # cost
         7808,
         3800,
         1040,
@@ -532,6 +540,13 @@ end
                 
                 for (j, stack) in solution
                     @test !outofbound(get_pos(stack), get_dim(stack), W; precision=3)
+                end
+            end
+            @testset "Secure stack placement" begin
+                # Stacks should be adjacent to another stack to their left on the X axis
+                # or adjacent to the left side of the truck
+                for (j, stack) in solution
+                    @test is_secure(stack, solution; precision=3)        
                 end
             end
         end 
@@ -612,10 +627,12 @@ end
         Dim(L, W), 
         H, 
         1500,  # max_stack_density
-        100000, # max_stack_weight
+        Dict(), # max_stack_weight
+        100000,
         Dict(), 
         Dict(), 
         Dict(), 
+        10, # cost
         7808,
         3800,
         1040,
@@ -647,10 +664,12 @@ end
         Dim(L, W), 
         H, 
         1500,  # max_stack_density
-        100000, # max_stack_weight
+        Dict(), # max_stack_weight
+        100000,
         Dict(), 
         Dict(), 
         Dict(), 
+        10, # cost
         7808,
         3800,
         1040,
@@ -723,6 +742,13 @@ end
                 
                 for (j, stack) in solution
                     @test !outofbound(get_pos(stack), get_dim(stack), W; precision=3)
+                end
+            end
+            @testset "Secure stack placement" begin
+                # Stacks should be adjacent to another stack to their left on the X axis
+                # or adjacent to the left side of the truck
+                for (j, stack) in solution
+                    @test is_secure(stack, solution; precision=3)        
                 end
             end
         end 

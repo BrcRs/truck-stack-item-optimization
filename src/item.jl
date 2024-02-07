@@ -358,16 +358,17 @@ function can_be_placed(solution, o::Pos, s::ItemizedStack, truck::Truck, orienta
 end
 
 """
-    valid_stack(s, it, max_height)
+    valid_stack(stacks, s, it, truck; fastexit=false, precision=3, verbose=false)
 
-Return true if item `it` can be added to stack `s` without breaking any dynamic constraint.
+Return true if item `it` can be added to stack `s` without breaking any dynamic constraint
+considering already placed stacks.
 """
 function valid_stack(stacks, s, it, truck; fastexit=false, precision=3, verbose=false)
 
     # tm_t, ej_e, ej_r, em_h, em_r, em_m = dist_stacks_to_trailer(stacks, s, get_weight(it), truck)
     if verbose
         println(1, " ", leqtol(get_height(s) + get_height(it), get_height(truck), precision))
-        println(2, " ", leqtol(get_weight(s) + get_weight(it), get_max_weight(it), precision))
+        println(2, " ", leqtol(get_weight(s) + get_weight(it) - get_weight(get_items(s)[1]), get_max_weight(get_items(s)[1]), precision))
         println(3, " ", length(get_items(s)) <= get_minmax_stackability(s))
         println(4, " ", get_forced_orientation(it) == :none || get_forced_orientation(s) == :none || get_forced_orientation(s) == get_forced_orientation(it))
         println(5, " ", leqtol((get_weight(s) + get_weight(it))/(get_dim(s).le * get_dim(s).wi), get_max_stack_density(truck), precision))
@@ -379,8 +380,8 @@ function valid_stack(stacks, s, it, truck; fastexit=false, precision=3, verbose=
     length(get_items(s)) <= get_minmax_stackability(s) && # we need to find the smallest max_stackability of the pile
     (get_forced_orientation(it) == :none || get_forced_orientation(s) == :none || get_forced_orientation(s) == get_forced_orientation(it)) &&
     leqtol((get_weight(s) + get_weight(it))/(get_dim(s).le * get_dim(s).wi), get_max_stack_density(truck), precision) && # check density
-    leqtol(get_weight(s) + get_weight(it), get_max_stack_weights(truck)[get_code(get_product(get_items(s)[1]))], precision) && # check max weight 
-    # We don't check max weight because if BLtruck is called then it means the max weight of truck is already satisfied
+    leqtol(get_weight(s) + get_weight(it), get_max_stack_weights(truck)[get_code(get_product(get_items(s)[1]))], precision) && # check max stack weight 
+    # We don't check max loaded weight because if BLtruck is called then it means the max weight of truck is already satisfied
     valid_axle_pressure(stacks, s, it, truck; fastexit=fastexit, precision=precision)
 end
 

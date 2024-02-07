@@ -82,10 +82,12 @@ end
         Dim(L, W), 
         H, 
         1500,  # max_stack_density
-        100000, # max_stack_weight
+        Dict(), # max_stack_weight
+        100000,
         Dict(), 
         Dict(), 
         Dict(), 
+        10,
         7808,
         3800,
         1040,

@@ -110,7 +110,7 @@ end
     _em_r = _tm_t + EM - _em_h
     _em_m = (CM * CJ_fc + _em_h * CJ_fh) / CJ_fm
 
-    truck = Truck(Dim(14500, 2400), 2800, 1500, 100000, Dict(), Dict(), Dict(), CM, CJ_fm, CJ_fc, CJ_fh, EM, EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
+    truck = Truck(Dim(14500, 2400), 2800, 1500, Dict(), 100000, Dict(), Dict(), Dict(), 10, CM, CJ_fm, CJ_fc, CJ_fh, EM, EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
 
     positions = [Pos(1, 2), Pos(0, 1), Pos(1, 1), Pos(2, 1), Pos(1, 0)]
     stacks = [ItemizedStack(1, 1, i) for i in 1:5]
@@ -118,6 +118,8 @@ end
 
     max_stackability, max_weight = 10, 10
     p = Product(max_stackability, max_weight)
+
+    add_max_stack_weights!(truck, p, 10000)
 
     items = [simpleItem(p) for i in 1:5]
 
@@ -174,7 +176,7 @@ end
     _em_r = _tm_t + EM - _em_h
     _em_m = (CM * CJ_fc + _em_h * CJ_fh) / CJ_fm
 
-    truck = Truck(Dim(14500, 2400), 2800, 1500, 100000, Dict("A" => 1, "B" => 2), Dict(), Dict(), CM, CJ_fm, CJ_fc, CJ_fh, EM, EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
+    truck = Truck(Dim(14500, 2400), 2800, 1500, Dict(), 100000, Dict(1 => 1, 2 => 2), Dict(), Dict(), 10, CM, CJ_fm, CJ_fc, CJ_fh, EM, EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
 
     positions = [Pos(1, 2), Pos(0, 1), Pos(1, 1), Pos(2, 1), Pos(1, 0)]
     stacks = [ItemizedStack(i < 3 ? 1 : 2, 1, 1) for i in 1:5]
@@ -182,8 +184,8 @@ end
 
     max_stackability, max_weight = 10, 10
     p = Product(max_stackability, max_weight)
-
-    items = [simpleItem(p, supplier=i < 3 ? "A" : "B") for i in 1:5]
+    add_max_stack_weights!(truck, p, 10000)
+    items = [simpleItem(p, supplier=i < 3 ? 1 : 2) for i in 1:5]
 
     for i in 1:5
         add_item!(stacks[i], items[i])
@@ -244,8 +246,7 @@ end
 
     # _em_r = _tm_t + EM - _em_h
     # _em_m = (CM * CJ_fc + _em_h * CJ_fh) / CJ_fm
-
-    truck = Truck(Dim(14500, 2400), 2800, 1500, 100000, Dict("A" => 1, "B" => 2), Dict(), Dict(), CM, CJ_fm, CJ_fc, CJ_fh, EM, EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
+    truck = Truck(Dim(14500, 2400), 2800, 1500, Dict(), 100000, Dict(1 => 1, 2 => 2), Dict(), Dict(), 10, CM, CJ_fm, CJ_fc, CJ_fh, EM, EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
 
     positions = [Pos(1, 2), Pos(0, 1), Pos(1, 1), Pos(2, 1), Pos(1, 0)]
     stacks = [ItemizedStack(i < 3 ? 1 : 2, 1, 1) for i in 1:5]
@@ -253,8 +254,9 @@ end
 
     max_stackability, max_weight = 10, 10
     p = Product(max_stackability, max_weight)
+    add_max_stack_weights!(truck, p, 10000)
 
-    items = [simpleItem(p, supplier=i < 3 ? "A" : "B", weight=supplier=i < 3 ? 22784 : 1) for i in 1:5]
+    items = [simpleItem(p, supplier=i < 3 ? 1 : 2, weight=supplier=i < 3 ? 22784 : 1) for i in 1:5]
 
     for i in 1:5
         add_item!(stacks[i], items[i])
@@ -309,7 +311,7 @@ end
     _em_r = _tm_t + EM - _em_h
     _em_m = (CM * CJ_fc + _em_h * CJ_fh) / CJ_fm
 
-    truck = Truck(Dim(14500, 2400), 2800, 1500, 100000, Dict("A" => 1, "B" => 2), Dict(), Dict(), CM, CJ_fm, CJ_fc, CJ_fh, EM, EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
+    truck = Truck(Dim(14500, 2400), 2800, 1500, Dict(), 100000, Dict(1 => 1, 2 => 2), Dict(), Dict(), 10, CM, CJ_fm, CJ_fc, CJ_fh, EM, EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
 
     positions = [Pos(1, 2), Pos(0, 1), Pos(1, 1), Pos(2, 1), Pos(1, 0)]
     stacks = [ItemizedStack(i < 3 ? 1 : 2, 1, 1) for i in 1:5]
@@ -317,8 +319,9 @@ end
 
     max_stackability, max_weight = 10, 10
     p = Product(max_stackability, max_weight)
+    add_max_stack_weights!(truck, p, 10000)
 
-    items = [simpleItem(p, supplier=i < 3 ? "A" : "B", weight=_tm_t/5) for i in 1:5]
+    items = [simpleItem(p, supplier=i < 3 ? 1 : 2, weight=_tm_t/5) for i in 1:5]
 
     for i in 1:5
         add_item!(stacks[i], items[i])
@@ -344,7 +347,7 @@ end
     CJ_fc = 1040
     CJ_fh = 3330
     CM = 7808
-    truck = Truck(Dim(14500, 2400), 1, 1500, 100000, Dict("A" => 1, "B" => 2), Dict(), Dict(), CM, CJ_fm, CJ_fc, CJ_fh, EM, EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
+    truck = Truck(Dim(14500, 2400), 1, 1500, Dict(), 100000, Dict(1 => 1, 2 => 2), Dict(), Dict(), 10, CM, CJ_fm, CJ_fc, CJ_fh, EM, EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
 
 
     time_window = (earliest=0, latest=10)
@@ -353,21 +356,22 @@ end
     height=1.0
     weight=1.0
     stackability_code="A"
-    forced_orientation=[:Free, :Horizontal, :Vertical]
+    forced_orientation=[:none, :lengthwise, :widthwise]
     plant="PA"
     plant_dock="PDA"
-    supplier="SA"
+    supplier=456
     supplier_dock="SDA"
     inventory_cost=1.0
     nesting_height=0.0
     product = Product(10, 3.0)
+    add_max_stack_weights!(truck, product, 10000)
 
     i = Item(
         time_window,
         dim,
         # pos::Pos,
         height,
-        weight,
+        weight*0.,
         stackability_code,
         forced_orientation[1],
         plant,
@@ -396,7 +400,7 @@ end
         dim,
         # pos::Pos,
         height,
-        weight*2,
+        weight*4,
         stackability_code,
         forced_orientation[1],
         plant,
@@ -412,8 +416,16 @@ end
     @test !valid_stack([], stack, i2, truck)
 
     add_item!(stack, copy(i))
+    add_item!(stack, copy(i))
+    add_item!(stack, copy(i))
+    add_item!(stack, copy(i))
+    add_item!(stack, copy(i))
+    add_item!(stack, copy(i))
+    add_item!(stack, copy(i))
+    add_item!(stack, copy(i))
 
     # test number
+    display(stack)
     @test !valid_stack([], stack, copy(i), truck)
     display(stack)
 
@@ -495,10 +507,10 @@ end
     height=1.0
     weight=1.0
     stackability_code=["A", "B"]
-    forced_orientation=:Free
+    forced_orientation=:none
     plant="PA"
     plant_dock=["PDA", "PDB"]
-    supplier=["SA", "SB"]
+    supplier=[456, "SB"]
     supplier_dock=["SDA", "SDB"]
     inventory_cost=1.0
     nesting_height=0.0
@@ -577,7 +589,7 @@ end
     1,
     10, # weight
     "",
-    :Free,
+    :none,
     "",
     "",
     "",
