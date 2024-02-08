@@ -24,6 +24,10 @@ get_supplier_order(s::OrderedStack) = s.supplier_order
 get_supplier_dock_order(s::OrderedStack) = s.supplier_dock_order
 get_plant_dock_order(s::OrderedStack) = s.plant_dock_order
 
+function set_dim(os::OrderedStack, dim)
+    return set_stack(os, Stack(get_pos(os), dim))
+end
+
 get_orders(s::OrderedStack) = (get_supplier_order(s), get_supplier_dock_order(s), get_plant_dock_order(s))
 
 set_stack(os::OrderedStack, s::Stack) = OrderedStack(
@@ -51,7 +55,7 @@ with given `orientation` (should be either `:Horizontal` or `:Vertical`).
 In this method we check the loading orders to determine if a stack can be placed 
 then call the standard can_be_placed method taking simple Stacks to check for collisions.
 """
-function can_be_placed(solution, o, s::OrderedStack, truck::Truck, orientation::Symbol; precision=3, verbose=false)
+function can_be_placed(solution, o, s::OrderedStack, truck::Truck, orientation::Symbol; precision=3, verbose=false, projected_pos=false)
     condition = missing
     # Make sure no other stack already placed and with greater x position has a lower loading order
     # take the stack with lower x among those with x > o.x
@@ -60,10 +64,16 @@ function can_be_placed(solution, o, s::OrderedStack, truck::Truck, orientation::
         println("greater_xs")
         display(greater_xs)
     end
+    # if there are stacks with greater x than stack
     if !isempty(greater_xs)
+        # sort by x
         sorted_greater_xs = sort(greater_xs, by= y -> get_pos(y).x)
+        # take smallest x > stack.x
         min_x = get_pos(sorted_greater_xs[begin]).x
+        # take all stacks which have greater x than stack and whose x is equal to min_x
+        # because there can be multiple ones
         mingreater_xs = filter(stack -> eqtol(get_pos(stack).x, min_x, 3), sorted_greater_xs)
+        # if one stack of x=min_x has an order inferior to stack, the stack can't be placed 
         condition = true
         for stack in mingreater_xs
             condition *= leq_order(s, stack)
@@ -76,7 +86,11 @@ function can_be_placed(solution, o, s::OrderedStack, truck::Truck, orientation::
     else
         condition = true
     end
-    return condition && can_be_placed(solution, o, get_dim(s), truck, orientation; precision)
+    # error("is_secure does not prevent unsecure placements")
+    return condition && 
+        # is_secure(s, solution; precision=precision) && # TODO debug only here because might be expensive
+        # Plus it doesn't prevent some not secure placements to happen TODO
+        can_be_placed(solution, o, get_dim(s), truck, orientation; precision=precision, projected_pos=projected_pos)
 
 end
 

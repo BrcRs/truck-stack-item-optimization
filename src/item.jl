@@ -88,6 +88,25 @@ get_product(i::Item) = i.product
 get_max_weight(i::Item) = get_max_weight(i.product)
 get_max_stackability(i::Item) = get_max_stackability(i.product)
 
+set_dim(it::Item, dim::Dim) = Item(
+    it.id,
+    it.package_code,
+    it.copy_number,
+    it.time_window,
+    dim, # <----
+    it.height,
+    it.weight,
+    it.stackability_code,
+    it.forced_orientation,
+    it.plant,
+    it.plant_dock,
+    it.supplier,
+    it.supplier_dock,
+    it.inventory_cost,
+    it.nesting_height,
+    it.product,
+)
+
 Base.show(io::IO, it::Item) = 
     print(io, 
         "Item(id=", get_id(it),
@@ -345,7 +364,7 @@ end
 
 Return true if stack `s` can be placed in partial solution `solution` without breaking any constraint.
 """
-function can_be_placed(solution, o::Pos, s::ItemizedStack, truck::Truck, orientation::Symbol; precision=3, verbose=false)
+function can_be_placed(solution, o::Pos, s::ItemizedStack, truck::Truck, orientation::Symbol; precision=3, verbose=false, projected_pos=false)
 
     # check weight constraints
     # DONE provide valid_axle_pressure the stack `s` with position pos
@@ -354,7 +373,7 @@ function can_be_placed(solution, o::Pos, s::ItemizedStack, truck::Truck, orienta
     set_ordered_stack!(s, os)
     weight_constraint = valid_axle_pressure(collect(values(solution)), s, truck; fastexit=true, precision=precision)
 
-    return weight_constraint && can_be_placed(solution, o, get_ordered_stack(s), truck, orientation; precision=precision, verbose=verbose)
+    return weight_constraint && can_be_placed(solution, o, get_ordered_stack(s), truck, orientation; precision=precision, verbose=verbose, projected_pos=projected_pos)
 end
 
 """

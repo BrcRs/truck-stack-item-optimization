@@ -42,7 +42,9 @@ end
 get_dim(s::Stack) = s.dim
 get_pos(s::Stack) = s.pos
 
-
+function set_dim(s::Stack, dim)
+    return Stack(get_pos(s), dim)
+end
 
 """
     findboxesabove(pos::Pos, r::Dict{T, S}; precision=3) where {T <: Integer, S <: AbstractStack}
@@ -227,10 +229,11 @@ function is_secure(stack, solution; precision=3, verbose=false)
         return true
     end
     boxesleft = findboxesleft(get_pos(stack), get_dim(stack), solution; precision=precision, verbose=verbose)
+    # done in O(#stacks)
     if verbose
         println("is_secure examines all boxes to the left")
     end
-    for k in boxesleft
+    for k in boxesleft # O(#stacks) with early exit
         b = solution[k]
         if verbose
             println(k)
@@ -249,8 +252,8 @@ function is_secure(stack, solution; precision=3, verbose=false)
     return false
 end
 
-function can_be_placed(solution, o::Pos, s::Stack, W, orientation::Symbol; precision=3, verbose=false)
-    return can_be_placed(solution, o, get_dim(s), W, orientation; precision=precision, verbose=verbose)
+function can_be_placed(solution, o::Pos, s::Stack, W, orientation::Symbol; precision=3, verbose=false, projected_pos=false)
+    return can_be_placed(solution, o, get_dim(s), W, orientation; precision=precision, verbose=verbose, projected_pos=projected_pos)
 end
 
 """
@@ -258,14 +261,20 @@ end
 
 Return `true` if a stack of dimension dim can be placed at position o without colliding with another stack or getting out of bounds.
 """
-function can_be_placed(solution, o::Pos, dim::Dim, truck::Truck, orientation::Symbol; precision=3, verbose=false)
+function can_be_placed(solution, o::Pos, dim::Dim, truck::Truck, orientation::Symbol; precision=3, verbose=false, projected_pos=false)
     W = get_dim(truck).wi
     res = nothing
 
+    
     if orientation == :Perpendicular
-        res = leqtol(o.y + dim.le, W, precision) && !collision(Pos(o.x, o.y), Dim(dim.wi, dim.le), solution; precision)
+        res = (!projected_pos || is_secure(Stack(o, Dim(dim.wi, dim.le)), solution; precision=precision)) && 
+            # if projected pos, check if stack is secure
+            leqtol(o.y + dim.le, W, precision) && 
+            !collision(Pos(o.x, o.y), Dim(dim.wi, dim.le), solution; precision)
     elseif orientation == :Parallel
-        res = leqtol(o.y + dim.wi, W, precision) && !collision(Pos(o.x, o.y), Dim(dim.le, dim.wi), solution; precision)
+        res = (!projected_pos || is_secure(Stack(o, Dim(dim.le, dim.wi)), solution; precision=precision)) && 
+            leqtol(o.y + dim.wi, W, precision) && 
+            !collision(Pos(o.x, o.y), Dim(dim.le, dim.wi), solution; precision)
     else
         throw(ArgumentError("orientation argument should either be :Perpendicular or :Parallel.\nUnknown flag: $orientation"))
     end 

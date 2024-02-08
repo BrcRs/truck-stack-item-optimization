@@ -42,8 +42,8 @@ function placestack!(solution::Dict{T, S}, truck::Truck, i, s::AbstractStack, co
         # if the stack fits oriented with its length perpendicular to the 
         # width of the truck and it doesn't overlap with another stack
         # + check weight if ItemizedStack
-        if can_be_placed(solution, get_pos(o), s, truck, :Perpendicular; precision)
-        # if leqtol(o.y + get_dim(s).le, W, precision) && !collision(Pos(o.x, o.y), Dim(get_dim(s).wi, get_dim(s).le), solution; precision)
+        if can_be_placed(solution, get_pos(o), s, truck, :Perpendicular; precision=precision, projected_pos=is_projected(o))
+
             # the stack can be placed in this orientation
             orientation = :Perpendicular
             if verbose
@@ -51,7 +51,7 @@ function placestack!(solution::Dict{T, S}, truck::Truck, i, s::AbstractStack, co
             end
         # else if the stack fits oriented with its length parallel to the
         # length of the truck and it doesn't overlap with another stack
-        elseif can_be_placed(solution, get_pos(o), s, truck, :Parallel; precision)
+        elseif can_be_placed(solution, get_pos(o), s, truck, :Parallel; precision=precision, projected_pos=is_projected(o))
             orientation = :Parallel
             if verbose
                 println("$s can be placed parallel")
@@ -198,8 +198,21 @@ By placing the stacks in order of their loading orders, and due to how the algor
 function BLtruck(instance::Vector{Pair{T, S}}, truck::Truck; precision=3, verbose=false, loading_order=false) where {T <: Integer, S <: AbstractStack}
     # println("press enter BLtruck for stacks")
     # readline()
-    """Lengths must be greater than widths"""
-    # TODO pretreatment?
+    # Lengths must be greater than widths
+    # Now done here
+    newinstance = []
+    for (i, s) in instance
+        dim = get_dim(s)
+        # Correct the orientation if necessary
+        dim = Dim(max(dim.le, dim.wi), min(dim.le, dim.wi))
+        s = set_dim(s, dim)
+        push!(newinstance, Pair(i, s))
+    end
+    instance = newinstance
+
+    if !isempty(filter(x -> get_dim(x).le < get_dim(x).wi, [y.second for y in instance]))
+        error("Stack dimensions should have length greater than width")
+    end
     """One of the two dimensions must be lesser than W?"""
     # TODO
     ## If loading orders must be considered
@@ -212,7 +225,7 @@ function BLtruck(instance::Vector{Pair{T, S}}, truck::Truck; precision=3, verbos
     solution = Dict{Integer, AbstractStack}()
     # torem = Pos[]
     # toadd = Pos[]
-
+    notplaced = []
 
     # For each stack to place
     for (i, s) in instance
@@ -221,7 +234,7 @@ function BLtruck(instance::Vector{Pair{T, S}}, truck::Truck; precision=3, verbos
             display(corners)
             error("Not sorted")
         end
-        torem, toadd, placed = placestack!(solution, truck, i, s, corners; precision=precision, loading_order=loading_order)
+        torem, toadd, placed = placestack!(solution, truck, i, s, corners; precision=precision, loading_order=loading_order, verbose=verbose)
         if verbose
             println("About to place stack n. $i, $s")
             if length(corners) > 20
@@ -232,10 +245,16 @@ function BLtruck(instance::Vector{Pair{T, S}}, truck::Truck; precision=3, verbos
                 println("\tAvailable corners: $corners")
 
             end
-            println("\t$i : $(solution[i]) was placed and added the new corners: $toadd")
-            println("\tIt covered the following corners: $torem")
+            if placed
+                println("\t$i : $(solution[i]) was placed and added the new corners: $toadd")
+                println("\tIt covered the following corners: $torem")
+            else
+                println("\tImpossible to place $i : $s")
+            end
         end
-        
+        if !placed
+            push!(notplaced, s)
+        end
         # remove corners waiting to be removed
         filter!(x -> !(x in torem), corners)
 
@@ -246,20 +265,29 @@ function BLtruck(instance::Vector{Pair{T, S}}, truck::Truck; precision=3, verbos
         # torem = Pos[]
     end
 
-    return solution
+    return solution, notplaced
 end
 
 
 
 
 function BLtruck(instance::Vector{Item}, truck::Truck; precision=3, verbose=false) where {T <: Integer, S <: AbstractStack}
-    """Lengths must be greater than widths"""
-    # TODO pretreatment?
-    """One of the two dimensions must be lesser than W?"""
-    # TODO
-    # println("press enter c")
-    # readline()
 
+    # Lengths must be greater than widths
+    # Now done here
+    newinstance = []
+    for it in instance
+        dim = get_dim(it)
+        # Correct the orientation if necessary
+        dim = Dim(max(dim.le, dim.wi), min(dim.le, dim.wi))
+        it = set_dim(it, dim)
+        push!(newinstance, it) # TODO will it work?
+    end
+    instance = newinstance
+
+    if !isempty(filter(x -> get_dim(x).le < get_dim(x).wi, [y for y in instance]))
+        error("Item dimensions should have length greater than width")
+    end
     # Sort the stacks
     sort!(instance, by=item -> (
                         get_supplier_order(truck, get_supplier(item)), 

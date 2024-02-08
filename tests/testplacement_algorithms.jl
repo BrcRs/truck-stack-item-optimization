@@ -324,7 +324,74 @@ end
 
     # same for itemized stacks cases
 
-
+    @testset "Secure stack placement" begin
+        L = 100
+        W = 50
+        H = 12
+        ratios = []
+    
+        truck = Truck(
+            Dim(L, W), 
+            H, 
+            1500,  # max_stack_density
+            Dict(), # max_stack_weight
+            100000,
+            Dict(), 
+            Dict(), 
+            Dict(), 
+            10, # cost
+            7808,
+            3800,
+            1040,
+            3330,
+            7300,
+            7630,
+            2350,
+            1670,
+            31500,
+            12000
+            )
+    
+    
+        instance = [
+            1 => OrderedStack(Stack(Pos(0, 0), Dim(20, 50)), 1, 1, 1),
+            # 1 => OrderedStack(Stack(Pos(0, 0), Dim(50, 20)), 1, 1, 1),
+            2 => OrderedStack(Stack(Pos(20, 0), Dim(20, 15)), 1, 1, 2),
+            3 => OrderedStack(Stack(Pos(20, 35), Dim(20, 15)), 1, 1, 2),
+            4 => OrderedStack(Stack(Pos(40, 0), Dim(20, 15)), 1, 1, 3),
+            5 => OrderedStack(Stack(Pos(40, 35), Dim(20, 15)), 1, 1, 3),
+        ]
+            
+        stack = OrderedStack(Stack(Pos(0, 0), Dim(20, 15)), 1, 1, 4)
+        solution = nothing
+    
+        try
+            solution, notplaced = BLtruck(
+                instance, truck; precision=3, loading_order=true, verbose=true)
+        catch e
+            display(instance)
+            display(backtrace)
+            throw(e)
+        end
+    
+        # Stacks should be adjacent to another stack to their left on the X axis
+        # or adjacent to the left side of the truck
+        # for (j, stack) in solution
+            # if !is_secure(stack, solution; precision=3)
+        sol_instance = Dict(instance)
+        torem, toadd, placed = placestack!(sol_instance, 
+            truck, 6, stack, [Pos(20, 15), ProjectedPos(Pos(40, 15), Pos(40, 35), :Vertical), Pos(60, 0)]; 
+            precision=3, verbose=true, loading_order=true)
+        @test placed
+    
+        @test !is_secure(OrderedStack(Stack(Pos(40, 15), Dim(20, 15)), 1, 1, 4), sol_instance)
+    
+        # error("DEBUG: stack not secure (BLtruck with ordered_stacks)")
+        #         break
+        #     end
+        #     @test is_secure(stack, solution; precision=3)    
+        # end
+    end
 
 end
 
@@ -376,7 +443,7 @@ end
         instance = collect(rectangles)
         solution = nothing
         try
-            solution = BLtruck(instance, truck, precision=3)
+            solution, notplaced = BLtruck(instance, truck, precision=3)
         catch e
             display(instance)
             throw(e)
@@ -448,6 +515,7 @@ end
             # end
         end
     end
+    println("BLtruck stats on $ITER instances")
     println("Mean length ratio")
     display(mean(ratios))
     println("Min length ratio")
@@ -513,7 +581,7 @@ end
         solution = nothing
 
         try
-            solution = BLtruck(instance, truck; precision=3, loading_order=true)
+            solution, notplaced = BLtruck(instance, truck; precision=3, loading_order=true)
         catch e
             display(instance)
             display(backtrace)
@@ -546,7 +614,14 @@ end
                 # Stacks should be adjacent to another stack to their left on the X axis
                 # or adjacent to the left side of the truck
                 for (j, stack) in solution
-                    @test is_secure(stack, solution; precision=3)        
+                    if !is_secure(stack, solution; precision=3)
+                        display(stack)
+                        display(solution)
+                        plot_placement(W, L, solution; orthonormal=true)
+                        error("DEBUG: stack not secure (BLtruck with ordered_stacks)")
+                        break
+                    end
+                    @test is_secure(stack, solution; precision=3)    
                 end
             end
         end 
@@ -568,7 +643,7 @@ end
     #         # end
     #     end
     # end
-
+    println("BLtruck w/ loading orders stats on $ITER instances")
     println("Mean length ratio")
     display(mean(ratios))
     println("Min length ratio")
@@ -769,6 +844,7 @@ end
         #     #     # println(r)
         #     # end
         # end
+        println("BLtruck w/ items stats on $ITER instances")
         println("Mean length ratio")
         display(mean(ratios))
         println("Min length ratio")
