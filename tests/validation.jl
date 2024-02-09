@@ -1,6 +1,6 @@
 import Pkg
 # Pkg.add(["Test", "HTTP", "JSON"])
-Pkg.add(["Test", "Coverage", "AutoHashEquals", "Plots", "Documenter", "Tables", "CSV"])
+Pkg.add(["Test", "Coverage", "AutoHashEquals", "Plots", "Documenter", "Tables", "CSV", "OrderedCollections"])
 # using OAuth, HTTP, JSON
 using Test
 
