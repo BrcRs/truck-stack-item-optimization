@@ -329,8 +329,10 @@ Base.show(io::IO, is::ItemizedStack) =
 
 
 function newStack(is::ItemizedStack, p::Pos, d::Dim)
-    is.ordered_stack = newStack(is.ordered_stack, p, d)
-    return is
+    # TODO now returns a copy because before it modified is in place which caused confusion when swaping orientation
+    is_copy = copy(is)
+    is_copy.ordered_stack = newStack(is_copy.ordered_stack, p, d)
+    return is_copy
 end
 
 """
@@ -339,10 +341,6 @@ end
 Add item `it` to stack `is`, updating weight, height, and maybe orientation.
 """
 function add_item!(is::ItemizedStack, it::Item)
-    push!(get_items(is), it)
-    is.weight += get_weight(it)
-    is.height += get_height(it)
-    is.minmax_stackability = min(is.minmax_stackability, get_max_stackability(it))
     # update forced orientation
     if get_forced_orientation(it) != :none
         if get_forced_orientation(it) != get_forced_orientation(is) && get_forced_orientation(is) != :none
@@ -350,6 +348,10 @@ function add_item!(is::ItemizedStack, it::Item)
         end
         is.forced_orientation = get_forced_orientation(it)
     end
+    push!(get_items(is), it)
+    is.weight += get_weight(it)
+    is.height += get_height(it)
+    is.minmax_stackability = min(is.minmax_stackability, get_max_stackability(it))
     if length(get_items(is)) == 1
         is.height += get_nesting_height(it)
         # update stackability code
@@ -369,11 +371,18 @@ function can_be_placed(solution, o::Pos, s::ItemizedStack, truck::Truck, orienta
     # check weight constraints
     # DONE provide valid_axle_pressure the stack `s` with position pos
     # instantiate pos and dim
-    os = set_stack(get_ordered_stack(s), Stack(o, get_dim(s)))
-    set_ordered_stack!(s, os)
-    weight_constraint = valid_axle_pressure(collect(values(solution)), s, truck; fastexit=true, precision=precision)
+    os = set_stack(get_ordered_stack(s), Stack(o, orientation == :Perpendicular ? Dim(get_dim(s).wi, get_dim(s).le) : get_dim(s)))
+    s_copy = copy(s)
+    set_ordered_stack!(s_copy, os)
 
-    return weight_constraint && can_be_placed(solution, o, get_ordered_stack(s), truck, orientation; precision=precision, verbose=verbose, projected_pos=projected_pos)
+    weight_constraint = valid_axle_pressure(collect(values(solution)), s_copy, truck; fastexit=true, precision=precision)
+    # weight_constraint = true
+
+    os = set_stack(get_ordered_stack(s), Stack(o, get_dim(s)))
+    # set_ordered_stack!(s, os)
+    return weight_constraint && 
+        can_be_placed(solution, o, os, truck, orientation; 
+            precision=precision, verbose=verbose, projected_pos=projected_pos)
 end
 
 """
@@ -722,7 +731,7 @@ end
 Take `stack::Stack` and generate items to return ItemizedStacks. Is used when 
 randomly generating an instance of itemizedstacks reusing the simple stack instance generator.
 """
-function itemize!(truck::Truck, stacks::Dict{Integer, Stack})::Vector{Pair{Integer, ItemizedStack}}
+function itemize!(truck::Truck, stacks::Dict{Integer, Stack}; max_items_per_stack=20)::Vector{Pair{Integer, ItemizedStack}}
     # give loading orders to stacks
     ordered_stacks, nbsupplier, nbsupplier_dock, nbplant_dock = order_instance(stacks)
 
@@ -900,7 +909,7 @@ function placeitem!(solution::Dict{T, S}, truck::Truck, item::Item, corners::Vec
             get_supplier_orders(truck)[get_supplier(item)], 
             get_supplier_dock_orders(truck)[get_supplier(item)][get_supplier_dock(item)],
             get_plant_dock_orders(truck)[get_plant_dock(item)]
-            ) # created with no position
+            ) # created with no position and no dim
 
         add_item!(newstack, item)
         # display(get_items(newstack))

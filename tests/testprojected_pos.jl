@@ -318,7 +318,7 @@ end
 
     upd_intersection!(to_add, c, allprojected; verbose=false)
 
-    @test to_add == [Pos(5, 1), Pos(5, 2), Pos(5, 3)]
+    @test to_add == [IntersectionPos(5, 1), IntersectionPos(5, 2), IntersectionPos(5, 3)]
 
 
     to_add = []
@@ -335,7 +335,7 @@ end
 
     upd_intersection!(to_add, c, allprojected)
 
-    @test to_add == [Pos(1, 5), Pos(2, 5), Pos(3, 5)]
+    @test to_add == [IntersectionPos(1, 5), IntersectionPos(2, 5), IntersectionPos(3, 5)]
 
 
 
@@ -350,7 +350,7 @@ end
 
     upd_intersection!(to_add, c, allprojected)
 
-    @test to_add == [Pos(293.8116, 97.3241)]
+    @test to_add == [IntersectionPos(293.8116, 97.3241)]
 
 
 end

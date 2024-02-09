@@ -823,7 +823,15 @@ end
                 # Stacks should be adjacent to another stack to their left on the X axis
                 # or adjacent to the left side of the truck
                 for (j, stack) in solution
-                    @test is_secure(stack, solution; precision=3)        
+                    @test is_secure(stack, solution; precision=3)
+                    if !is_secure(stack, solution; precision=3)
+                        println("DEBUG ==========~~~~~~~~------")
+                        display(stack) 
+                        display(solution)
+                        plot_placement(W, L, solution; orthonormal=true)
+                        error()
+                        break
+                    end     
                 end
             end
         end 

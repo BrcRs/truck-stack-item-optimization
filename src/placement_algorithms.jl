@@ -42,8 +42,10 @@ function placestack!(solution::Dict{T, S}, truck::Truck, i, s::AbstractStack, co
         # if the stack fits oriented with its length perpendicular to the 
         # width of the truck and it doesn't overlap with another stack
         # + check weight if ItemizedStack
-        if can_be_placed(solution, get_pos(o), s, truck, :Perpendicular; precision=precision, projected_pos=is_projected(o))
 
+        if (typeof(s) != ItemizedStack || get_forced_orientation(s) != "lengthwise") && 
+            can_be_placed(solution, get_pos(o), s, truck, :Perpendicular; precision=precision, projected_pos=!is_secure_pos(o))
+            # error("can_be_placed must absolutely not swap the orientation of the stacks. Stacks should remained unchanged by can_be_placed")
             # the stack can be placed in this orientation
             orientation = :Perpendicular
             if verbose
@@ -51,12 +53,12 @@ function placestack!(solution::Dict{T, S}, truck::Truck, i, s::AbstractStack, co
             end
         # else if the stack fits oriented with its length parallel to the
         # length of the truck and it doesn't overlap with another stack
-        elseif can_be_placed(solution, get_pos(o), s, truck, :Parallel; precision=precision, projected_pos=is_projected(o))
+        elseif (typeof(s) != ItemizedStack || get_forced_orientation(s) != "widthwise") && 
+            can_be_placed(solution, get_pos(o), s, truck, :Parallel; precision=precision, projected_pos=!is_secure_pos(o))
             orientation = :Parallel
             if verbose
                 println("$s can be placed parallel")
             end
-
         else
             if verbose
                 println("$s can't be placed at $o because...")
@@ -281,11 +283,11 @@ function BLtruck(instance::Vector{Item}, truck::Truck; precision=3, verbose=fals
         # Correct the orientation if necessary
         dim = Dim(max(dim.le, dim.wi), min(dim.le, dim.wi))
         it = set_dim(it, dim)
-        push!(newinstance, it) # TODO will it work?
+        push!(newinstance, it)
     end
     instance = newinstance
 
-    if !isempty(filter(x -> get_dim(x).le < get_dim(x).wi, [y for y in instance]))
+    if !isempty(filter(x -> get_dim(x).le < get_dim(x).wi, instance))
         error("Item dimensions should have length greater than width")
     end
     # Sort the stacks
@@ -294,6 +296,7 @@ function BLtruck(instance::Vector{Item}, truck::Truck; precision=3, verbose=fals
                         get_supplier_dock_order(truck, get_supplier(item), get_supplier_dock(item)), 
                         get_plant_dock_order(truck, get_plant_dock(item))))
     # TODO additional treatment over the sequence of items could improve the values of the solutions
+    # e.g. put bigger objects first
 
     corners = AbstractPos[Pos(0, 0)]
     solution = Dict{Integer, ItemizedStack}()

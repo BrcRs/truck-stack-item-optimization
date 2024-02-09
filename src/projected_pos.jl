@@ -1,5 +1,22 @@
 include("placement.jl")
 
+@auto_hash_equals struct IntersectionPos <: AbstractPos
+    x
+    y
+end
+
+function readable(p::IntersectionPos)
+    return string("IntersectionPos(", round(p.x, digits=3),", ", round(p.y, digits=3),")")
+end
+get_pos(pos::IntersectionPos) = Pos(pos.x, pos.y)
+# @auto_hash_equals struct Pos <: AbstractPos
+#     x
+#     y
+# end
+
+# function readable(p::Pos)
+#     return string("Pos(", round(p.x, digits=3),", ", round(p.y, digits=3),")")
+# end
 
 """
 A ProjectedPos is a position whose origin is not against the ground nor the driver's 
@@ -25,6 +42,7 @@ struct ProjectedPos <: AbstractPos
 
 end
 
+
 Base.hash(a::ProjectedPos, h::UInt) = hash(a.p[], hash(a.origin, hash(a.orientiation, hash(:ProjectedPos, h))))
 Base.:(==)(a::ProjectedPos, b::ProjectedPos) = isequal(a.p[], b.p[]) && isequal(a.origin, b.origin) && isequal(a.orientation, b.orientation)
 
@@ -47,7 +65,9 @@ function set_pos!(propos::ProjectedPos, pos::Pos)
 end
 
 is_projected(pos::AbstractPos) = typeof(pos) == ProjectedPos
+is_intersectionPos(pos::AbstractPos) = typeof(pos) == IntersectionPos
 
+is_secure_pos(pos::AbstractPos) = !is_projected(pos) && !is_intersectionPos(pos)
 
 function dummy_dim(pos::ProjectedPos; precision=3)
     projdim = missing
@@ -194,14 +214,14 @@ function upd_intersection!(to_add, c::ProjectedPos, allprojected::Vector{Project
         # if yes, add a new corner to to_add at the intersection
             if get_orientation(c) == :Vertical
                 if verbose
-                    println(Pos(get_pos(c).x, get_pos(p).y))
+                    println(IntersectionPos(get_pos(c).x, get_pos(p).y))
                 end
-                push!(to_add, Pos(get_pos(c).x, get_pos(p).y))
+                push!(to_add, IntersectionPos(get_pos(c).x, get_pos(p).y))
             elseif get_orientation(c) == :Horizontal
                 if verbose
-                    println(Pos(get_pos(p).x, get_pos(c).y))
+                    println(IntersectionPos(get_pos(p).x, get_pos(c).y))
                 end
-                push!(to_add, Pos(get_pos(p).x, get_pos(c).y))
+                push!(to_add, IntersectionPos(get_pos(p).x, get_pos(c).y))
             else
                 error("Unknown orientation: $(get_orientation(c))")
             end
