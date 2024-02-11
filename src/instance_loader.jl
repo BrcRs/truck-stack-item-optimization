@@ -176,6 +176,7 @@ function fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, _IO, IL, IW, IH, stackability
             # sometimes supplier and plant docks are not given which is not a bug
             IK[i, supplierdockdict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])]] = 1.0
             IPD[i, plantdockdict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = 1.0 # TODO since plant docks are unique, no need of plants?
+            # TODO some plants don't have docks though
             IDL[i] = parse(Float64, row[:Latest_arrival_time])
             IDE[i] = parse(Float64, row[:Earliest_arrival_time])
             # No given orientation means no constraint
@@ -337,7 +338,7 @@ end
 Return all relevant data of truck stack item assignment problem defined in data files found in folder 
 `instancepath`.
 """
-function loadinstance(instancepath)
+function loadinstance(instancepath; onlyplanned=false)
 
     """
     Important notes
@@ -468,55 +469,73 @@ function loadinstance(instancepath)
         #     println(TDA_P[truckdict["P192711301"]] > IDL[5])
         #     println("Item ident of 5", itemdict[5])
     # end
-    
-    ## Compute actual number of trucks (planned trucks + extra ones)
-    # The total number of trucks could be nbplannedtrucks * nbitems, but a 
-    # smarter way would be to have
-    # nbtrucks = sum(TR) # sum of number of candidate items for each truck
-    # nbtrucks = nbplannedtrucks * nbitems # Very bad idea (millions of trucks)
-    nbtrucks = nbplannedtrucks + sum([sum(TR_P[t, :]) > 0 ? sum(TR_P[t, :])-1 : 0 for t in 1:nbplannedtrucks] )
-    # @debug nbplannedtrucks nbplannedtrucks
-    # @debug sum(TR_P) sum(TR_P)
-    # @debug nbitems nbitems
-    # @debug "" nbtrucks
-    # @debug "nbplannedtrucks * nbitems" nbplannedtrucks * nbitems
-    
-    
-    TE = Matrix{Union{Float64, Missing}}(missing, nbtrucks, nbsuppliers)
-    
-    TL = Vector{Union{Float64, Missing}}(missing, nbtrucks)
-    TW = Vector{Union{Float64, Missing}}(missing, nbtrucks)
-    TH = Vector{Union{Float64, Missing}}(missing, nbtrucks)
-    
-    TKE = Matrix{Union{Float64, Missing}}(missing, nbtrucks, nbsupplierdocks)
-    fill!(TKE, nbsupplierdocks)
-    
-    TGE = Matrix{Union{Float64, Missing}}(missing, nbtrucks, nbplantdocks)
-    fill!(TGE, nbplantdocks)
-    
-    TDA = Vector{Union{Float64, Missing}}(missing, nbtrucks)
-    TDE = Vector{Union{Float64, Missing}}(missing, nbtrucks)
-    
-    TU = falses(nbtrucks, nbsuppliers)
-    TP = falses(nbtrucks, nbplants)
-    TK = falses(nbtrucks, nbsupplierdocks)
-    
-    TG = falses(nbtrucks, nbplantdocks)
-    
-    
-    TR = falses(nbtrucks, nbitems) # TR is expanded, it will contain also only items which docks are delivered by the truck
-    TID = Vector{Union{String, Missing}}(missing, nbtrucks)
+    TE = nothing
+    TL = nothing
+    TW = nothing
+    TH = nothing
+    TKE = nothing
+    TGE = nothing
+    TDA = nothing
+    TDE = nothing
+    TU = nothing
+    TP = nothing
+    TK = nothing
+    TG = nothing
+    TR = nothing
+    TID = nothing
+    nbtrucks = nbplannedtrucks
+    reverse_truckdict = nothing
+    truckindices = nothing
     reverse_truckdict = Dict(value => key for (key, value) in truckdict)
-    
-    # Associate to each planned truck, the indices of the planned truck + extra trucks
-    truckindices = [Vector{Integer}() for p in 1:nbplannedtrucks]
+    if !onlyplanned
+        ## Compute actual number of trucks (planned trucks + extra ones)
+        # The total number of trucks could be nbplannedtrucks * nbitems, but a 
+        # smarter way would be to have
+        # nbtrucks = sum(TR) # sum of number of candidate items for each truck
+        # nbtrucks = nbplannedtrucks * nbitems # Very bad idea (millions of trucks)
+        nbtrucks = nbplannedtrucks + sum([sum(TR_P[t, :]) > 0 ? sum(TR_P[t, :])-1 : 0 for t in 1:nbplannedtrucks] )
+        # @debug nbplannedtrucks nbplannedtrucks
+        # @debug sum(TR_P) sum(TR_P)
+        # @debug nbitems nbitems
+        # @debug "" nbtrucks
+        # @debug "nbplannedtrucks * nbitems" nbplannedtrucks * nbitems
+        
+        
+        TE = Matrix{Union{Float64, Missing}}(missing, nbtrucks, nbsuppliers)
+        
+        TL = Vector{Union{Float64, Missing}}(missing, nbtrucks)
+        TW = Vector{Union{Float64, Missing}}(missing, nbtrucks)
+        TH = Vector{Union{Float64, Missing}}(missing, nbtrucks)
+        
+        TKE = Matrix{Union{Float64, Missing}}(missing, nbtrucks, nbsupplierdocks)
+        fill!(TKE, nbsupplierdocks)
+        
+        TGE = Matrix{Union{Float64, Missing}}(missing, nbtrucks, nbplantdocks)
+        fill!(TGE, nbplantdocks)
+        
+        TDA = Vector{Union{Float64, Missing}}(missing, nbtrucks)
+        TDE = Vector{Union{Float64, Missing}}(missing, nbtrucks)
+        
+        TU = falses(nbtrucks, nbsuppliers)
+        TP = falses(nbtrucks, nbplants)
+        TK = falses(nbtrucks, nbsupplierdocks)
+        
+        TG = falses(nbtrucks, nbplantdocks)
+        
+        
+        TR = falses(nbtrucks, nbitems) # TR is expanded, it will contain also only items which docks are delivered by the truck
+        TID = Vector{Union{String, Missing}}(missing, nbtrucks)
+        
+        # Associate to each planned truck, the indices of the planned truck + extra trucks
+        truckindices = [Vector{Integer}() for p in 1:nbplannedtrucks]
 
-    ## Fill the actual truck matrices from the planned trucks (expand the planned 
-    ## trucks matrix with extra trucks)
-    expandTruckMatrices!(nbplannedtrucks, TE, TL, TW, TH, TKE, TGE, TDA, TDE, TU, TP, TG, TK, TID, TR, 
-    TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TDE_P, TU_P, TP_P, TG_P, TK_P, TR_P, 
-    reverse_truckdict, truckindices)
-    
+        ## Fill the actual truck matrices from the planned trucks (expand the planned 
+        ## trucks matrix with extra trucks)
+        expandTruckMatrices!(nbplannedtrucks, TE, TL, TW, TH, TKE, TGE, TDA, TDE, TU, TP, TG, TK, TID, TR, 
+        TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TDE_P, TU_P, TP_P, TG_P, TK_P, TR_P, 
+        reverse_truckdict, truckindices)
+    end
+
     costinventory = 0.0
     costtransportation = 0.0
     costextratruck = 0.0
