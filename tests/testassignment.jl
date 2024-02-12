@@ -3,47 +3,151 @@ using Test
 include("../src/assignment.jl")
 include("../src/instance_loader.jl")
 
+function get_docks(supplier, supplierdockdict)
+    return [split(k, "__")[2] for k in keys(supplierdockdict) if split(k, "__")[1] == supplier]
+end
+
 @testset "solve_tsi" begin
     instancepath = "./instances/AS/"
-    item_productcodes, truckdict, supplierdict, supplierdockdict, plantdict, 
-    plantdockdict, nbplannedtrucks, nbitems, nbsuppliers, nbsupplierdocks, nbplants, nbplantdocks,
-    TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TDE_P, TU_P, TP_P, TK_P, TG_P, TR_P,
-    IU, IP, IK, IPD, IS, _IO, IL, IW, IH, IDL, IDE, stackabilitycodedict, nbtrucks, TE, TL, TW, TH,
-    TKE, TGE, TDA, TDE, TU, TP, TK, TG, TR, TID, reverse_truckdict, truckindices,
-    costinventory, costtransportation, costextratruck, timelimit = loadinstance(instancepath; onlyplanned=true)
-    
-    error("TEM = ???") # TEM is max stack density
-    error("TMm = ???")
-
-    display(size(TR_P))
-
+    result = loadinstance(instancepath; onlyplanned=true)
+    supplierdict = result["supplierdict"]
+    supplierdockdict = result["supplierdockdict"]
+    plantdockdict = result["plantdockdict"]
+    plantdict = result["plantdict"]
+    itemdict = result["itemdict"]
+    # display(size(result["TR_P"]))
+    nbplannedtrucks = result["nbplannedtrucks"]
+    nbitems = result["nbitems"]
     t_trucks = []
+    # display(supplierdict)
+    # display(supplierdockdict)
+    # display(get_docks(collect(keys(supplierdict))[1], supplierdockdict))
+    # display(result["TE_P"])
+
     for t in 1:nbplannedtrucks
+
+        # display([result["reverse_truckdict"][t],
+            # Dim(result["TL_P"][t], result["TW_P"][t]),
+            # result["TH_P"][t],
+            # result["TEM_P"][t],
+            # result["max_stack_weights_P"][result["reverse_truckdict"][t]],
+            # result["TMm_P"][t],
+            # Dict(
+            #     parse(Int64, s) => Int(result["TE_P"][t, supplierdict[s]]) 
+            #         for s in keys(supplierdict) if result["TU_P"][t, supplierdict[s]]
+            # ),
+            # Dict(parse(Int64, s) => Dict(sd => Int(result["TKE_P"][t, supplierdockdict[string(s, "__", sd)]]) for sd in get_docks(s, supplierdockdict)) 
+            #     for s in keys(supplierdict) if result["TU_P"][t, supplierdict[s]]),
+            # Dict(pd => result["TGE_P"][t, plantdockdict[string(p, "__", pd)]] for p in keys(plantdict) for pd in get_docks(p, plantdockdict)
+            #      if result["TP_P"][t, plantdict[p]]),
+            # result["Cost_P"][t],
+            # result["CM_P"][t],
+            # result["CJfm_P"][t],
+            # result["CJfc_P"][t],
+            # result["CJfh_P"][t],
+            # result["EM_P"][t],
+            # result["EJhr_P"][t],
+            # result["EJcr_P"][t],
+            # result["EJeh_P"][t],
+            # result["EMmr_P"][t],
+            # result["EMmm_P"][t]]
+        # )
+        # readline()
         push!(
             t_trucks, 
             Pair(
                 t, 
                 Truck(
-                    reverse_truckdict[t],
-                    Dim(TL_P[t], TW_P[t]),
-                    TH_P[t],
-                    TEM_P[t],
-                    Dict{Any, Any}(),
-                    TMm_P[t],
-                    Dict(s => TE_P[t, supplierdict[s]] for s in keys(supplierdict) if TU_P[t, supplierdict[s]]),
-                    Dict(s => Dict(sd => TKE_P[t, supplierdockdict[sd]] for sd in keys(supplierdockdict[s])) 
-                        for s in keys(supplierdict) if TU_P[t, supplierdict[s]]),
-                    Dict(p => Dict(pd => TGE_P[t, plantdockdict[pd]] for pd in keys(plantdockdict[p])) 
-                        for p in keys(plantdict) if TP_P[t, plantdict[p]]),
-                    costextratruck,
-                    error("Continue here")
-
+                    result["reverse_truckdict"][t],
+                    Dim(result["TL_P"][t], result["TW_P"][t]),
+                    result["TH_P"][t],
+                    result["TEM_P"][t],
+                    result["max_stack_weights_P"][result["reverse_truckdict"][t]],
+                    result["TMm_P"][t],
+                    Dict(
+                        parse(Int64, s) => Int(result["TE_P"][t, supplierdict[s]]) 
+                            for s in keys(supplierdict) if result["TU_P"][t, supplierdict[s]]
+                    ),
+                    Dict(parse(Int64, s) => Dict(sd => Int(result["TKE_P"][t, supplierdockdict[string(s, "__", sd)]]) for sd in get_docks(s, supplierdockdict)) 
+                        for s in keys(supplierdict) if result["TU_P"][t, supplierdict[s]]),
+                    Dict(pd => result["TGE_P"][t, plantdockdict[string(p, "__", pd)]] for p in keys(plantdict) for pd in get_docks(p, plantdockdict)
+                         if result["TP_P"][t, plantdict[p]]),
+                    result["Cost_P"][t],
+                    result["CM_P"][t],
+                    result["CJfm_P"][t],
+                    result["CJfc_P"][t],
+                    result["CJfh_P"][t],
+                    result["EM_P"][t],
+                    result["EJhr_P"][t],
+                    result["EJcr_P"][t],
+                    result["EJeh_P"][t],
+                    result["EMmr_P"][t],
+                    result["EMmm_P"][t]
                 )
             )
         )
     end
-    # TODO set max_stack_weights
+    # DONE set max_stack_weights
+    i_items = Pair{Integer, Item}[]
+    # display(t_trucks)
+    products = Dict()
+    for i in 1:nbitems
+        # get true nb items
+        nbcopies = result["item_copies"][i]
+        if !(result["item_productcodes"][i] in keys(products))
+            products[result["item_productcodes"][i]] = Product(
+                result["item_productcodes"][i],
+                result["max_stackability"][i],
+                100000 # I am just realizing that this is the same parameter as max_stack_weight in trucks
+            )
+        end
 
-    # solve_tsi(t_trucks, i_items, TR)
+        for j in 1:nbcopies
+            plantdockdict_keys = collect(keys(plantdockdict))
+            plant_dock_name = plantdockdict_keys[
+                findfirst(
+                    y -> plantdockdict[y] == findfirst(
+                        x -> x == 1, result["IPD"][i, :]
+                    ), 
+                    plantdockdict_keys
+                )
+            ]
+            supplierdockdict_keys = collect(keys(supplierdockdict))
+            supplier_dock_name = supplierdockdict_keys[
+                findfirst(
+                    y -> supplierdockdict[y] == findfirst(
+                        x -> x == 1, result["IK"][i, :]
+                    ), 
+                    supplierdockdict_keys
+                )
+            ]
+
+            push!(i_items,
+                Pair(
+                    i + nbitems * (j - 1),
+                    Item(
+                        itemdict[i],
+                        result["pkg_code"][i],
+                        j,
+                        (earliest=result["IDE"][i], latest=result["IDL"][i]),
+                        Dim(result["IL"][i], result["IW"][i]),
+                        result["IH"][i],
+                        result["IM"][i],
+                        result["stackability_code"][i],
+                        ismissing(result["_IO"][i]) ? :none : result["_IO"][i] == 1 ? :widthwise : :lengthwise,
+                        split(plant_dock_name, "__")[1],
+                        split(plant_dock_name, "__")[2],
+                        parse(Int64, split(supplier_dock_name, "__")[1]),
+                        split(supplier_dock_name, "__")[2],
+                        result["inventory_cost"][i],
+                        result["InH"][i],
+                        products[result["item_productcodes"][i]]
+                    )
+                )
+            )
+        end
+    end
+    # display(i_items)
+    solve_tsi(t_trucks, i_items, result["TR_P"])
     
 end

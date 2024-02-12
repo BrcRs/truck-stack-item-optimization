@@ -88,6 +88,8 @@ get_product(i::Item) = i.product
 get_max_weight(i::Item) = get_max_weight(i.product)
 get_max_stackability(i::Item) = get_max_stackability(i.product)
 
+get_volume(i::Item) = get_dim(i).le * get_dim(i).wi * get_height(i)
+
 set_dim(it::Item, dim::Dim) = Item(
     it.id,
     it.package_code,

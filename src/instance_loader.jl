@@ -166,32 +166,44 @@ found in `instancepath` folder.
 - `itemdict`: assigns an index to each item's id.
 - `instancepath`: path to the folder containing the item data file.
 """
-function fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, _IO, IL, IW, IH, stackabilitycodedict, supplierdict, plantdict, supplierdockdict, plantdockdict, itemdict, instancepath)
+function fillItems!(itemmatrices, 
+    stackabilitycodedict, supplierdict, plantdict, supplierdockdict, 
+    plantdockdict, itemdict, instancepath, item_copies, inventory_cost, pkg_code,
+    max_stackability, stackability_code
+)
     nbstackabilitycodes = 0
     open(*(instancepath, "input_items.csv")) do input_itemsfile
         # fill lines of data for each data type and each item.
         for (i, row) in enumerate(CSV.File(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String))
-            IU[i, supplierdict[row[:Supplier_code]]] = 1.0
-            IP[i, plantdict[row[:Plant_code]]] = 1.0
+            itemmatrices["IU"][i, supplierdict[row[:Supplier_code]]] = 1.0
+            itemmatrices["IP"][i, plantdict[row[:Plant_code]]] = 1.0
             # sometimes supplier and plant docks are not given which is not a bug
-            IK[i, supplierdockdict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])]] = 1.0
-            IPD[i, plantdockdict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = 1.0 # TODO since plant docks are unique, no need of plants?
+            itemmatrices["IK"][i, supplierdockdict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])]] = 1.0
+            itemmatrices["IPD"][i, plantdockdict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = 1.0 # TODO since plant docks are unique, no need of plants?
             # TODO some plants don't have docks though
-            IDL[i] = parse(Float64, row[:Latest_arrival_time])
-            IDE[i] = parse(Float64, row[:Earliest_arrival_time])
+            itemmatrices["IDL"][i] = parse(Float64, row[:Latest_arrival_time])
+            itemmatrices["IDE"][i] = parse(Float64, row[:Earliest_arrival_time])
             # No given orientation means no constraint
-            _IO[i] = row[:Forced_orientation] == "none" ? missing : row[:Forced_orientation] == "widthwise" ? 1 : 0
+            itemmatrices["_IO"][i] = row[:Forced_orientation] == "none" ? missing : row[:Forced_orientation] == "widthwise" ? 1 : 0
             # we assign an index to each unique stackability code
             if !haskey(stackabilitycodedict, row[:Stackability_code])
                 nbstackabilitycodes = nbstackabilitycodes + 1.0
                 stackabilitycodedict[row[:Stackability_code]] = nbstackabilitycodes
             end
             # we use the index of stackability codes in the problem data
-            IS[i] = stackabilitycodedict[row[:Stackability_code]]
+            itemmatrices["IS"][i] = stackabilitycodedict[row[:Stackability_code]]
             itemdict[i] = row[:Item_ident]
-            IL[i] = parse(Float64, row[:Length])
-            IW[i] = parse(Float64, row[:Width])
-            IH[i] = parse(Float64, row[:Height])
+            itemmatrices["IL"][i] = parse(Float64, replace(row[:Length], "," => "."))
+            itemmatrices["IW"][i] = parse(Float64, replace(row[:Width], "," => "."))
+            itemmatrices["IH"][i] = parse(Float64, replace(row[:Height], "," => "."))
+            itemmatrices["InH"][i] = parse(Float64, replace(row[:Nesting_height], "," => "."))
+            itemmatrices["IM"][i] = parse(Float64, replace(row[:Weight], "," => "."))
+            item_copies[i] = parse(Float64, row[:Number_of_items])
+            pkg_code[i] = row[:Package_code]
+            inventory_cost[i] = parse(Float64, row[:Inventory_cost])
+            max_stackability[i] = parse(Float64, row[:Max_stackability])
+            stackability_code[i] = row[:Stackability_code]
+
         end
     end
     return nbstackabilitycodes
@@ -283,42 +295,83 @@ Given data folder `instancepath`, fill data matrices for each planned truck.
 - `plantdockdict`: assigns an index to each plant dock's id.
 - `item_productcodes`: stores for each item's index its product code.
 """
-function fillPlannedTruckMatrices!(TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TDE_P, 
-    TU_P, TP_P, TG_P, TK_P, TR_P, instancepath, nbitems, truckdict, supplierdict, 
-    supplierdockdict, plantdict, plantdockdict, item_productcodes)
+function fillPlannedTruckMatrices!(truckmatrices_P, instancepath, nbitems, truckdict, supplierdict, 
+    supplierdockdict, plantdict, plantdockdict, item_productcodes, max_stack_weights)
 
     # For each line of input_trucks:
     open(*(instancepath, "input_trucks.csv")) do input_trucksfile
         for row in CSV.File(input_trucksfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String)
-            
+            truck_ind = truckdict[row[:Id_truck]]
             # Fill relevant truck information
-            TE_P[truckdict[row[:Id_truck]], supplierdict[row[:Supplier_code]]] = parse(Float64, row[:Supplier_loading_order])
+            truckmatrices_P["TE_P"][
+                truck_ind, 
+                supplierdict[row[:Supplier_code]]
+            ] = parse(Float64, row[:Supplier_loading_order])
 
-            TL_P[truckdict[row[:Id_truck]]] = parse(Float64, row[:Length])
-            TW_P[truckdict[row[:Id_truck]]] = parse(Float64, row[:Width])
-            TH_P[truckdict[row[:Id_truck]]] = parse(Float64, row[:Height])
+            truckmatrices_P["TL_P"][truck_ind] = parse(Float64, row[:Length])
+            truckmatrices_P["TW_P"][truck_ind] = parse(Float64, row[:Width])
+            truckmatrices_P["TH_P"][truck_ind] = parse(Float64, row[:Height])
 
-            custom_supplierdock_code = row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])
-            TKE_P[truckdict[row[:Id_truck]], supplierdockdict[custom_supplierdock_code]] = parse(Float64, row[:Supplier_dock_loading_order])
+            custom_supplierdock_code = 
+                row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? 
+                    "missing" : row[:Supplier_dock])
 
-            custom_plantdock_code = row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])
-            TGE_P[truckdict[row[:Id_truck]], plantdockdict[custom_plantdock_code]] = parse(Float64, row[:Plant_dock_loading_order])
+            truckmatrices_P["TKE_P"][
+                truck_ind, supplierdockdict[custom_supplierdock_code]
+            ] = parse(Float64, row[:Supplier_dock_loading_order])
 
-            TDA_P[truckdict[row[:Id_truck]]] = parse(Float64, row[:Arrival_time])
-            TDE_P[truckdict[row[:Id_truck]]] = parse(Float64, row[:Arrival_time]) # ? TODO
+            custom_plantdock_code = 
+                row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? 
+                    "missing" : row[:Plant_dock])
 
-            TU_P[truckdict[row[:Id_truck]], supplierdict[row[:Supplier_code]]] = 1.0
-            TP_P[truckdict[row[:Id_truck]], plantdict[row[:Plant_code]]] = 1.0
+            truckmatrices_P["TGE_P"][
+                truck_ind, plantdockdict[custom_plantdock_code]
+            ] = parse(Float64, row[:Plant_dock_loading_order])
 
-            TG_P[truckdict[row[:Id_truck]], plantdockdict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? "missing" : row[:Plant_dock])]] = 1.0
-            TK_P[truckdict[row[:Id_truck]], supplierdockdict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ? "missing" : row[:Supplier_dock])]] = 1.0
+            truckmatrices_P["TDA_P"][truck_ind] = parse(Float64, row[:Arrival_time])
+            truckmatrices_P["TDE_P"][truck_ind] = parse(Float64, row[:Arrival_time]) # ? TODO
+
+            truckmatrices_P["TU_P"][truck_ind, supplierdict[row[:Supplier_code]]] = 1.0
+            truckmatrices_P["TP_P"][truck_ind, plantdict[row[:Plant_code]]] = 1.0
+
+            truckmatrices_P["TG_P"][
+                truck_ind, 
+                plantdockdict[row[:Plant_code]*"__"*(ismissing(row[:Plant_dock]) ? 
+                    "missing" : row[:Plant_dock])]
+            ] = 1.0
+
+            truckmatrices_P["TK_P"][
+                truck_ind, supplierdockdict[row[:Supplier_code]*"__"*(ismissing(row[:Supplier_dock]) ?
+                    "missing" : row[:Supplier_dock])]
+            ] = 1.0
             
+            truckmatrices_P["TEM_P"][truck_ind] = parse(Float64, replace(row[:Max_density], "," => "."))
             
+            if !haskey(max_stack_weights, row[:Id_truck])
+                max_stack_weights[row[:Id_truck]] = Dict()
+            end
+
+            product_code = row[:Product_code]
+            max_stack_weights[row[:Id_truck]][product_code] = parse(Float64, replace(row[:Max_weight_on_the_bottom_item_in_stacks], "," => "."))
+            
+            truckmatrices_P["TMm_P"][truck_ind] = parse(Float64, replace(row[:Max_weight], "," => "."))
+
+            truckmatrices_P["CM_P"][truck_ind] = parse(Float64, replace(row[:CM], "," => "."))
+            truckmatrices_P["CJfm_P"][truck_ind] = parse(Float64, replace(row[:CJfm], "," => "."))
+            truckmatrices_P["CJfc_P"][truck_ind] = parse(Float64, replace(row[:CJfc], "," => "."))
+            truckmatrices_P["CJfh_P"][truck_ind] = parse(Float64, replace(row[:CJfh], "," => "."))
+            truckmatrices_P["EM_P"][truck_ind] = parse(Float64, replace(row[:EM], "," => "."))
+            truckmatrices_P["EJhr_P"][truck_ind] = parse(Float64, replace(row[:EJhr], "," => "."))
+            truckmatrices_P["EJcr_P"][truck_ind] = parse(Float64, replace(row[:EJcr], "," => "."))
+            truckmatrices_P["EJeh_P"][truck_ind] = parse(Float64, replace(row[:EJeh], "," => "."))
+            truckmatrices_P["EMmr_P"][truck_ind] = parse(Float64, replace(row[:EMmr], "," => "."))
+            truckmatrices_P["EMmm_P"][truck_ind] = parse(Float64, replace(row[:EMmm], "," => "."))
+            truckmatrices_P["Cost_P"][truck_ind] = parse(Float64, replace(row[:Cost], "," => "."))
+
             # For each line of input trucks, retrieve Product code. For all items, get 
             # indices of items of same product code, and use it to fill TR
-            product_code = row[:Product_code]
             for i in 1:nbitems
-                TR_P[truckdict[row[:Id_truck]], i] = item_productcodes[i] == product_code ? 1.0 : TR_P[truckdict[row[:Id_truck]], i]
+                truckmatrices_P["TR_P"][truck_ind, i] = item_productcodes[i] == product_code ? 1.0 : truckmatrices_P["TR_P"][truckdict[row[:Id_truck]], i]
             end
             # @debug begin
             #     if sum([item_productcodes[i] == product_code ? 1.0 : 0.0 for i in 1:nbitems]) >= 1
@@ -407,10 +460,54 @@ function loadinstance(instancepath; onlyplanned=false)
     
     TR_P = falses(nbplannedtrucks, nbitems) # TR is expanded, it will contain also only items which docks are delivered by the truck
     
+    TMm_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    TEM_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    max_stack_weights_P = Dict{String, Any}()
+
+    EMmm_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    EMmr_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    CM_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    CJfm_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    CJfc_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    CJfh_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    EM_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    EJhr_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    EJcr_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    EJeh_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    Cost_P = Vector{Union{Float64, Missing}}(missing, nbplannedtrucks)
+    truckmatrices_P = Dict()
+    
+    truckmatrices_P["TE_P"] = TE_P
+    truckmatrices_P["TL_P"] = TL_P
+    truckmatrices_P["TW_P"] = TW_P
+    truckmatrices_P["TH_P"] = TH_P
+    truckmatrices_P["TKE_P"] = TKE_P
+    truckmatrices_P["TGE_P"] = TGE_P
+    truckmatrices_P["TDA_P"] = TDA_P
+    truckmatrices_P["TDE_P"] = TDE_P
+    truckmatrices_P["TU_P"] = TU_P
+    truckmatrices_P["TP_P"] = TP_P
+    truckmatrices_P["TK_P"] = TK_P
+    truckmatrices_P["TG_P"] = TG_P
+    truckmatrices_P["TR_P"] = TR_P
+    truckmatrices_P["TMm_P"] = TMm_P
+    truckmatrices_P["TEM_P"] = TEM_P
+    truckmatrices_P["max_stack_weights_P"] = max_stack_weights_P
+    truckmatrices_P["EMmm_P"] = EMmm_P
+    truckmatrices_P["EMmr_P"] = EMmr_P
+    truckmatrices_P["CM_P"] = CM_P
+    truckmatrices_P["CJfm_P"] = CJfm_P
+    truckmatrices_P["CJfc_P"] = CJfc_P
+    truckmatrices_P["CJfh_P"] = CJfh_P
+    truckmatrices_P["EM_P"] = EM_P
+    truckmatrices_P["EJhr_P"] = EJhr_P
+    truckmatrices_P["EJcr_P"] = EJcr_P
+    truckmatrices_P["EJeh_P"] = EJeh_P
+    truckmatrices_P["Cost_P"] = Cost_P
+
     ## Fill planned truck matrices with info in input_trucksfile
-    fillPlannedTruckMatrices!(TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TDE_P, 
-    TU_P, TP_P, TG_P, TK_P, TR_P, instancepath, nbitems, truckdict, supplierdict, 
-    supplierdockdict, plantdict, plantdockdict, item_productcodes)
+    fillPlannedTruckMatrices!(truckmatrices_P, instancepath, nbitems, truckdict, 
+    supplierdict, supplierdockdict, plantdict, plantdockdict, item_productcodes, max_stack_weights_P)
     
     IU = falses(nbitems, nbsuppliers)
     IP = falses(nbitems, nbplants)
@@ -422,16 +519,40 @@ function loadinstance(instancepath; onlyplanned=false)
     IL = Vector{Float64}(undef, nbitems)
     IW = Vector{Float64}(undef, nbitems)
     IH = Vector{Float64}(undef, nbitems)
+    InH = Vector{Float64}(undef, nbitems)
+    IM = Vector{Float64}(undef, nbitems)
     IS = Vector{Union{Float64, Missing}}(missing, nbitems)
-    
+    pkg_code = Vector{Union{String, Missing}}(missing, nbitems)
     IDL = Vector{Union{Float64, Missing}}(missing, nbitems)
-    
+    stackability_code = Vector{Union{String, Missing}}(missing, nbitems)
     IDE = Vector{Union{Float64, Missing}}(missing, nbitems)
     itemdict = Dict{Int64, String}()
-    
+    item_copies = Vector{Union{Float64, Missing}}(missing, nbitems)
+    inventory_cost = Vector{Union{Float64, Missing}}(missing, nbitems)
+    max_stackability = Vector{Union{Float64, Missing}}(missing, nbitems)
     ## Fill Item info matrices with data from input_items file
     stackabilitycodedict = Dict{String, Float64}()
-    nbstackabilitycodes = fillItems!(IU, IP, IK, IPD, IDL, IDE, IS, _IO, IL, IW, IH, stackabilitycodedict, supplierdict, plantdict, supplierdockdict, plantdockdict, itemdict, instancepath)
+
+    itemmatrices = Dict()
+    itemmatrices["IU"] = IU
+    itemmatrices["IP"] = IP
+    itemmatrices["IK"] = IK
+    itemmatrices["IPD"] = IPD
+    itemmatrices["_IO"] = _IO
+    itemmatrices["IL"] = IL
+    itemmatrices["IW"] = IW
+    itemmatrices["IH"] = IH
+    itemmatrices["InH"] = InH
+    itemmatrices["IM"] = IM
+    itemmatrices["IS"] = IS
+    itemmatrices["IDL"] = IDL
+    itemmatrices["IDE"] = IDE
+
+    nbstackabilitycodes = fillItems!(itemmatrices, stackabilitycodedict, 
+        supplierdict, plantdict, supplierdockdict, 
+        plantdockdict, itemdict, instancepath, item_copies, inventory_cost, pkg_code,
+        max_stackability, stackability_code
+    )
     
     # Expand TR with information about docks
     # For each truck, for each item, if the truck doesn't stop at the supplier & supplier dock of the item or 
@@ -536,26 +657,105 @@ function loadinstance(instancepath; onlyplanned=false)
         reverse_truckdict, truckindices)
     end
 
-    costinventory = 0.0
+    coefcostinventory = 0.0
     costtransportation = 0.0
-    costextratruck = 0.0
+    coefcostextratruck = 0.0
     timelimit = 0.0
     open(*(instancepath, "input_parameters.csv")) do file
         for row in CSV.File(file, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String)
-            costinventory = parse(Float64, replace(row[:Coefficient_inventory_cost], "," => "."))
+            coefcostinventory = parse(Float64, replace(row[:Coefficient_inventory_cost], "," => "."))
             costtransportation = parse(Float64, replace(row[:Coefficient_transportation_cost], "," => "."))
-            costextratruck = parse(Float64, replace(row[:Coefficient_cost_extra_truck], "," => "."))
+            coefcostextratruck = parse(Float64, replace(row[:Coefficient_cost_extra_truck], "," => "."))
             timelimit = row[CSV.normalizename("timelimit_(sec)")]       
 
         end
     end
-    
-    return item_productcodes, truckdict, supplierdict, supplierdockdict, plantdict, 
-    plantdockdict, nbplannedtrucks, nbitems, nbsuppliers, nbsupplierdocks, nbplants, nbplantdocks,
-    TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TDE_P, TU_P, TP_P, TK_P, TG_P, TR_P,
-    IU, IP, IK, IPD, IS, _IO, IL, IW, IH, IDL, IDE, stackabilitycodedict, nbtrucks, TE, TL, TW, TH,
-    TKE, TGE, TDA, TDE, TU, TP, TK, TG, TR, TID, reverse_truckdict, truckindices,
-    costinventory, costtransportation, costextratruck, timelimit
+    result = Dict{Any, Any}()
+    result["item_productcodes"] = item_productcodes
+    result["truckdict"] = truckdict
+    result["supplierdict"] = supplierdict
+    result["supplierdockdict"] = supplierdockdict
+    result["plantdict"] = plantdict
+    result["plantdockdict"] = plantdockdict
+    result["nbplannedtrucks"] = nbplannedtrucks
+    result["nbitems"] = nbitems
+    result["nbsuppliers"] = nbsuppliers
+    result["nbsupplierdocks"] = nbsupplierdocks
+    result["nbplants"] = nbplants
+    result["nbplantdocks"] = nbplantdocks
+    result["TE_P"] = TE_P
+    result["TL_P"] = TL_P
+    result["TW_P"] = TW_P
+    result["TH_P"] = TH_P
+    result["TKE_P"] = TKE_P
+    result["TGE_P"] = TGE_P
+    result["TDA_P"] = TDA_P
+    result["TDE_P"] = TDE_P
+    result["TU_P"] = TU_P
+    result["TP_P"] = TP_P
+    result["TK_P"] = TK_P
+    result["TG_P"] = TG_P
+    result["TR_P"] = TR_P
+    result["CM_P"] = CM_P
+    result["TEM_P"] = TEM_P
+    result["TMm_P"] = TMm_P
+    result["CM_P"] = CM_P
+    result["CJfm_P"] = CJfm_P
+    result["CJfc_P"] = CJfc_P
+    result["CJfh_P"] = CJfh_P
+    result["EM_P"] = EM_P
+    result["EJhr_P"] = EJhr_P
+    result["EJcr_P"] = EJcr_P
+    result["EJeh_P"] = EJeh_P
+    result["EMmr_P"] = EMmr_P
+    result["EMmm_P"] = EMmm_P
+    result["Cost_P"] = Cost_P
+    result["max_stack_weights_P"] = max_stack_weights_P
+
+    result["IU"] = IU
+    result["IP"] = IP
+    result["IK"] = IK
+    result["IPD"] = IPD
+    result["IS"] = IS
+    result["_IO"] = _IO
+    result["IL"] = IL
+    result["IW"] = IW
+    result["IH"] = IH
+    result["InH"] = InH
+    result["IM"] = IM
+    result["IDL"] = IDL
+    result["IDE"] = IDE
+    result["stackabilitycodedict"] = stackabilitycodedict
+    result["nbtrucks"] = nbtrucks
+    result["TE"] = TE
+    result["TL"] = TL
+    result["TW"] = TW
+    result["TH"] = TH
+    result["TKE"] = TKE
+    result["TGE"] = TGE
+    result["TDA"] = TDA
+    result["TDE"] = TDE
+    result["TU"] = TU
+    result["TP"] = TP
+    result["TK"] = TK
+    result["TG"] = TG
+    result["TR"] = TR
+    result["TID"] = TID
+    result["reverse_truckdict"] = reverse_truckdict
+    result["truckindices"] = truckindices
+    result["coefcostinventory"] = coefcostinventory
+    result["costtransportation"] = costtransportation
+    result["coefcostextratruck"] = coefcostextratruck
+    result["timelimit"] = timelimit
+    result["item_copies"] = item_copies
+    result["nbitems"] = nbitems
+    result["pkg_code"] = pkg_code
+    result["itemdict"] = itemdict
+    result["max_stackability"] = max_stackability
+    result["inventory_cost"] = inventory_cost
+    result["stackability_code"] = stackability_code
+
+    return result
     
 end
 # end
