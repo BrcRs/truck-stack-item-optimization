@@ -1,4 +1,5 @@
 using Test
+using Statistics
 
 include("../src/assignment.jl")
 include("../src/instance_loader.jl")
@@ -147,7 +148,51 @@ end
             )
         end
     end
+
+    i_items_origin = copy(i_items)
+    start = time()
     # display(i_items)
-    solve_tsi(t_trucks, i_items, result["TR_P"])
-    
+    used_trucks, solution = solve_tsi(t_trucks, i_items, result["TR_P"])
+    println("Solved $(length(i_items_origin)) in $(time() - start)s")
+
+    filling_rates = [
+        (isempty(solution[t]) ? 0. : get_loaded_volume([stack for (i, stack) in solution[t]])) / get_volume(Dict(used_trucks)[t]) 
+            for t in keys(solution)
+    ]
+
+    println("Filling rate stats")
+    println("Mean filling rate")
+    display(mean(filling_rates))
+    println("Min filling rate")
+    display(min(filling_rates...))
+    println("25% quantile filling rate")
+    display(quantile(filling_rates, 0.25))
+    println("Median filling rate")
+    display(median(filling_rates))
+    println("75% quantile filling rate")
+    display(quantile(filling_rates, 0.75))
+    println("Max filling rate")
+    display(max(filling_rates...))
+
+
+    nb_items_truck = [
+        isempty(solution[t]) ? 0 : length(solution[t]) 
+            for t in keys(solution)
+    ]
+
+    println("Number of stacks stats")
+    println("Mean number of stacks per truck")
+    display(mean(nb_items_truck))
+    println("Min number of stacks per truck")
+    display(min(nb_items_truck...))
+    println("25% quantile number of stacks per truck")
+    display(quantile(nb_items_truck, 0.25))
+    println("Median number of stacks per truck")
+    display(median(nb_items_truck))
+    println("75% quantile number of stacks per truck")
+    display(quantile(nb_items_truck, 0.75))
+    println("Max number of stacks per truck")
+    display(max(nb_items_truck...))
+
+    error("75% quantile on number of stacks == 0?")
 end

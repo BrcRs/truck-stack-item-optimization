@@ -318,7 +318,7 @@ get_minmax_stackability(is::ItemizedStack) = is.minmax_stackability
 
 get_loaded_length(stacks::Vector{ItemizedStack}) = max([get_pos(item).x + get_dim(item).le for item in stacks]...)
 
-get_loaded_volume(stacks::Vector{ItemizedStack}) = sum([get_dim(stack).wi * get_dim(stack).le for stack in stacks])
+get_loaded_volume(stacks::Vector{ItemizedStack}) = sum([get_dim(stack).wi * get_dim(stack).le * get_height(stack) for stack in stacks])
 
 get_loaded_weight(stacks::Vector{ItemizedStack}) = sum([get_weight(stack) for stack in stacks])
 

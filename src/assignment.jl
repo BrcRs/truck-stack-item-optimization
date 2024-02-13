@@ -98,11 +98,12 @@ function assign_to_trucks!(i_items, candi_t_truck_list, used_trucks, TR, item_di
     flat_item_dispatch = [s for k in keys(item_dispatch) for s in item_dispatch[k]]
     filter!(x -> !(x in flat_item_dispatch), i_items) # balance out assigned items
     append!(used_trucks, candi_t_truck_list) # TODO keep used_trucks sorted
-    if !issorted(used_trucks, by=x -> truck_sort_fn(x, ntrucks))
-        display(candi_t_truck_list)
-        # should not fire
-        error("used_trucks is not sorted.")
-    end
+    sort!(used_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks))
+    # if !issorted(used_trucks, by=x -> truck_sort_fn(x, ntrucks))
+    #     display(candi_t_truck_list)
+    #     # could fire sometimes if not sorted
+    #     error("used_trucks is not sorted.")
+    # end
 end
 
 function solve_tsi_step!(item_dispatch, used_trucks, solution, item_index)
@@ -187,12 +188,12 @@ function solve_tsi(t_trucks, i_items, TR)
 
     solution = Dict()
     # sort trucks by increasing cost and by decreasing versatility
-    sort!(t_trucks, by=x -> (get_cost(x[2]), ((.*).(versatility(x[2]), -1))...))
-    sort!(used_trucks, by=x -> (get_cost(x[2]), ((.*).(versatility(x[2]), -1))...))
+    sort!(t_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks))
+    sort!(used_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks))
 
     # sort items by decreasing constraints
     # ((x[1]-1) % nbuniqitems)+1
-    sort!(i_items, by= x -> ((.*).(constraints(x[2], ((x[1]-1) % nbuniqitems)+1, TR), -1)))
+    sort!(i_items, by=i_item -> item_sort_fn(i_item, nbuniqitems, TR))
     firstpass = true
     candi_t, candi_truck = nothing, nothing
     display_progress(nbitems - length(i_items) +  1, nbitems; name="Items placed")
@@ -206,13 +207,29 @@ function solve_tsi(t_trucks, i_items, TR)
         # println("Sum of items = $(length(i_items) + sum([length(item_dispatch[k]) for k in keys(item_dispatch)]))")
         # readline()
         # error("Number of items increases")
+        # TODO make select_new_truck add multiple trucks
+        # TODO use intuition to find a lower bound on the number of trucks to add
+        candi_list = []
         if !firstpass
-            candi_t, candi_truck = select_new_truck!(t_trucks, i_items[1], ntrucks, nbuniqitems, TR)
-            item_dispatch[candi_t] = []
+            # add trucks as long as volume of candi_trucks < volume of i_items
+            vol_trucks = 0.
+            it_cursor = 1
+            while vol_trucks < sum([get_volume(item) for (i, item) in i_items]) && 
+                it_cursor <= length(i_items)
+
+                candi_t, candi_truck = select_new_truck!(
+                    t_trucks, i_items[it_cursor], ntrucks, nbuniqitems, TR
+                )
+                push!(candi_list, Pair(candi_t, candi_truck))
+                vol_trucks += get_volume(candi_truck)
+                item_dispatch[candi_t] = []
+                it_cursor += 1
+            end
+            # sort!(candi_list, by=t_truck -> truck_sort_fn(t_truck, ntrucks))
         else
             firstpass=false 
         end
-        candi_list = isnothing(candi_t) ? [] : [Pair(candi_t, candi_truck)]
+        # candi_list = isnothing(candi_t) ? [] : [Pair(candi_t, candi_truck)]
 
         # assign to truck shouldn't make duplicates
         assign_to_trucks!(i_items, candi_list, used_trucks, TR, item_dispatch, ntrucks, nbuniqitems)
