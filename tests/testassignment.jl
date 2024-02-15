@@ -3,14 +3,17 @@ using Statistics
 
 include("../src/assignment.jl")
 include("../src/instance_loader.jl")
+include("../src/to_csv.jl")
 
 function get_docks(supplier, supplierdockdict)
     return [split(k, "__")[2] for k in keys(supplierdockdict) if split(k, "__")[1] == supplier]
 end
 
 @testset "solve_tsi" begin
-    instancepath = "./instances/AS/"
+    instancepath = "./instances/BY/"
+    start = time()
     result = loadinstance(instancepath; onlyplanned=true)
+    println("Loaded instance in $(time() - start)s")
     supplierdict = result["supplierdict"]
     supplierdockdict = result["supplierdockdict"]
     plantdockdict = result["plantdockdict"]
@@ -26,7 +29,7 @@ end
     # display(result["TE_P"])
 
     for t in 1:nbplannedtrucks
-
+        display_progress(t, nbplannedtrucks; name="Instantiate trucks")
         # display([result["reverse_truckdict"][t],
             # Dim(result["TL_P"][t], result["TW_P"][t]),
             # result["TH_P"][t],
@@ -93,6 +96,7 @@ end
     # display(t_trucks)
     products = Dict()
     for i in 1:nbitems
+        display_progress(i, nbitems; name="Instantiate items")
         # get true nb items
         nbcopies = result["item_copies"][i]
         if !(result["item_productcodes"][i] in keys(products))
@@ -152,15 +156,27 @@ end
     i_items_origin = copy(i_items)
     start = time()
     # display(i_items)
-    used_trucks, solution = solve_tsi(t_trucks, i_items, result["TR_P"])
-    println("Solved $(length(i_items_origin)) in $(time() - start)s")
+    used_trucks, solution = solve_tsi(t_trucks, i_items, result["TR_P"]; item_batch_size=10000, truck_batch_size=500)
+    println("Solved $(length(i_items_origin)) items in $(time() - start)s")
+
+    len_used_trucks_before = length(used_trucks)
+
+    # remove empty trucks from solution
+    filter!(t_stacks -> !isempty(t_stacks[2]), solution)
+
+    # remove empty trucks from used trucks 
+    filter!(t_truck -> t_truck[1] in keys(solution), used_trucks)
+
+    len_used_trucks_after = length(used_trucks)
+
+    println("Removed $(len_used_trucks_before - len_used_trucks_after) empty trucks")
 
     filling_rates = [
         (isempty(solution[t]) ? 0. : get_loaded_volume([stack for (i, stack) in solution[t]])) / get_volume(Dict(used_trucks)[t]) 
             for t in keys(solution)
     ]
 
-    println("Filling rate stats")
+    println("Filling rate stats over $(length(used_trucks)) trucks")
     println("Mean filling rate")
     display(mean(filling_rates))
     println("Min filling rate")
@@ -180,7 +196,7 @@ end
             for t in keys(solution)
     ]
 
-    println("Number of stacks stats")
+    println("Number of stacks stats over $(length(used_trucks)) trucks")
     println("Mean number of stacks per truck")
     display(mean(nb_items_truck))
     println("Min number of stacks per truck")
@@ -193,6 +209,24 @@ end
     display(quantile(nb_items_truck, 0.75))
     println("Max number of stacks per truck")
     display(max(nb_items_truck...))
+    
+    used_truck_dict = Dict(used_trucks)
 
-    error("75% quantile on number of stacks == 0?")
+    # display(solution)
+    output_directory = instancepath
+    if !isdir(output_directory)
+        mkdir(output_directory)
+    end
+    append=false
+    for t in keys(solution)
+        truck = used_truck_dict[t]
+        # reassign ids because BLtruck creates new stacks id-less
+        for (i, stack) in solution[t]
+            set_id!(stack, string(get_id(truck), "_", i))
+        end
+        solution_to_csv(truck, solution[t], output_directory, append=append)
+        if !append
+            append = true
+        end
+    end
 end

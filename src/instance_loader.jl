@@ -371,6 +371,7 @@ function fillPlannedTruckMatrices!(truckmatrices_P, instancepath, nbitems, truck
             # For each line of input trucks, retrieve Product code. For all items, get 
             # indices of items of same product code, and use it to fill TR
             for i in 1:nbitems
+                #Takes a lot of times because trucks * items
                 truckmatrices_P["TR_P"][truck_ind, i] = item_productcodes[i] == product_code ? 1.0 : truckmatrices_P["TR_P"][truckdict[row[:Id_truck]], i]
             end
             # @debug begin

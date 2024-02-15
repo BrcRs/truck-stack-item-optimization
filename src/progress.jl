@@ -30,12 +30,15 @@ Display a nice progress bar based on `i / total`. Can be prefaced with `name`.
 `margin` is the size of the left part area for the message.
 `n` is the size of the bar in number of characters.
 """
-function display_progress(i::Number, total::Number; n=10, name="", margin=20)
+function display_progress(i::Number, total::Number; n=10, name="", margin=20, rate=1)
+    i = min(i, total)
     if i == 1
         println()
     end
-    print("\u1b[1F")
-    printstyled(repeat(" ", margin - length(name))..., name, " ", color=:green)
-    print("[", repeat("=", convert(Int64, round(n*(i/total)))), (i == total ? "=" : ">"), repeat(" ", n - convert(Int64, round(n*(i/total)))),  "] $i/$total")
-    print("\u1b[0K\n") 
+    if i % rate == 0 || i + rate >= total
+        print("\u1b[1F")
+        printstyled(repeat(" ", margin - length(name))..., name, " ", color=:green)
+        print("[", repeat("=", convert(Int64, round(n*(i/total)))), (i == total ? "=" : ">"), repeat(" ", n - convert(Int64, round(n*(i/total)))),  "] $i/$total")
+        print("\u1b[0K\n")
+    end 
 end

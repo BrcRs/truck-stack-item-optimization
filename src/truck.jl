@@ -87,11 +87,37 @@ function set_plant_dock_orders!(truck, d)
 end
 
 
-function set_height(truck::Truck, h)
+function set_height(truck::Truck, h::Real)
     return Truck(
         truck.id,
         truck.dim,
         h,
+        truck.max_stack_density,
+        truck.max_stack_weights,
+        truck.TMm,
+        truck.supplier_orders,
+        truck.supplier_dock_orders,
+        truck.plant_dock_orders,
+
+        truck.cost,
+
+        truck.CM,
+        truck.CJ_fm,
+        truck.CJ_fc,
+        truck.CJ_fh,
+        truck.EM,
+        truck.EJ_hr,
+        truck.EJ_cr,
+        truck.EJ_eh,
+        truck.EM_mr,
+        truck.EM_mm,
+    )
+end
+function set_id(truck::Truck, id::String)
+    return Truck(
+        id,
+        truck.dim,
+        truck.height,
         truck.max_stack_density,
         truck.max_stack_weights,
         truck.TMm,
