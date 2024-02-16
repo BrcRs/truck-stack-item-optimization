@@ -11,6 +11,16 @@ using CSV
 
 # using ArgParse
 
+function to_days(date::String)
+
+    if '.' in date
+        println(date)
+    end
+    datetime = Date(parse(Int16, date[1:4]), parse(Int8, date[5:6]), parse(Int8, date[7:8]))
+
+    return Dates.value(datetime)
+end
+
 """
     expandTruckMatrices!(nbplannedtrucks, [...])
 
@@ -328,8 +338,8 @@ function fillPlannedTruckMatrices!(truckmatrices_P, instancepath, nbitems, truck
                 truck_ind, plantdockdict[custom_plantdock_code]
             ] = parse(Float64, row[:Plant_dock_loading_order])
 
-            truckmatrices_P["TDA_P"][truck_ind] = parse(Float64, row[:Arrival_time])
-            truckmatrices_P["TDE_P"][truck_ind] = parse(Float64, row[:Arrival_time]) # ? TODO
+            truckmatrices_P["TDA_P"][truck_ind] = convert(Float64, to_days(string(parse(Int64, row[:Arrival_time]))))
+            truckmatrices_P["TDE_P"][truck_ind] = convert(Float64, to_days(string(parse(Int64, row[:Arrival_time])))) # ? TODO
 
             truckmatrices_P["TU_P"][truck_ind, supplierdict[row[:Supplier_code]]] = 1.0
             truckmatrices_P["TP_P"][truck_ind, plantdict[row[:Plant_code]]] = 1.0

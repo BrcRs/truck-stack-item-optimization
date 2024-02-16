@@ -13,6 +13,7 @@ struct Truck
     supplier_dock_orders::Dict{Integer, Dict{String, Integer}}
     plant_dock_orders::Dict{String, Integer}
 
+    arrival_time::Any
     cost::Integer
 
     CM::Real # weight of the tractor
@@ -29,11 +30,11 @@ end
 
 function Truck(
     dim::Dim, height, max_stack_density, max_stack_weights, TMm, supplier_orders, 
-    supplier_dock_orders, plant_dock_orders, cost, CM, CJ_fm, CJ_fc, CJ_fh, EM,
+    supplier_dock_orders, plant_dock_orders, arrival_time, cost, CM, CJ_fm, CJ_fc, CJ_fh, EM,
     EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm
 ) 
     return Truck("", dim, height, max_stack_density, max_stack_weights, TMm, supplier_orders, 
-    supplier_dock_orders, plant_dock_orders, cost, CM, CJ_fm, CJ_fc, CJ_fh, EM,
+    supplier_dock_orders, plant_dock_orders, arrival_time, cost, CM, CJ_fm, CJ_fc, CJ_fh, EM,
     EJ_hr, EJ_cr, EJ_eh, EM_mr, EM_mm)
 end
 
@@ -54,7 +55,7 @@ get_plant_dock_orders(truck::Truck) = truck.plant_dock_orders
 
 get_supplier_order(truck::Truck, supplier) = get_supplier_orders(truck)[supplier]
 get_plant_dock_order(truck::Truck, plant_dock) = get_plant_dock_orders(truck)[plant_dock]
-
+get_arrival_time(truck::Truck) = truck.arrival_time
 get_cost(truck::Truck) = truck.cost
 
 get_CM(truck::Truck) = truck.CM
@@ -98,7 +99,7 @@ function set_height(truck::Truck, h::Real)
         truck.supplier_orders,
         truck.supplier_dock_orders,
         truck.plant_dock_orders,
-
+        truck.arrival_time,
         truck.cost,
 
         truck.CM,
@@ -124,7 +125,7 @@ function set_id(truck::Truck, id::String)
         truck.supplier_orders,
         truck.supplier_dock_orders,
         truck.plant_dock_orders,
-
+        truck.arrival_time,
         truck.cost,
 
         truck.CM,

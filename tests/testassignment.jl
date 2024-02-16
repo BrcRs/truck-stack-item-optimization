@@ -1,6 +1,15 @@
 using Test
 using Statistics
 
+using JuMP
+using MathOptInterface
+
+using Cbc
+using GLPK
+
+const MOI = MathOptInterface
+
+
 include("../src/assignment.jl")
 include("../src/instance_loader.jl")
 include("../src/to_csv.jl")
@@ -10,7 +19,7 @@ function get_docks(supplier, supplierdockdict)
 end
 
 @testset "solve_tsi" begin
-    instancepath = "./instances/BY/"
+    instancepath = "./instances/AS/"
     start = time()
     result = loadinstance(instancepath; onlyplanned=true)
     println("Loaded instance in $(time() - start)s")
@@ -76,6 +85,7 @@ end
                         for s in keys(supplierdict) if result["TU_P"][t, supplierdict[s]]),
                     Dict(pd => result["TGE_P"][t, plantdockdict[string(p, "__", pd)]] for p in keys(plantdict) for pd in get_docks(p, plantdockdict)
                          if result["TP_P"][t, plantdict[p]]),
+                    result["TDA_P"][t],
                     result["Cost_P"][t],
                     result["CM_P"][t],
                     result["CJfm_P"][t],
@@ -156,7 +166,25 @@ end
     i_items_origin = copy(i_items)
     start = time()
     # display(i_items)
-    used_trucks, solution = solve_tsi(t_trucks, i_items, result["TR_P"]; item_batch_size=10000, truck_batch_size=500)
+    item_batch_size = nothing
+
+
+    # optimizer = GLPK.Optimizer # Cbc or GLPK
+    optimizer = Cbc.Optimizer # Cbc or GLPK
+    assign_fn = x -> assign_benders!(
+        x..., 
+        optimizer, 
+        result["costtransportation"], 
+        result["coefcostextratruck"],
+        result["coefcostinventory"]; 
+        relax=false, silent=false
+    )
+    # assign_fn = x -> assign_to_trucks!(x...; limit=item_batch_size)
+    
+    used_trucks, solution = solve_tsi(t_trucks, i_items, result["TR_P"], assign_fn; 
+        truck_batch_size=nothing)
+    
+    
     println("Solved $(length(i_items_origin)) items in $(time() - start)s")
 
     len_used_trucks_before = length(used_trucks)
