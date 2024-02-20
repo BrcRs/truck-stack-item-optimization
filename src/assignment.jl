@@ -335,6 +335,8 @@ function mk_benders_master(
         end
     end
 
+    nbTR::Integer = sum(TR)
+
     trucks = [t_truck[2] for t_truck in t_trucks]
     items = [i_item[2] for i_item in i_items]
     
@@ -357,44 +359,114 @@ function mk_benders_master(
     @variable(model, zetab[1:nbtrucks])
 
     @info "Adding TI..."
-    @variable(model, TI[1:nbtrucks, 1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
+    # @variable(model, TI[1:nbtrucks, 1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
+    @variable(model, TI[1:nbTR], lower_bound = 0, upper_bound = 1, Bin)
+
+    TR_truck_index = Vector{Tuple{Integer, Integer}}(undef, nbtrucks) # index: truck index
+    fill!(TR_truck_index, (-1, -1))
+    TR_truck_index[1] = (1, sum(TR[1, :]))
+    TR_item_index = Dict(ci => [] for ci in 1:nbitems) # maps item index to variables' indexes in TI
+    cnt = 1
+    for (ct, (t, truck)) in enumerate(t_trucks)
+        for (ci, (i, item)) in enumerate(i_items)
+            if (-1, -1) in TR_truck_index
+                before = ct-1 >= 1 ? sum(TR[ct-1, :]) : 1
+                TR_truck_index[ct] = before, before + sum(TR[ct, :])
+            end
+            if TR[ct, ci] == 1
+                push!(TR_item_index[ci], cnt)
+                cnt += 1
+            end
+        end
+    end
 
     @info "Computing parameters..."
 
     Mzeta = 100000
 
-    Alpha = diagm([get_id(trucks[t])[1] == 'P' ? coefcosttransportation : coefcostextratruck for t in 1:nbtrucks])
+    Alpha = diagm([get_id(trucks[t])[1] == 'P' ? coefcosttransportation : coefcostextratruck for t in 1:nbtrucks if 1 in TR[t, :]])
 
     ## Add constraints
-    @info "Adding constraints..."
-    @info "Adding czeta_TI_zetab..."
-    @constraint(model, czeta_TI_zetab, zeta .<= TI * ones(size(TI)[2]) - ones(size(zeta)[1]) + zetab)
-    
-
-    @info "Adding czetab_TI..."
-    @constraint(model, czetab_TI, zetab .<= ones(size(zetab)[1]) - TI * ones(size(TI)[2]) * Mzeta)
-
-    @info "Adding cTI_TR..."
-    @constraint(model, cTI_TR, TI .<= TR)
-
-    @info "Adding cTI_1_1..."
-    # display(size(transpose(TI)))
-    # display(size(ones(size(transpose(TI))[2])))
-    # display(size(transpose(TI) * ones(size(transpose(TI))[2])))
-
-    @constraint(model, cTI_1_1, transpose(TI) * ones(size(transpose(TI))[2]) == ones(size(transpose(TI))[1]))
-
-    # TODO add global weight constraint
-    @info "Adding cTI_IM_TMm..."
-    @constraint(model, cTI_IM_TMm, TI * IM <= TMm)
+    # @info "Adding constraints..."
+    # @info "Adding czeta_TI_zetab..."
+    # @constraint(model, czeta_TI_zetab, zeta .<= TI * ones(size(TI)[2]) - ones(size(zeta)[1]) + zetab)
+    for (ct, (t, truck)) in enumerate(t_trucks)
+        display_progress(ct, nbtrucks; name="Building Constraints")
+        TIct_it_indices = [i for i in 1:nbTR if TR_truck_index[ct][1] < i <= TR_truck_index[ct][2]]
+        # println(TIct_it_indices)
+        @constraint(
+            model, 
+            zeta[ct] <= transpose(TI[TIct_it_indices]) * ones(convert(Int64, sum(TR[ct, :]))) - 1 + zetab[ct], 
+            base_name=string("czeta_TI_zetab", ct)
+        )
+        
+        # @info "Adding czetab_TI..."
+        # @constraint(model, czetab_TI, zetab .<= ones(size(zetab)[1]) - TI * ones(size(TI)[2]) * Mzeta)
+        @constraint(
+            model,  
+            # zetab[ct] <= 1 - TI[TIct_it_indices] * ones(convert(Int64, sum(TR[ct, :]))) * Mzeta,
+            zetab[ct] <= 1 - sum(TI[TIct_it_indices]) * Mzeta,
+            base_name=string("czetab_TI", ct)
+        )
+        
+        # @info "Adding cTI_TR..."
+        # @constraint(model, cTI_TR, TI .<= TR)
+        
+        # TODO add global weight constraint
+        # @info "Adding cTI_IM_TMm..."
+        # @constraint(model, cTI_IM_TMm, TI * IM <= TMm)
+        @constraint(
+            model, 
+            TI[TIct_it_indices] * IM[] <= TMm[ct],
+            base_name=string("cTI_IM_TMm", ct)    
+        )
+        error("Finish max weight")
+    end
+        # @info "Adding cTI_1_1..."
+        # display(size(transpose(TI)))
+        # display(size(ones(size(transpose(TI))[2])))
+        # display(size(transpose(TI) * ones(size(transpose(TI))[2])))
+        for (ci, (i, item)) in enumerate(i_items)
+            # @constraint(model, cTI_1_1, transpose(TI) * ones(size(transpose(TI))[2]) == ones(size(transpose(TI))[1]))
+            @constraint(
+                model, 
+                TI[TR_item_index[ci]] * ones(sum(TR_item_index[ci])) == ones(sum(TR_item_index[ci])),
+                base_name=string("cTI_1_1_", ci)
+            )
+        end
+        
 
     # Cost of used planned trucks
-    @expression(model, obj1, sum(transpose([get_cost(trucks[t]) for t in 1:nbtrucks]) * Alpha * TI * ones(size(TI)[2])))
-    # Cost of used extra trucks
-    @expression(model, obj2, -sum(transpose(zeta) * Alpha * [get_cost(trucks[t]) for t in 1:nbtrucks]))
-    # inventory cost
-    @expression(model, obj3, coefcostinventory * transpose([get_inventory_cost(items[i]) for i in 1:nbitems]) * (IDL - transpose(TI) * TDA))
+    # @expression(model, obj1, sum(transpose([get_cost(trucks[t]) for t in 1:nbtrucks]) * Alpha * TI * ones(size(TI)[2])))
+    @expression(model, obj1, 
+        sum(
+            get_cost(trucks[ct]) * Alpha[ct, ct] * sum(TI[i for i in 1:nbTR if TR_truck_index[ct][1] < i <= TR_truck_index[ct][2]])
+            for ct in 1:nbtrucks
+        )
+    )
 
+    # Cost of used extra trucks
+    @expression(model, obj2, 
+        -sum(
+            transpose(zeta) * Alpha * [get_cost(trucks[t]) for t in 1:nbtrucks]
+        )
+    
+    )
+    # inventory cost
+    # @expression(model, obj3, coefcostinventory * transpose([get_inventory_cost(items[i]) for i in 1:nbitems]) * (IDL - transpose(TI) * TDA))
+    @expression(model, obj3, 
+        coefcostinventory * 
+        transpose([get_inventory_cost(items[i]) for i in 1:nbitems]) * 
+        (
+            IDL - [
+                transpose(TR[TR_item_index[ci]]) * 
+                TDA[
+                    ct for ct in 1:nbtruck if !isnothing(findfirst(cj -> TR_truck_index[ct][1] < cj <= TR_truck_index[ct][2], TR_item_index[ci]))
+                ]
+                for ci in 1:nbitems
+            ]
+        )
+    )
     # @objective(submodel, Min, 
     # sum(subpb[:costtransportation] * submodel[:zetaT]) + 
     # sum(subpb[:costextratruck] * submodel[:zetaE]) + 
