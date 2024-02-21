@@ -354,9 +354,9 @@ function mk_benders_master(
     ## Add variables
     @info "Creating variables..."
     @info "Adding zeta..."
-    @variable(model, zeta[1:nbtrucks] >= 0)
+    @variable(model, zeta[1:count(x -> 1 in TR[x, :], 1:nbtrucks)] >= 0)
     @info "Adding zetab..."
-    @variable(model, zetab[1:nbtrucks])
+    @variable(model, zetab[1:count(x -> 1 in TR[x, :], 1:nbtrucks)] >= 0)
 
     @info "Adding TI..."
     # @variable(model, TI[1:nbtrucks, 1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
@@ -364,39 +364,53 @@ function mk_benders_master(
 
     TR_truck_index = Vector{Tuple{Integer, Integer}}(undef, nbtrucks) # index: truck index
     fill!(TR_truck_index, (-1, -1))
-    TR_truck_index[1] = (1, sum(TR[1, :]))
+    # TR_truck_index[1] = (0, sum(TR[1, :]))
     TR_item_index = Dict(ci => [] for ci in 1:nbitems) # maps item index to variables' indexes in TI
+    revTR_item_index = Dict() # maps variables' indexes in TI to item index
     cnt = 1
     for (ct, (t, truck)) in enumerate(t_trucks)
+        if (-1, -1) in TR_truck_index
+            before = ct-1 >= 1 ? TR_truck_index[ct-1][2] : 0
+            TR_truck_index[ct] = before, before + sum(TR[ct, :])
+        end
         for (ci, (i, item)) in enumerate(i_items)
-            if (-1, -1) in TR_truck_index
-                before = ct-1 >= 1 ? sum(TR[ct-1, :]) : 1
-                TR_truck_index[ct] = before, before + sum(TR[ct, :])
-            end
             if TR[ct, ci] == 1
                 push!(TR_item_index[ci], cnt)
+                revTR_item_index[cnt] = ci
                 cnt += 1
             end
         end
     end
 
+    # display(TR_truck_index)
+    # readline()
+
+    # println(findfirst(x -> sum(TR[:, x]) == 0, 1:nbitems))
+    # readline()
     @info "Computing parameters..."
 
     Mzeta = 100000
 
     Alpha = diagm([get_id(trucks[t])[1] == 'P' ? coefcosttransportation : coefcostextratruck for t in 1:nbtrucks if 1 in TR[t, :]])
+    # Alpha = diagm([get_id(trucks[t])[1] == 'P' ? coefcosttransportation : coefcostextratruck for t in 1:nbtrucks])
 
     ## Add constraints
     # @info "Adding constraints..."
     # @info "Adding czeta_TI_zetab..."
     # @constraint(model, czeta_TI_zetab, zeta .<= TI * ones(size(TI)[2]) - ones(size(zeta)[1]) + zetab)
+    zeta_cnt = 0
     for (ct, (t, truck)) in enumerate(t_trucks)
         display_progress(ct, nbtrucks; name="Building Constraints")
+        if sum(TR[ct, :]) == 0
+            continue
+        end
+        zeta_cnt += 1
         TIct_it_indices = [i for i in 1:nbTR if TR_truck_index[ct][1] < i <= TR_truck_index[ct][2]]
         # println(TIct_it_indices)
+
         @constraint(
             model, 
-            zeta[ct] <= transpose(TI[TIct_it_indices]) * ones(convert(Int64, sum(TR[ct, :]))) - 1 + zetab[ct], 
+            zeta[zeta_cnt] <= transpose(TI[TIct_it_indices]) * ones(convert(Int64, sum(TR[ct, :]))) - 1 + zetab[zeta_cnt], 
             base_name=string("czeta_TI_zetab", ct)
         )
         
@@ -405,10 +419,25 @@ function mk_benders_master(
         @constraint(
             model,  
             # zetab[ct] <= 1 - TI[TIct_it_indices] * ones(convert(Int64, sum(TR[ct, :]))) * Mzeta,
-            zetab[ct] <= 1 - sum(TI[TIct_it_indices]) * Mzeta,
-            base_name=string("czetab_TI", ct)
+            zetab[zeta_cnt] >= 1 - sum(TI[TIct_it_indices]) * Mzeta,
+            base_name=string("czetab_TI_left", ct)
+        )
+
+        @constraint(
+            model,  
+            # zetab[ct] <= 1 - TI[TIct_it_indices] * ones(convert(Int64, sum(TR[ct, :]))) * Mzeta,
+            zetab[zeta_cnt] <= 1 + sum(TI[TIct_it_indices]) * Mzeta,
+            base_name=string("czetab_TI_right", ct)
         )
         
+        @constraint(
+            model,  
+            # zetab[ct] <= 1 - TI[TIct_it_indices] * ones(convert(Int64, sum(TR[ct, :]))) * Mzeta,
+            zetab[zeta_cnt] <= (1 - sum(TI[TIct_it_indices])) * Mzeta,
+            base_name=string("czetab_1_TI", ct)
+        )
+        
+
         # @info "Adding cTI_TR..."
         # @constraint(model, cTI_TR, TI .<= TR)
         
@@ -417,52 +446,75 @@ function mk_benders_master(
         # @constraint(model, cTI_IM_TMm, TI * IM <= TMm)
         @constraint(
             model, 
-            TI[TIct_it_indices] * IM[] <= TMm[ct],
+            transpose(TI[TIct_it_indices]) * IM[[revTR_item_index[it] for it in TIct_it_indices]] <= TMm[ct],
             base_name=string("cTI_IM_TMm", ct)    
         )
-        error("Finish max weight")
+
+        # println(size(transpose(TI[TIct_it_indices])))
+        # println(size([get_volume(i_items[revTR_item_index[it]][2]) for it in TIct_it_indices]))
+        # println(size(transpose(TI[TIct_it_indices]) * [get_volume(i_items[revTR_item_index[it]][2]) for it in TIct_it_indices]))
+        # println(size(get_volume(t_trucks[ct][2])))
+
+        @constraint(
+            model, 
+            transpose(TI[TIct_it_indices]) * [get_volume(i_items[revTR_item_index[it]][2]) for it in TIct_it_indices] <= get_volume(t_trucks[ct][2]),
+            base_name=string("cTI_IV_TV", ct)    
+        )
+
     end
-        # @info "Adding cTI_1_1..."
-        # display(size(transpose(TI)))
-        # display(size(ones(size(transpose(TI))[2])))
-        # display(size(transpose(TI) * ones(size(transpose(TI))[2])))
-        for (ci, (i, item)) in enumerate(i_items)
-            # @constraint(model, cTI_1_1, transpose(TI) * ones(size(transpose(TI))[2]) == ones(size(transpose(TI))[1]))
-            @constraint(
-                model, 
-                TI[TR_item_index[ci]] * ones(sum(TR_item_index[ci])) == ones(sum(TR_item_index[ci])),
-                base_name=string("cTI_1_1_", ci)
-            )
-        end
+    # @info "Adding cTI_1_1..."
+    # display(size(transpose(TI)))
+    # display(size(ones(size(transpose(TI))[2])))
+    # display(size(transpose(TI) * ones(size(transpose(TI))[2])))
+    for (ci, (i, item)) in enumerate(i_items)
+        # @constraint(model, cTI_1_1, transpose(TI) * ones(size(transpose(TI))[2]) == ones(size(transpose(TI))[1]))
+        @constraint(
+            model, 
+            transpose(TI[TR_item_index[ci]]) * ones(length(TR_item_index[ci])) == 1,
+            base_name=string("cTI_1_1_", ci)
+        )
+    end
         
 
     # Cost of used planned trucks
     # @expression(model, obj1, sum(transpose([get_cost(trucks[t]) for t in 1:nbtrucks]) * Alpha * TI * ones(size(TI)[2])))
     @expression(model, obj1, 
         sum(
-            get_cost(trucks[ct]) * Alpha[ct, ct] * sum(TI[i for i in 1:nbTR if TR_truck_index[ct][1] < i <= TR_truck_index[ct][2]])
-            for ct in 1:nbtrucks
+            get_cost(trucks[ct]) * Alpha[numt, numt] * sum(TI[[i for i in 1:nbTR if TR_truck_index[ct][1] < i <= TR_truck_index[ct][2]]])
+            for (numt, ct) in enumerate([t for t in 1:nbtrucks if 1 in TR[t, :]])
         )
     )
 
     # Cost of used extra trucks
     @expression(model, obj2, 
         -sum(
-            transpose(zeta) * Alpha * [get_cost(trucks[t]) for t in 1:nbtrucks]
+            transpose(zeta) * Alpha * [get_cost(trucks[t]) for t in 1:nbtrucks if 1 in TR[t, :]]
         )
     
     )
     # inventory cost
     # @expression(model, obj3, coefcostinventory * transpose([get_inventory_cost(items[i]) for i in 1:nbitems]) * (IDL - transpose(TI) * TDA))
+    
+    # display(findfirst(cj -> TR_truck_index[ct][1] < cj <= TR_truck_index[ct][2], TR_item_index[1]))
+    # display(!isnothing(findfirst(cj -> TR_truck_index[ct][1] < cj <= TR_truck_index[ct][2], TR_item_index[1])))
+    # println(size(TDA[[
+    #     ct for ct in 1:nbtrucks if !isnothing(findfirst(cj -> TR_truck_index[ct][1] < cj <= TR_truck_index[ct][2], TR_item_index[1]))
+    # ]]))
+    # println(sum(TR[:, 1]))
+    # println(size(transpose(TR[TR_item_index[1]])))
+
+    # println(size(transpose([get_inventory_cost(items[i]) for i in 1:nbitems])))
+    # println(size(IDL))
     @expression(model, obj3, 
         coefcostinventory * 
         transpose([get_inventory_cost(items[i]) for i in 1:nbitems]) * 
         (
             IDL - [
                 transpose(TR[TR_item_index[ci]]) * 
-                TDA[
-                    ct for ct in 1:nbtruck if !isnothing(findfirst(cj -> TR_truck_index[ct][1] < cj <= TR_truck_index[ct][2], TR_item_index[ci]))
-                ]
+                # TDA[[
+                #     ct for ct in 1:nbtrucks if !isnothing(findfirst(cj -> TR_truck_index[ct][1] < cj <= TR_truck_index[ct][2], TR_item_index[ci]))
+                # ]]
+                TDA[findall(ct -> TR[ct, ci] == 1, 1:nbtrucks)]
                 for ci in 1:nbitems
             ]
         )
@@ -478,17 +530,21 @@ function mk_benders_master(
         set_silent(model)
     end
 
-    return model
+    return model, TR_truck_index, TR_item_index, revTR_item_index
 end
 
 function solve_benders_master(
     model; relax=false
 )
-
-    undo = relax_integrality(model)
+    if relax
+        undo = relax_integrality(model)
+    end
     optimize!(model)
-    TIvalues = Matrix{Float64}(undef, size(model[:TI])...)
-    TIvalues .= round.(value.(model[:TI])) # TODO round is risky?
+    # TIvalues = Matrix{Float64}(undef, size(model[:TI])...)
+    TIvalues = Vector{Float64}(undef, size(model[:TI])...)
+    # TIvalues .= round.(value.(model[:TI])) # TODO round is risky?
+    TIvalues .= value.(model[:TI]) # TODO round is risky?
+
     return TIvalues
 end
 
@@ -502,10 +558,13 @@ function assign_benders!(i_items::Vector{Pair{Integer, Item}}, items_indices::Ve
 
     #### DEBUG
     tmp_trucklist = [p for truck_list in [candi_t_truck_list, used_trucks] for p in truck_list]
+    append!(tmp_trucklist, tmp_trucklist)
+    append!(tmp_trucklist, tmp_trucklist)
+    append!(tmp_trucklist, tmp_trucklist)
     # ((i_items[ind][1]-1) % nbuniqitems)+1
     items_indices = [
         ind for ind in items_indices if sum(TR[[p[1] for p in tmp_trucklist], ((i_items[ind][1]-1) % nbuniqitems)+1]) >= 1
-    ][end-5:end]
+    ][end-100:end]
     ###################################################
     
     TMm = [get_TMm(truck) for (t, truck) in tmp_trucklist]
@@ -518,24 +577,34 @@ function assign_benders!(i_items::Vector{Pair{Integer, Item}}, items_indices::Ve
     IDL = [to_days(string(convert(Int64, get_time_window(item).latest))) for (i, item) in i_items[items_indices]]
 
 
-    model = mk_benders_master(
+    model, TR_truck_index, TR_item_index, revTR_item_index = mk_benders_master(
         optimizer, coefcosttransportation, coefcostextratruck, coefcostinventory,
         tmp_trucklist, i_items[items_indices], TR, 
         IDL, TDA, IM, TMm, nbuniqitems, nbuniqtrucks; silent=silent
     )
     write_to_file(model, "model.lp")
-    print(model)
-    TIvalues = solve_benders_master(model; relax=relax)
+    # print(model)
+    # TIvalues = solve_benders_master(model; relax=relax)
+    TIvalues = solve_benders_master(model; relax=true) #TODO
 
-    # display(sum(TIvalues))
+    println("TIVALUES")
+    display(sum(TIvalues))
+    println(TIvalues)
     readline()
 
     for (ci, ind) in enumerate(items_indices)
         i_item = i_items[ind]
-        t = findfirst(x -> x == 1, TIvalues[:, ci])
-        if !isnothing(t)
-            item_dispatch[ind] = t
-        end
+        # t = findfirst(x -> x == 1, TIvalues[:, ci])
+        # if !isnothing(t)
+        #     item_dispatch[ind] = t
+        # end
+
+        cj = TR_item_index[ci][findfirst(x -> TIvalues[x] == 1, TR_item_index[ci])]
+        ct = findfirst(cr -> TR_truck_index[cr][1] < cj <= TR_truck_index[cr][2], 1:length(tmp_trucklist))
+        item_dispatch[ind] = tmp_trucklist[ct][1]
     end
+    println("item_dispatch")
+    println(item_dispatch)
+    readline()
 
 end
