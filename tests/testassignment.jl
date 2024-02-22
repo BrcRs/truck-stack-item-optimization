@@ -177,7 +177,7 @@ end
         result["costtransportation"], 
         result["coefcostextratruck"],
         result["coefcostinventory"]; 
-        relax=false, silent=false
+        relax=true, silent=false #relax = true is necessary for reasonable solving times
     )
     # assign_fn = x -> assign_to_trucks!(x...; limit=item_batch_size)
     
