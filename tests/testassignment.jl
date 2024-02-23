@@ -6,6 +6,7 @@ using MathOptInterface
 
 using Cbc
 using GLPK
+using Clp
 
 const MOI = MathOptInterface
 
@@ -36,7 +37,7 @@ end
     # display(supplierdockdict)
     # display(get_docks(collect(keys(supplierdict))[1], supplierdockdict))
     # display(result["TE_P"])
-
+    println()
     for t in 1:nbplannedtrucks
         display_progress(t, nbplannedtrucks; name="Instantiate trucks")
         # display([result["reverse_truckdict"][t],
@@ -105,6 +106,7 @@ end
     i_items = Pair{Integer, Item}[]
     # display(t_trucks)
     products = Dict()
+    println()
     for i in 1:nbitems
         display_progress(i, nbitems; name="Instantiate items")
         # get true nb items
@@ -168,21 +170,31 @@ end
     # display(i_items)
     item_batch_size = nothing
 
-
+    ###
     # optimizer = GLPK.Optimizer # Cbc or GLPK
-    optimizer = Cbc.Optimizer # Cbc or GLPK
+    optimizer = Clp.Optimizer # Cbc or GLPK
+    skipfirstpass=false
+    timeout = 60*2 #timelimit does nothing with Cbc, but works with Clp
+    truck_batch_size=convert(Int64, ceil(length(i_items)/10)) # never finishes, not feasible?
+    # truck_batch_size=convert(Int64, ceil(length(i_items)/2)) # too many trucks, takes too long
     assign_fn = x -> assign_benders!(
         x..., 
         optimizer, 
         result["costtransportation"], 
         result["coefcostextratruck"],
         result["coefcostinventory"]; 
-        relax=true, silent=false #relax = true is necessary for reasonable solving times
+        relax=true, silent=false, timeout=timeout #relax = true is necessary for reasonable solving times
     )
+    ###
+
+    ###
+    # skipfirstpass=true
     # assign_fn = x -> assign_to_trucks!(x...; limit=item_batch_size)
-    
+    # truck_batch_size = nothing
+    ###
+
     used_trucks, solution = solve_tsi(t_trucks, i_items, result["TR_P"], assign_fn; 
-        truck_batch_size=nothing)
+        truck_batch_size=truck_batch_size, skipfirstpass=skipfirstpass)
     
     
     println("Solved $(length(i_items_origin)) items in $(time() - start)s")

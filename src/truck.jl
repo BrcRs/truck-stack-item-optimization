@@ -73,7 +73,8 @@ get_TMm(truck::Truck) = truck.TMm
 
 get_suppliers(truck::Truck) = collect(keys(get_supplier_orders(truck)))
 
-get_volume(truck::Truck) = get_dim(truck).le * get_dim(truck).wi * get_height(truck)
+get_volume(truck::Truck) = get_area(truck) * get_height(truck)
+get_area(truck::Truck) = get_dim(truck).le * get_dim(truck).wi
 
 function set_supplier_orders!(truck, d)
     merge!(truck.supplier_orders, d)

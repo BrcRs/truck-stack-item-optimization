@@ -31,10 +31,11 @@ Display a nice progress bar based on `i / total`. Can be prefaced with `name`.
 `n` is the size of the bar in number of characters.
 """
 function display_progress(i::Number, total::Number; n=10, name="", margin=20, rate=1)
+    # if floor(i-1) < 1
+    #     println()
+    # end
+    i = ceil(i)
     i = min(i, total)
-    if i == 1
-        println()
-    end
     if i % rate == 0 || i + rate >= total
         print("\u1b[1F")
         printstyled(repeat(" ", margin - length(name))..., name, " ", color=:green)

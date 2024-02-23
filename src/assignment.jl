@@ -55,7 +55,7 @@ function assigning_to_truck_step!(ind, i, item, t, truck, TR, item_dispatch, ntr
     return false
 end
 
-truck_sort_fn(t_truck, ntrucks) = (t_truck[1] <= ntrucks ? 0. : get_cost(t_truck[2]), ((.*).(versatility(t_truck[2]), -1))...)
+truck_sort_fn(t_truck, ntrucks, TR) = (t_truck[1] <= ntrucks ? 0. : get_cost(t_truck[2]), -sum(TR[((t_truck[1]-1) % ntrucks)+1, :]), ((.*).(versatility(t_truck[2]), -1))...)
 
 item_sort_fn(i_item, nbuniqitems, TR) = (.*).(constraints(i_item[2], ((i_item[1]-1) % nbuniqitems)+1, TR), -1)
 
@@ -91,10 +91,10 @@ function select_new_truck!(t_trucks, i_item, ntrucks, nbuniqitems, TR)
     
     # Add extra truck to candidate trucks
     push!(t_trucks, Pair(candi_t + ntrucks, candi_truck)) # TODO keep it sorted
-    sort!(t_trucks, by=x -> truck_sort_fn(x, ntrucks))
-    if !issorted(t_trucks, by=x -> truck_sort_fn(x, ntrucks))
+    sort!(t_trucks, by=x -> truck_sort_fn(x, ntrucks, TR))
+    if !issorted(t_trucks, by=x -> truck_sort_fn(x, ntrucks, TR))
         display([get_id(t_truck[2]) for t_truck in t_trucks])
-        display(map(x -> truck_sort_fn(x, ntrucks), t_trucks))
+        display(map(x -> truck_sort_fn(x, ntrucks, TR), t_trucks))
         error("t_trucks is not sorted.")
     end
     
@@ -105,7 +105,7 @@ end
 
 function assign_to_trucks!(
     i_items, items_indices, candi_t_truck_list, used_trucks, TR, item_dispatch, ntrucks, 
-    nbuniqitems, compatible_trucks; limit=nothing
+    nbuniqitems, compatible_trucks, item_undispatch; limit=nothing
 )
 
     tmp_trucklist = [p for truck_list in [candi_t_truck_list, used_trucks] for p in truck_list]
@@ -114,17 +114,20 @@ function assign_to_trucks!(
     items_weight = Dict(t => 0. for (t, truck) in tmp_trucklist)
 
     # TODO function too long to process
-    # TODO Idea: keep in memory a list of truck indices for each "group of items" for which those trucks work
+    # DONE Idea: keep in memory a list of truck indices for each "group of items" for which those trucks work
     # Then, only probe those trucks for the items instead of trying everything
+    # TODO Keep count of trucks which rejected item i. Do not try to fit item i in this truck again 
     ## Assigning to trucks phase
     # then for each item remaining to place
+    println()
     for (c, ind) in enumerate(items_indices)
         i, item = i_items[ind]
         if !isnothing(limit) && c > limit
             break
         end
         for (t, truck) in tmp_trucklist
-            if !(((t-1) % ntrucks)+1 in compatible_trucks[((i-1) % nbuniqitems)+1])
+            if !(((t-1) % ntrucks)+1 in compatible_trucks[((i-1) % nbuniqitems)+1]) ||
+                t in item_undispatch[ind]
                 continue
             end
             if assigning_to_truck_step!(ind, i, item, t, truck, TR, item_dispatch, ntrucks, nbuniqitems,
@@ -144,18 +147,19 @@ function assign_to_trucks!(
     # flat_item_dispatch = [s for k in keys(item_dispatch) for s in item_dispatch[k]]
     # filter!(x -> !(x in flat_item_dispatch), i_items) # balance out assigned items
     append!(used_trucks, candi_t_truck_list) # TODO keep used_trucks sorted
-    sort!(used_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks))
-    # if !issorted(used_trucks, by=x -> truck_sort_fn(x, ntrucks))
+    sort!(used_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks, TR))
+    # if !issorted(used_trucks, by=x -> truck_sort_fn(x, ntrucks, TR))
     #     display(candi_t_truck_list)
     #     # could fire sometimes if not sorted
     #     error("used_trucks is not sorted.")
     # end
 end
 
-function solve_tsi_step!(i_items, item_dispatch, used_trucks, solution, item_index)
+function solve_tsi_step!(i_items, item_dispatch, item_undispatch, used_trucks, solution, item_index)
     
     # notplaced_global = Pair{Int64, Item}[]
     # solve subproblems, retrieve items which couldn't be placed
+    println()
     for (c, (t, truck)) in enumerate(used_trucks)
         items_dispatched = [i_items[ind][2] for ind in 1:length(item_dispatch) if item_dispatch[ind] == t]
         count_before = length(items_dispatched)
@@ -167,10 +171,16 @@ function solve_tsi_step!(i_items, item_dispatch, used_trucks, solution, item_ind
                 item 
                 for (s, stack) in solution[t] 
                 for item in get_items(stack)
-                if get_pos(stack).x + get_dim(stack).le > get_dim(truck).le # when commented no more pb?
+                if get_pos(stack).x + get_dim(stack).le > get_dim(truck).le
             ]
         )
-        item_dispatch[[item_index[string(get_id(item), "::", get_copy_number(item))][1] for item in notplaced]] .= -1
+        id_cp = item -> string(get_id(item), "::", get_copy_number(item))
+        notplaced_indices = [item_index[id_cp(item)][1] for item in notplaced]
+
+        item_dispatch[notplaced_indices] .= -1
+        for ind in notplaced_indices
+            push!(item_undispatch[ind], t)
+        end
         # clean up solution
         filter!((s_stack) -> 
             get_pos(s_stack[2]).x + get_dim(s_stack[2]).le <= get_dim(truck).le, solution[t]
@@ -196,7 +206,37 @@ function solve_tsi_step!(i_items, item_dispatch, used_trucks, solution, item_ind
 
 end
 
-function solve_tsi(t_trucks, i_items, TR, assignment_fn; truck_batch_size=nothing)
+function select_multiple_trucks!(candi_list, item_dispatch, t_trucks, i_items, items_permutation, ntrucks, nbuniqitems, truck_batch_size, TR, qte_fn)
+    # add trucks as long as volume of candi_trucks < volume of i_items
+    vol_trucks = 0.
+    it_cursor = 1
+    nbitems_left = count(t -> t == -1, item_dispatch)
+    # vol_items = sum([get_volume(item) for (i, item) in i_items])
+    vol_items = sum([qte_fn(i_items[ind][2]) for ind in items_permutation if item_dispatch[ind] == -1])
+
+    println()
+    while (!isnothing(truck_batch_size) || vol_trucks <= vol_items) && 
+        (isnothing(truck_batch_size) || it_cursor <= truck_batch_size) && 
+            it_cursor <= nbitems_left
+        # TODO adding truck can take a very long time if too many to add
+        # (double loop item/truck)
+
+        candi_t, candi_truck = select_new_truck!(
+            t_trucks, i_items[[ind for ind in items_permutation if item_dispatch[ind] == -1][it_cursor]], ntrucks, nbuniqitems, TR
+        )
+        push!(candi_list, Pair(candi_t, candi_truck))
+        # item_dispatch[candi_t] = []
+        if !isnothing(truck_batch_size)
+            display_progress(it_cursor, truck_batch_size; name="Adding trucks")
+        else
+            display_progress(100*(vol_trucks/vol_items), 100; name="Adding trucks")
+        end
+        vol_trucks += qte_fn(candi_truck)
+        it_cursor += 1
+    end
+end
+
+function solve_tsi(t_trucks, i_items, TR, assignment_fn; truck_batch_size=nothing, skipfirstpass=false)
     # i in i_items is line index of TR
     # t in t_trucks is column index of TR
     # extra trucks are multiples of original planned trucks in t_trucks
@@ -205,6 +245,14 @@ function solve_tsi(t_trucks, i_items, TR, assignment_fn; truck_batch_size=nothin
     nbitems = length(i_items)
     item_index = Dict(string(get_id(i_items[ind][2]), "::", get_copy_number(i_items[ind][2])) => (ind, i_items[ind][1]) for ind in 1:nbitems)
 
+    # println("Synchronized indices:")
+    # println(
+    #     setdiff(
+    #         union(Set([i_item[1] for i_item in  i_items]), Set(collect(1:nbitems))), 
+    #         intersect(union(Set([i_item[1] for i_item in  i_items]), Set(collect(1:nbitems))))
+    #     )
+    # )
+    # readline()
     ntrucks = length(t_trucks)
 
     ###### DEBUG
@@ -218,87 +266,60 @@ function solve_tsi(t_trucks, i_items, TR, assignment_fn; truck_batch_size=nothin
     compatible_trucks = Dict(i => [j for j in 1:ntrucks if TR[j, ((i-1) % nbuniqitems)+1]] for (i, item) in i_items)
 
     # used_trucks = []
-    used_trucks::Vector{Pair{Integer, Truck}} = copy(t_trucks)
+    used_trucks::Vector{Pair{Int64, Truck}} = copy(t_trucks)
     t_trucks = [Pair(t + ntrucks, truck) for (t, truck) in t_trucks]
     # item_dispatch = Dict{Any, Vector{Pair{Integer, Item}}}(t => [] for (t, truck) in used_trucks) # index is used trucks
 
     item_dispatch = Vector{Int64}(undef, nbitems) # -1 if not dispatch, else truck index
+    # index of item_dispatch is 1:nbitems
+    item_undispatch = Dict(ci => [] for ci in 1:nbitems) # list of truck indices for each item i_items index (not i)
     fill!(item_dispatch, -1)
     items_permutation = [ind for ind in 1:nbitems] # item_permutations stores indices of item_dispatch and i_items (same)
 
     solution = Dict()
     # sort trucks by increasing cost and by decreasing versatility
-    sort!(t_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks))
-    sort!(used_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks))
+    sort!(t_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks, TR))
+    sort!(used_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks, TR))
 
     # sort items by decreasing constraints
     # ((x[1]-1) % nbuniqitems)+1
     # sort!(i_items, by=i_item -> item_sort_fn(i_item, nbuniqitems, TR))
     sort!(items_permutation, by=ind -> item_sort_fn(Pair(i_items[ind][1], i_items[ind][2]), nbuniqitems, TR))
 
-    firstpass = true
     candi_t, candi_truck = nothing, nothing
+    println()
     display_progress(nbitems - count(t -> t != 1, item_dispatch) +  1, nbitems; name="Items placed")
     # while there are still items to place
     # while !isempty(i_items)
     while -1 in item_dispatch
-            # println("Items left: $(length(i_items))")
-        
-        # println([iit[1] for iit in i_items])
-        # display([length(item_dispatch[k]) for k in keys(item_dispatch)])
-        # # display([iit[1] for k in keys(item_dispatch) for iit in item_dispatch[k]])
-        # println("Sum of items = $(length(i_items) + sum([length(item_dispatch[k]) for k in keys(item_dispatch)]))")
-        # readline()
-        # error("Number of items increases")
-        # TODO make select_new_truck add multiple trucks
-        # TODO use intuition to find a lower bound on the number of trucks to add
+        # DONE make select_new_truck add multiple trucks
+        # DONE use intuition to find a lower bound on the number of trucks to add
+        # DONE use intuition to find an upper bound on the number of trucks to add
         candi_list = Pair{Integer, Truck}[]
-        if !firstpass
-            # add trucks as long as volume of candi_trucks < volume of i_items
-            vol_trucks = 0.
-            it_cursor = 1
-            nbitems_left = count(t -> t == -1, item_dispatch)
-            # vol_items = sum([get_volume(item) for (i, item) in i_items])
-            vol_items = sum([get_volume(i_items[ind][2]) for ind in items_permutation if item_dispatch[ind] == -1])
-            if isnothing(truck_batch_size)
-                println()
-            end
-            while (!isnothing(truck_batch_size) || vol_trucks < vol_items) && 
-                (isnothing(truck_batch_size) || it_cursor <= truck_batch_size) && 
-                    it_cursor <= nbitems_left
-                # TODO adding truck can take a very long time if too many to add
-                # (double loop item/truck)
-
-                candi_t, candi_truck = select_new_truck!(
-                    t_trucks, i_items[[ind for ind in items_permutation if item_dispatch[ind] == -1][it_cursor]], ntrucks, nbuniqitems, TR
+        if !skipfirstpass
+            select_multiple_trucks!(
+                candi_list, item_dispatch, t_trucks, i_items, items_permutation, ntrucks, 
+                # nbuniqitems, truck_batch_size, TR, get_volume
+                nbuniqitems, truck_batch_size, TR, get_area
                 )
-                push!(candi_list, Pair(candi_t, candi_truck))
-                # item_dispatch[candi_t] = []
-                if !isnothing(truck_batch_size)
-                    display_progress(it_cursor, truck_batch_size; name="Adding trucks")
-                else
-                    display_progress(100*(vol_trucks/vol_items), 100; name="Adding trucks")
-                end
-                vol_trucks += get_volume(candi_truck)
-                it_cursor += 1
-            end
+            println("Truck selection added $(length(candi_list)) new trucks")
             # sort!(candi_list, by=t_truck -> truck_sort_fn(t_truck, ntrucks))
         else
-            firstpass=false 
+            skipfirstpass=false 
         end
         # candi_list = isnothing(candi_t) ? [] : [Pair(candi_t, candi_truck)]
         assignment_fn((i_items, [ind for ind in 1:nbitems if item_dispatch[ind] == -1], 
             candi_list, used_trucks, TR, item_dispatch, ntrucks, 
-            nbuniqitems, compatible_trucks)
+            nbuniqitems, compatible_trucks, item_undispatch)
         )
         # assign_to_trucks!(
         #     i_items, [ind for ind in 1:nbitems if item_dispatch[ind] == -1], candi_list, used_trucks, TR, item_dispatch, ntrucks, 
         #     nbuniqitems, compatible_trucks; limit=item_batch_size
         # )
-        solve_tsi_step!(i_items, item_dispatch, used_trucks, solution, item_index)
+        solve_tsi_step!(i_items, item_dispatch, item_undispatch, used_trucks, solution, item_index)
         
         # Already done by design?
-        if !issorted(used_trucks, by=x -> truck_sort_fn(x, ntrucks))
+        if !issorted(used_trucks, by=x -> truck_sort_fn(x, ntrucks, TR))
 
             error("used_trucks is not sorted.")
         end
@@ -320,250 +341,25 @@ function solve_tsi(t_trucks, i_items, TR, assignment_fn; truck_batch_size=nothin
     return used_trucks, solution
 end
 
-
-# function mk_benders_master(
-#     optimizer, coefcosttransportation::Real, 
-#     coefcostextratruck::Real, coefcostinventory::Real,
-#     t_trucks, i_items, _TR, IDL, TDA, IM, TMm, nbuniqitems, nbuniqtrucks; silent=false
-# )
-#     nbitems = length(i_items)
-#     nbtrucks = length(t_trucks)
-
-#     TR = Matrix{Float64}(undef, nbtrucks, nbitems)
-#     for (ci, (i, item)) in enumerate(i_items)
-#         for (ct, (t, truck)) in enumerate(t_trucks)
-#             TR[ct, ci] = _TR[((t-1) % nbuniqtrucks)+1, ((i-1) % nbuniqitems)+1]
-#         end
-#     end
-
-#     nbTR::Integer = sum(TR)
-
-#     trucks = [t_truck[2] for t_truck in t_trucks]
-#     items = [i_item[2] for i_item in i_items]
-    
-# # function TSIModel(optimizer, 
-# #     item_productcodes, truckdict, supplierdict, supplierdockdict, plantdict, 
-# #     plantdockdict, nbplannedtrucks, nbitems, nbsuppliers, nbsupplierdocks, nbplants, 
-# #     nbplantdocks, nbstacks, TE_P, TL_P, TW_P, TH_P, TKE_P, TGE_P, TDA_P, TU_P, TP_P, TK_P, 
-# #     TG_P, TR_P, IU, IP, IK, IPD, IS, IDL, IDE, stackabilitycodedict, nbtrucks, TE, 
-# #     TL, TW, TH, TKE, TGE, TDA, TU, TP, TK, TG, TR, TID, reverse_truckdict
-# #     )
-
-#     ## Create model
-#     model = Model(optimizer)
-
-#     ## Add variables
-#     @info "Creating variables..."
-#     @info "Adding zeta..."
-#     @variable(model, zeta[1:count(x -> 1 in TR[x, :], 1:nbtrucks)] >= 0)
-#     @info "Adding zetab..."
-#     @variable(model, zetab[1:count(x -> 1 in TR[x, :], 1:nbtrucks)] >= 0)
-
-#     @info "Adding TI..."
-#     # @variable(model, TI[1:nbtrucks, 1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
-#     @variable(model, TI[1:nbTR], lower_bound = 0, upper_bound = 1, Bin)
-
-#     TR_truck_index = Vector{Tuple{Integer, Integer}}(undef, nbtrucks) # index: truck index
-#     fill!(TR_truck_index, (-1, -1))
-#     # TR_truck_index[1] = (0, sum(TR[1, :]))
-#     TR_item_index = Dict(ci => [] for ci in 1:nbitems) # maps item index to variables' indexes in TI
-#     revTR_item_index = Dict() # maps variables' indexes in TI to item index
-#     cnt = 1
-#     for (ct, (t, truck)) in enumerate(t_trucks)
-#         if (-1, -1) in TR_truck_index
-#             before = ct-1 >= 1 ? TR_truck_index[ct-1][2] : 0
-#             TR_truck_index[ct] = before, before + sum(TR[ct, :])
-#         end
-#         for (ci, (i, item)) in enumerate(i_items)
-#             if TR[ct, ci] == 1
-#                 push!(TR_item_index[ci], cnt)
-#                 revTR_item_index[cnt] = ci
-#                 cnt += 1
-#             end
-#         end
-#     end
-
-#     # display(TR_truck_index)
-#     # readline()
-
-#     # println(findfirst(x -> sum(TR[:, x]) == 0, 1:nbitems))
-#     # readline()
-#     @info "Computing parameters..."
-
-#     Mzeta = 100000
-
-#     Alpha = diagm([get_id(trucks[t])[1] == 'P' ? coefcosttransportation : coefcostextratruck for t in 1:nbtrucks if 1 in TR[t, :]])
-#     # Alpha = diagm([get_id(trucks[t])[1] == 'P' ? coefcosttransportation : coefcostextratruck for t in 1:nbtrucks])
-    
-
-#     ## Add constraints
-#     # @info "Adding constraints..."
-#     # @info "Adding czeta_TI_zetab..."
-#     # @constraint(model, czeta_TI_zetab, zeta .<= TI * ones(size(TI)[2]) - ones(size(zeta)[1]) + zetab)
-#     # # @info "Adding czetab_TI..."
-#     # @constraint(model, czetab_TI, zetab .<= ones(size(zetab)[1]) - TI * ones(size(TI)[2]) * Mzeta)
-    
-#     # @info "Adding cTI_TR..."
-#     # @constraint(model, cTI_TR, TI .<= TR)
-    
-#     # TODO add global weight constraint
-#     # @info "Adding cTI_IM_TMm..."
-#     # @constraint(model, cTI_IM_TMm, TI * IM <= TMm)
-    
-#     # @info "Adding cTI_1_1..."
-#     # display(size(transpose(TI)))
-#     # display(size(ones(size(transpose(TI))[2])))
-#     # display(size(transpose(TI) * ones(size(transpose(TI))[2])))
-#     # @constraint(model, cTI_1_1, transpose(TI) * ones(size(transpose(TI))[2]) == ones(size(transpose(TI))[1]))
-    
-#     zeta_cnt = 0
-#     for (ct, (t, truck)) in enumerate(t_trucks)
-#         display_progress(ct, nbtrucks; name="Building Constraints (trucks)", margin=40)
-#         if sum(TR[ct, :]) == 0
-#             continue
-#         end
-#         zeta_cnt += 1
-#         TIct_it_indices = [i for i in 1:nbTR if TR_truck_index[ct][1] < i <= TR_truck_index[ct][2]]
-#         # println(TIct_it_indices)
-        
-#         @constraint(
-#             model, 
-#             zeta[zeta_cnt] <= transpose(TI[TIct_it_indices]) * ones(convert(Int64, sum(TR[ct, :]))) - 1 + zetab[zeta_cnt], 
-#             set_string_name=false # faster building in theory
-#             # base_name=string("czeta_TI_zetab", ct)
-#         )
-
-#         @constraint(
-#             model,  
-#             # zetab[ct] <= 1 - TI[TIct_it_indices] * ones(convert(Int64, sum(TR[ct, :]))) * Mzeta,
-#             zetab[zeta_cnt] >= 1 - sum(TI[TIct_it_indices]) * Mzeta,
-#             set_string_name=false # faster building in theory
-#             # base_name=string("czetab_TI_left", ct)
-#         )
-
-#         @constraint(
-#             model,  
-#             # zetab[ct] <= 1 - TI[TIct_it_indices] * ones(convert(Int64, sum(TR[ct, :]))) * Mzeta,
-#             zetab[zeta_cnt] <= 1 + sum(TI[TIct_it_indices]) * Mzeta,
-#             set_string_name=false # faster building in theory
-#             # base_name=string("czetab_TI_right", ct)
-#         )
-        
-#         @constraint(
-#             model,  
-#             # zetab[ct] <= 1 - TI[TIct_it_indices] * ones(convert(Int64, sum(TR[ct, :]))) * Mzeta,
-#             zetab[zeta_cnt] <= (1 - sum(TI[TIct_it_indices])) * Mzeta,
-#             set_string_name=false # faster building in theory
-#             # base_name=string("czetab_1_TI", ct)
-#         )
-        
-
-#         @constraint(
-#             model, 
-#             transpose(TI[TIct_it_indices]) * IM[[revTR_item_index[it] for it in TIct_it_indices]] <= TMm[ct],
-#             set_string_name=false # faster building in theory
-#             # base_name=string("cTI_IM_TMm", ct)    
-#         )
-
-#         # println(size(transpose(TI[TIct_it_indices])))
-#         # println(size([get_volume(i_items[revTR_item_index[it]][2]) for it in TIct_it_indices]))
-#         # println(size(transpose(TI[TIct_it_indices]) * [get_volume(i_items[revTR_item_index[it]][2]) for it in TIct_it_indices]))
-#         # println(size(get_volume(t_trucks[ct][2])))
-
-#         @constraint(
-#             model, 
-#             transpose(TI[TIct_it_indices]) * [get_volume(i_items[revTR_item_index[it]][2]) for it in TIct_it_indices] <= get_volume(t_trucks[ct][2]),
-#             set_string_name=false # faster building in theory
-#             # base_name=string("cTI_IV_TV", ct)    
-#         )
-
-#     end
-#     for (ci, (i, item)) in enumerate(i_items)
-#         display_progress(ci, nbitems; name="Building Constraints (items)", margin=40)
-
-#         @constraint(
-#             model, 
-#             transpose(TI[TR_item_index[ci]]) * ones(length(TR_item_index[ci])) == 1,
-#             set_string_name=false # faster building in theory
-#             # base_name=string("cTI_1_1_", ci)
-#         )
-#     end
-        
-
-#     # Cost of used planned trucks
-#     # @expression(model, obj1, sum(transpose([get_cost(trucks[t]) for t in 1:nbtrucks]) * Alpha * TI * ones(size(TI)[2])))
-#     @expression(model, obj1, 
-#         sum(
-#             get_cost(trucks[ct]) * Alpha[numt, numt] * sum(TI[[i for i in 1:nbTR if TR_truck_index[ct][1] < i <= TR_truck_index[ct][2]]])
-#             for (numt, ct) in enumerate([t for t in 1:nbtrucks if 1 in TR[t, :]])
-#         )
-#     )
-
-#     # Cost of used extra trucks
-#     @expression(model, obj2, 
-#         -sum(
-#             transpose(zeta) * Alpha * [get_cost(trucks[t]) for t in 1:nbtrucks if 1 in TR[t, :]]
-#         )
-    
-#     )
-#     # inventory cost
-#     # @expression(model, obj3, coefcostinventory * transpose([get_inventory_cost(items[i]) for i in 1:nbitems]) * (IDL - transpose(TI) * TDA))
-    
-#     # display(findfirst(cj -> TR_truck_index[ct][1] < cj <= TR_truck_index[ct][2], TR_item_index[1]))
-#     # display(!isnothing(findfirst(cj -> TR_truck_index[ct][1] < cj <= TR_truck_index[ct][2], TR_item_index[1])))
-#     # println(size(TDA[[
-#     #     ct for ct in 1:nbtrucks if !isnothing(findfirst(cj -> TR_truck_index[ct][1] < cj <= TR_truck_index[ct][2], TR_item_index[1]))
-#     # ]]))
-#     # println(sum(TR[:, 1]))
-#     # println(size(transpose(TR[TR_item_index[1]])))
-
-#     # println(size(transpose([get_inventory_cost(items[i]) for i in 1:nbitems])))
-#     # println(size(IDL))
-#     @expression(model, obj3, 
-#         coefcostinventory * 
-#         transpose([get_inventory_cost(items[i]) for i in 1:nbitems]) * 
-#         (
-#             IDL - [
-#                 transpose(TR[TR_item_index[ci]]) * 
-#                 # TDA[[
-#                 #     ct for ct in 1:nbtrucks if !isnothing(findfirst(cj -> TR_truck_index[ct][1] < cj <= TR_truck_index[ct][2], TR_item_index[ci]))
-#                 # ]]
-#                 TDA[findall(ct -> TR[ct, ci] == 1, 1:nbtrucks)]
-#                 for ci in 1:nbitems
-#             ]
-#         )
-#     )
-#     # @objective(submodel, Min, 
-#     # sum(subpb[:costtransportation] * submodel[:zetaT]) + 
-#     # sum(subpb[:costextratruck] * submodel[:zetaE]) + 
-#     # subpb[:costinventory] * sum(subpb[:IDL] - submodel[:TI][t, :] * subpb[:TDA][t]) + 
-#     # kappa * sum(submodel[:TI] - TIbar))
-
-#     @objective(model, Min, obj1 + obj2 + obj3)
-#     if silent
-#         set_silent(model)
-#     end
-
-#     return model, TR_truck_index, TR_item_index, revTR_item_index
-# end
-
-
 function mk_benders_master(
     optimizer, coefcosttransportation::Real, 
     coefcostextratruck::Real, coefcostinventory::Real,
-    t_trucks, i_items, _TR, IDL, TDA, IM, TMm, IV, TV, nbuniqitems, nbuniqtrucks; silent=false
+    t_trucks, _i_items, items_indices, _TR, IDL, TDA, IM, TMm, IV, TV, nbuniqitems, nbuniqtrucks,
+    item_undispatch; silent=false, timeout=nothing
 )
+    i_items = _i_items[items_indices]
     nbitems = length(i_items)
     nbtrucks = length(t_trucks)
 
     TR = Matrix{Float64}(undef, nbtrucks, nbitems)
-    for (ci, (i, item)) in enumerate(i_items)
+    for ci in items_indices
+        i, item = _i_items[ci]
         for (ct, (t, truck)) in enumerate(t_trucks)
-            TR[ct, ci] = _TR[((t-1) % nbuniqtrucks)+1, ((i-1) % nbuniqitems)+1]
+            TR[ct, ci] = t in item_undispatch[ci] ? 0. : _TR[((t-1) % nbuniqtrucks)+1, ((i-1) % nbuniqitems)+1]
         end
     end
 
-    nbTR::Integer = sum(TR)
+    nbTR::Int64 = sum(TR)
 
     trucks = [t_truck[2] for t_truck in t_trucks]
     items = [i_item[2] for i_item in i_items]
@@ -577,14 +373,23 @@ function mk_benders_master(
 #     )
 
     ## Create model
-    model = Model(optimizer)
+    # model = Model(
+    #     optimizer_with_attributes(optimizer, "timeLimit" => timeout)
+        
+    #     )
+
+    model = Model(
+        optimizer
+        )
+        
 
     ## Add variables
     @info "Creating variables..."
     
     @info "Adding TI..."
     # @variable(model, TI[1:nbtrucks, 1:nbitems], lower_bound = 0, upper_bound = 1, Bin)
-    @variable(model, TIvars[1:nbTR], lower_bound = 0, upper_bound = 1, Bin)
+    @variable(model, TIvars[1:nbTR] >= 0)
+    @constraint(model, TIvars .<= 1)
     
     TRindexes = findall(x -> x == 1, TR)
     TI = sparse([r[1] for r in TRindexes], [r[2] for r in TRindexes], TIvars)
@@ -809,8 +614,11 @@ function mk_benders_master(
 end
 
 function solve_benders_master(
-    model; relax=false
+    model; relax=false, timeout=nothing
 )
+    if !isnothing(timeout)
+        set_time_limit_sec(model, timeout)
+    end
     if relax
         undo = relax_integrality(model)
     end
@@ -823,23 +631,24 @@ function solve_benders_master(
     return TIvalues
 end
 
-
+# assign_benders!(::Vector{Pair{Integer, Item}}, ::Vector{Int64}, ::Vector{Pair{Integer, Truck}}, ::Vector{Pair{Int64, Truck}}, ::BitMatrix, ::Vector{Int64}, ::Int64, ::Int64, ::Dict{Int64, Vector{Int64}}, ::Dict{Int64, Vector{Any}}, ::Type{Cbc.Optimizer}, ::Float64, ::Float64, ::Float64; relax=true, silent=false)
+# assign_benders!(::Vector{Pair{Integer, Item}}, ::Vector{<:Integer}, ::Vector{Pair{Integer, Truck}}, ::Vector{Pair{Integer, Truck}}!!!, ::Any, ::Vector{<:Integer}, ::Integer, ::Integer, ::Any, ::Any, ::Any, ::Real, ::Real, ::Real; relax, silent)
 
 function assign_benders!(i_items::Vector{Pair{Integer, Item}}, items_indices::Vector{<:Integer}, 
-    candi_t_truck_list::Vector{Pair{Integer, Truck}}, used_trucks::Vector{Pair{Integer, Truck}}, 
+    candi_t_truck_list::Vector{Pair{Integer, Truck}}, used_trucks::Vector{Pair{T, Truck}}, 
     TR, item_dispatch::Vector{<:Integer}, nbuniqtrucks::Integer, 
-    nbuniqitems::Integer, compatible_trucks, optimizer, coefcosttransportation::Real, 
-    coefcostextratruck::Real, coefcostinventory::Real; relax=false, silent=false)
+    nbuniqitems::Integer, compatible_trucks, item_undispatch, optimizer, coefcosttransportation::Real, 
+    coefcostextratruck::Real, coefcostinventory::Real; relax=false, silent=false, timeout=nothing) where T <: Integer
 
     #### DEBUG
     tmp_trucklist = [p for truck_list in [candi_t_truck_list, used_trucks] for p in truck_list]
-    append!(tmp_trucklist, tmp_trucklist)
-    append!(tmp_trucklist, tmp_trucklist)
-    append!(tmp_trucklist, tmp_trucklist)
+    # append!(tmp_trucklist, tmp_trucklist)
+    # append!(tmp_trucklist, tmp_trucklist)
+    # append!(tmp_trucklist, tmp_trucklist)
     # ((i_items[ind][1]-1) % nbuniqitems)+1
-    items_indices = [
-        ind for ind in items_indices if sum(TR[[p[1] for p in tmp_trucklist], ((i_items[ind][1]-1) % nbuniqitems)+1]) >= 1
-    ]
+    # items_indices = [
+    #     ind for ind in items_indices if sum(TR[[p[1] for p in tmp_trucklist], ((i_items[ind][1]-1) % nbuniqitems)+1]) >= 1
+    # ]
     ###################################################
     
     # TODO find upper bound for number of trucks
@@ -858,12 +667,12 @@ function assign_benders!(i_items::Vector{Pair{Integer, Item}}, items_indices::Ve
 
     model, TR_truck_index, TR_item_index, revTR_item_index = mk_benders_master(
         optimizer, coefcosttransportation, coefcostextratruck, coefcostinventory,
-        tmp_trucklist, i_items[items_indices], TR, 
-        IDL, TDA, IM, TMm, IV, TV, nbuniqitems, nbuniqtrucks; silent=silent
+        tmp_trucklist, i_items, items_indices, TR, 
+        IDL, TDA, IM, TMm, IV, TV, nbuniqitems, nbuniqtrucks, item_undispatch; silent=silent, timeout=timeout
     )
     write_to_file(model, "model.lp")
     # print(model)
-    TIvalues = solve_benders_master(model; relax=relax)
+    TIvalues = solve_benders_master(model; relax=relax, timeout=timeout)
 
     println("TIVALUES")
     display(sum(TIvalues))

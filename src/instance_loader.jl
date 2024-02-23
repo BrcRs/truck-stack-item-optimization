@@ -179,7 +179,7 @@ found in `instancepath` folder.
 function fillItems!(itemmatrices, 
     stackabilitycodedict, supplierdict, plantdict, supplierdockdict, 
     plantdockdict, itemdict, instancepath, item_copies, inventory_cost, pkg_code,
-    max_stackability, stackability_code
+    max_stackability, stackability_code, truck_productcodes, TR_P, item_productcodes
 )
     nbstackabilitycodes = 0
     open(*(instancepath, "input_items.csv")) do input_itemsfile
@@ -213,6 +213,13 @@ function fillItems!(itemmatrices,
             inventory_cost[i] = parse(Float64, row[:Inventory_cost])
             max_stackability[i] = parse(Float64, row[:Max_stackability])
             stackability_code[i] = row[:Stackability_code]
+
+            item_productcodes[i] = row[:Product_code]
+
+            # Put indices of items of same product code as trucks at 1 in TR
+            TR_P[collect(truck_productcodes[row[:Product_code]]), i] .= 1.0
+
+            # truckmatrices_P["TR_P"][truck_ind, i] = item_productcodes[i] == product_code ? 1.0 : truckmatrices_P["TR_P"][truckdict[row[:Id_truck]], i]
 
         end
     end
@@ -306,7 +313,7 @@ Given data folder `instancepath`, fill data matrices for each planned truck.
 - `item_productcodes`: stores for each item's index its product code.
 """
 function fillPlannedTruckMatrices!(truckmatrices_P, instancepath, nbitems, truckdict, supplierdict, 
-    supplierdockdict, plantdict, plantdockdict, item_productcodes, max_stack_weights)
+    supplierdockdict, plantdict, plantdockdict, truck_productcodes, max_stack_weights)
 
     # For each line of input_trucks:
     open(*(instancepath, "input_trucks.csv")) do input_trucksfile
@@ -378,12 +385,19 @@ function fillPlannedTruckMatrices!(truckmatrices_P, instancepath, nbitems, truck
             truckmatrices_P["EMmm_P"][truck_ind] = parse(Float64, replace(row[:EMmm], "," => "."))
             truckmatrices_P["Cost_P"][truck_ind] = parse(Float64, replace(row[:Cost], "," => "."))
 
-            # For each line of input trucks, retrieve Product code. For all items, get 
-            # indices of items of same product code, and use it to fill TR
-            for i in 1:nbitems
-                #Takes a lot of times because trucks * items
-                truckmatrices_P["TR_P"][truck_ind, i] = item_productcodes[i] == product_code ? 1.0 : truckmatrices_P["TR_P"][truckdict[row[:Id_truck]], i]
+            if !(product_code in keys(truck_productcodes))
+                truck_productcodes[product_code] = Set()
             end
+            push!(truck_productcodes[product_code], truck_ind)
+            ####### TR will be updated in the item loop instead
+            # # For each line of input trucks, retrieve Product code. For all items, put 
+            # # indices of items of same product code at 1 in TR
+            # for i in 1:nbitems
+            #     #Takes a lot of times because trucks * items
+            #     truckmatrices_P["TR_P"][truck_ind, i] = item_productcodes[i] == product_code ? 1.0 : truckmatrices_P["TR_P"][truckdict[row[:Id_truck]], i]
+            # end
+
+
             # @debug begin
             #     if sum([item_productcodes[i] == product_code ? 1.0 : 0.0 for i in 1:nbitems]) >= 1
             #         @debug product_code product_code
@@ -411,16 +425,31 @@ function loadinstance(instancepath; onlyplanned=false)
     """
     ## Count items and associate product code to each item's index
     nbitems = 0
-    item_productcodes = Vector{String}()
+    # open(*(instancepath, "input_items.csv")) do input_itemsfile
+    #     start = time()
+    #     for row in CSV.File(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String)
+    #         nbitems = nbitems + 1
+    #         # @debug "row[:Product_code]" row[:Product_code]
+    #         # @debug "row[:Product_code] type" typeof(row[:Product_code])
+    #         # push!(item_productcodes, String(row[:Product_code]))
+    #     end
+    #     println("Counted nbitems in $(time() - start)")
+    # end
+    nblines = 0
     open(*(instancepath, "input_items.csv")) do input_itemsfile
-        for row in CSV.File(input_itemsfile, normalizenames=true, delim=';', decimal=',', stripwhitespace=true, types=String)
-            nbitems = nbitems + 1
-            # @debug "row[:Product_code]" row[:Product_code]
-            # @debug "row[:Product_code] type" typeof(row[:Product_code])
-            push!(item_productcodes, String(row[:Product_code]))
-        end
+        # start = time()
+        
+        nblines += countlines(input_itemsfile)
+        # println("Counted nblines in $(time() - start)")
+        # if nbitems != countlines(input_itemsfile)
+        #     error("Countlines doesn't count the lines right!\n$nbitems != $nblines")
+        # else
+        #     println("Everything is fine ! :D")
+        # end
     end
     
+    nbitems = nblines - 1
+    item_productcodes = Vector{String}(undef, nbitems)
     """
     The truck order will be the one of the appearance of each truck in input_trucks
     """
@@ -516,9 +545,12 @@ function loadinstance(instancepath; onlyplanned=false)
     truckmatrices_P["EJeh_P"] = EJeh_P
     truckmatrices_P["Cost_P"] = Cost_P
 
+    truck_productcodes = Dict()
+
     ## Fill planned truck matrices with info in input_trucksfile
     fillPlannedTruckMatrices!(truckmatrices_P, instancepath, nbitems, truckdict, 
-    supplierdict, supplierdockdict, plantdict, plantdockdict, item_productcodes, max_stack_weights_P)
+    supplierdict, supplierdockdict, plantdict, plantdockdict, 
+    truck_productcodes, max_stack_weights_P)
     
     IU = falses(nbitems, nbsuppliers)
     IP = falses(nbitems, nbplants)
@@ -562,7 +594,7 @@ function loadinstance(instancepath; onlyplanned=false)
     nbstackabilitycodes = fillItems!(itemmatrices, stackabilitycodedict, 
         supplierdict, plantdict, supplierdockdict, 
         plantdockdict, itemdict, instancepath, item_copies, inventory_cost, pkg_code,
-        max_stackability, stackability_code
+        max_stackability, stackability_code, truck_productcodes, TR_P, item_productcodes
     )
     
     # Expand TR with information about docks
