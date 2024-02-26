@@ -4,9 +4,9 @@ include("product.jl")
 
 struct Truck
     id::String
-    dim::Dim
-    height::Real
-    max_stack_density::Real
+    dim::Dim # dim is in mm
+    height::Real # same, mm
+    max_stack_density::Real # in kg/m^2
     max_stack_weights::Dict{String, Real} # string is product code
     TMm::Real # Max authorized loading weight of truck t
     supplier_orders::Dict{Integer, Integer}

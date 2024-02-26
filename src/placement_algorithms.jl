@@ -43,7 +43,7 @@ function placestack!(solution::Dict{T, S}, truck::Truck, i, s::AbstractStack, co
         # width of the truck and it doesn't overlap with another stack
         # + check weight if ItemizedStack
 
-        if (typeof(s) != ItemizedStack || get_forced_orientation(s) != "lengthwise") && 
+        if (typeof(s) != ItemizedStack || get_forced_orientation(s) != :lengthwise) && 
             can_be_placed(solution, get_pos(o), s, truck, :Perpendicular; precision=precision, projected_pos=!is_secure_pos(o))
             # error("can_be_placed must absolutely not swap the orientation of the stacks. Stacks should remained unchanged by can_be_placed")
             # the stack can be placed in this orientation
@@ -53,7 +53,7 @@ function placestack!(solution::Dict{T, S}, truck::Truck, i, s::AbstractStack, co
             end
         # else if the stack fits oriented with its length parallel to the
         # length of the truck and it doesn't overlap with another stack
-        elseif (typeof(s) != ItemizedStack || get_forced_orientation(s) != "widthwise") && 
+        elseif (typeof(s) != ItemizedStack || get_forced_orientation(s) != :widthwise) && 
             can_be_placed(solution, get_pos(o), s, truck, :Parallel; precision=precision, projected_pos=!is_secure_pos(o))
             orientation = :Parallel
             if verbose

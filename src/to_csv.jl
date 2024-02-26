@@ -46,11 +46,11 @@ function solution_to_csv(truck, solution, directory; append=true)
     # - Id truck
     push!(truck_mat["Id truck"], get_id(truck))
     # - Loaded length
-    push!(truck_mat["Loaded length"], get_loaded_length([p[2] for p in solution]))
+    push!(truck_mat["Loaded length"], convert(Int64, get_loaded_length([p[2] for p in solution])))
     # - Weight of loaded items
     push!(truck_mat["Weight of loaded items"], get_loaded_weight([p[2] for p in solution]))
     # - Volume of loaded items
-    push!(truck_mat["Volume of loaded items"], get_loaded_volume([p[2] for p in solution]))
+    push!(truck_mat["Volume of loaded items"], (get_loaded_volume([p[2] for p in solution]))/1e9) # in m^3 WARNING all lengths are in mm
     
     tm_t, ej_e, ej_r, em_h, em_r, em_m = 
         dist_stacks_to_trailer([p[2] for p in solution], truck)
@@ -88,18 +88,19 @@ function solution_to_csv(truck, solution, directory; append=true)
         stack_label = return_label(i)
         push!(stack_mat["Stack code"], stack_label) # DONE stack code is a simple label to easily identify the stack
         # - X origin
-        push!(stack_mat["X origin"], get_pos(stack).x)
+        push!(stack_mat["X origin"], convert(Int64, get_pos(stack).x))
         # - Y origin
-        push!(stack_mat["Y origin"], get_pos(stack).y)
+        push!(stack_mat["Y origin"], convert(Int64, get_pos(stack).y))
         # - Z origin
         push!(stack_mat["Z origin"], 0) # TODO ? It is not always 0?
         # - X extremity
-        push!(stack_mat["X extremity"], get_pos(stack).x + get_dim(stack).le)
+        push!(stack_mat["X extremity"], convert(Int64, get_pos(stack).x + get_dim(stack).le))
         # - Y extremity
-        push!(stack_mat["Y extremity"], get_pos(stack).y + get_dim(stack).wi)
+        push!(stack_mat["Y extremity"], convert(Int64, get_pos(stack).y + get_dim(stack).wi))
         # - Z extremity
-        push!(stack_mat["Z extremity"], get_height(stack))
+        push!(stack_mat["Z extremity"], convert(Int64, get_height(stack)))
 
+        curr_height = 0
         for (j, item) in enumerate(get_items(stack))
             # items: columns needed
             # - Item ident 
@@ -109,20 +110,24 @@ function solution_to_csv(truck, solution, directory; append=true)
             # - Id stack 
             push!(item_mat["Id stack"], get_id(stack))
             # - Item code 
-            push!(item_mat["Item code"], string(stack_label, get_copy_number(item)))
+            # push!(item_mat["Item code"], string(stack_label, get_copy_number(item)))
+            push!(item_mat["Item code"], string(stack_label, j))
             # error("Item code is stack code + item copy number")
             # - X origin 
-            push!(item_mat["X origin"], get_pos(stack).x)
+            push!(item_mat["X origin"], convert(Int64, get_pos(stack).x))
             # - Y origin 
-            push!(item_mat["Y origin"], get_pos(stack).y)
+            push!(item_mat["Y origin"], convert(Int64, get_pos(stack).y))
             # - Z origin 
-            push!(item_mat["Z origin"], (j-1) * get_height(item))
+            # push!(item_mat["Z origin"], (j-1) * get_height(item))
+            push!(item_mat["Z origin"], convert(Int64, curr_height))
+            curr_height += get_height(item) - (curr_height == 0 ? 0 : get_nesting_height(item))
             # - X extremity 
-            push!(item_mat["X extremity"], get_pos(stack).x + get_dim(stack).le)
+            push!(item_mat["X extremity"], convert(Int64, get_pos(stack).x + get_dim(stack).le))
             # - Y extremity 
-            push!(item_mat["Y extremity"], get_pos(stack).y + get_dim(stack).wi)
+            push!(item_mat["Y extremity"], convert(Int64, get_pos(stack).y + get_dim(stack).wi))
             # - Z extremity
-            push!(item_mat["Z extremity"], j * get_height(item))
+            # push!(item_mat["Z extremity"], j * get_height(item))
+            push!(item_mat["Z extremity"], convert(Int64, curr_height))
         end
     end
 
@@ -207,16 +212,16 @@ function write_input(truck, items, directory; append=true)
         push!(item_mat["Package code"], get_package_code(item)) # Copies of the same item share package code
         push!(item_mat["Number of items"], count_packages[get_package_code(item)])
         # An item with an item ident can exist in several copies. DONE
-        push!(item_mat["Length"], get_dim(item).le)
-        push!(item_mat["Width"], get_dim(item).wi)
-        push!(item_mat["Height"], get_height(item))
-        push!(item_mat["Weight"], get_weight(item))
-        push!(item_mat["Nesting height"], get_nesting_height(item))
+        push!(item_mat["Length"], convert(Int64, get_dim(item).le))
+        push!(item_mat["Width"], convert(Int64, get_dim(item).wi))
+        push!(item_mat["Height"], convert(Int64, get_height(item)))
+        push!(item_mat["Weight"], convert(Int64, get_weight(item)))
+        push!(item_mat["Nesting height"], convert(Int64, get_nesting_height(item)))
         push!(item_mat["Stackability code"], get_stackability_code(item))
         push!(item_mat["Forced orientation"], get_forced_orientation(item))
         push!(item_mat["Earliest arrival time"], get_time_window(item)[1])
         push!(item_mat["Latest arrival time"], get_time_window(item)[2])
-        push!(item_mat["Inventory cost"], get_inventory_cost(item))
+        push!(item_mat["Inventory cost"], convert(Int64, get_inventory_cost(item)))
         push!(item_mat["Max stackability"], get_max_stackability(get_product(item)))
 
         

@@ -12,7 +12,7 @@ include("placement_visualizer.jl")
 
 function versatility(truck)
     volume = get_dim(truck).le * get_dim(truck).wi * get_height(truck)
-    return volume, get_TMm(truck), get_max_stack_density(truck), get_EM_mm(truck), get_EM_mr(truck)
+    return -volume, -get_TMm(truck), -get_max_stack_density(truck), -get_EM_mm(truck), -get_EM_mr(truck)
 end
 
 function constraints(item, i, TR)
@@ -23,7 +23,9 @@ function constraints(item, i, TR)
     volume = get_dim(item).le * get_dim(item).wi * get_height(item)
     width_time_window = get_time_window(item)[2] - get_time_window(item)[1]
 
-    return trucks_available, width_time_window, volume, shape_weirdness, f_orient 
+    # return trucks_available, width_time_window, -volume, shape_weirdness, -f_orient 
+    return get_plant(item), get_plant_dock(item), get_stackability_code(item), get_time_window(item)[1], get_time_window(item)[2],
+        get_supplier(item), get_supplier_dock(item), -get_dim(item).le, -get_dim(item).wi, -get_height(item)
 end
 
 function can_take(truck, it, items_volume, items_weight)
@@ -54,10 +56,17 @@ function assigning_to_truck_step!(ind, i, item, t, truck, TR, item_dispatch, ntr
     end
     return false
 end
+#TODO multiply sum TR by numbers of copies of each item
+function truck_sort_fn(t_truck, ntrucks, item_dispatch, TR, compatible_items)
+    # nbcompatible_items = count(x -> item_dispatch[x] == -1, compatible_items[t_mod(t_truck[1], ntrucks)])
+    nbcompatible_items = length(compatible_items[t_mod(t_truck[1], ntrucks)])
 
-truck_sort_fn(t_truck, ntrucks, TR) = (t_truck[1] <= ntrucks ? 0. : get_cost(t_truck[2]), -sum(TR[((t_truck[1]-1) % ntrucks)+1, :]), ((.*).(versatility(t_truck[2]), -1))...)
+    return -nbcompatible_items, t_truck[1] <= ntrucks ? 0. : get_cost(t_truck[2]), -sum(TR[((t_truck[1]-1) % ntrucks)+1, :]), versatility(t_truck[2])...
+end
+t_mod(t, ntrucks) = ((t-1) % ntrucks)+1
+i_mod(i, nbuniqitems) = ((i-1) % nbuniqitems)+1
 
-item_sort_fn(i_item, nbuniqitems, TR) = (.*).(constraints(i_item[2], ((i_item[1]-1) % nbuniqitems)+1, TR), -1)
+item_sort_fn(i_item, nbuniqitems, TR) = constraints(i_item[2], ((i_item[1]-1) % nbuniqitems)+1, TR)
 
 function valid_truck(t_truck, i_item, ntrucks, nbuniqitems, items_volume, items_weight, TR)
 
@@ -76,7 +85,7 @@ function new_truck_id(t, truck, ntrucks)
     end
 end
 
-function select_new_truck!(t_trucks, i_item, ntrucks, nbuniqitems, TR)
+function select_new_truck!(t_trucks, i_item, ntrucks, nbuniqitems, TR, compatible_items, item_dispatch)
     ## New truck phase
     # take cheapest truck that can take first item (with most constraints)
     candi_t, candi_truck = t_trucks[findfirst(
@@ -84,19 +93,26 @@ function select_new_truck!(t_trucks, i_item, ntrucks, nbuniqitems, TR)
         t_trucks
     )]
     # remove the truck candidate from candidate trucks
-    filter!(t_truck -> t_truck[1] != candi_t, t_trucks)
-    
+    # filter!(t_truck -> t_truck[1] != candi_t, t_trucks) #TODO maybe too long?
+    deleteat!(t_trucks, findfirst(t_truck -> t_truck[1] == candi_t, t_trucks)) #TODO do at the end of select_multiple_trucks?
     # candi_truck = copy(candi_truck)
     candi_truck = set_id(candi_truck, new_truck_id(candi_t, candi_truck, ntrucks)) # change P to Q if extra + _ + copy number
     
     # Add extra truck to candidate trucks
-    push!(t_trucks, Pair(candi_t + ntrucks, candi_truck)) # TODO keep it sorted
-    sort!(t_trucks, by=x -> truck_sort_fn(x, ntrucks, TR))
-    if !issorted(t_trucks, by=x -> truck_sort_fn(x, ntrucks, TR))
-        display([get_id(t_truck[2]) for t_truck in t_trucks])
-        display(map(x -> truck_sort_fn(x, ntrucks, TR), t_trucks))
-        error("t_trucks is not sorted.")
-    end
+    extra_t_truck = Pair(candi_t + ntrucks, candi_truck)
+    # push!(t_trucks, extra_t_truck) # DONE keep it sorted
+    insert_ind = findfirst(t_truck -> truck_sort_fn(extra_t_truck, ntrucks, item_dispatch, TR, compatible_items) < truck_sort_fn(t_truck, ntrucks, item_dispatch, TR, compatible_items), t_trucks)
+    insert!(
+        t_trucks, 
+        isnothing(insert_ind) ? length(t_trucks) + 1 : insert_ind, 
+        extra_t_truck
+    )
+    # push!(t_trucks, extra_t_truck)
+    # partialsort!(
+    #     t_trucks, 
+    #     length(t_trucks); 
+    #     by=t_truck -> truck_sort_fn(extra_t_truck, ntrucks, TR)
+    # )
     
 
     return candi_t, candi_truck
@@ -105,18 +121,38 @@ end
 
 function assign_to_trucks!(
     i_items, items_indices, candi_t_truck_list, used_trucks, TR, item_dispatch, ntrucks, 
-    nbuniqitems, compatible_trucks, item_undispatch; limit=nothing
+    nbuniqitems, compatible_trucks, compatible_items, item_undispatch; limit=nothing
 )
 
     tmp_trucklist = [p for truck_list in [candi_t_truck_list, used_trucks] for p in truck_list]
-
-    items_volume = Dict(t => 0. for (t, truck) in tmp_trucklist)
-    items_weight = Dict(t => 0. for (t, truck) in tmp_trucklist)
-
-    # TODO function too long to process
+    # start = time()
+    items_volume = Dict(
+        t => isnothing(findfirst(x -> item_dispatch[x] == t, 1:length(i_items))) ?
+            0. :
+            sum(
+                [
+                    get_volume(i_items[ind][2]) 
+                    for ind in filter(x -> item_dispatch[x] == t, 1:length(i_items))
+                ]
+            ) 
+        for (t, truck) in tmp_trucklist
+    )
+    items_weight = Dict(
+        t => isnothing(findfirst(x -> item_dispatch[x] == t, 1:length(i_items))) ?
+            0. :
+            sum(
+                [
+                    get_weight(i_items[ind][2]) 
+                    for ind in filter(x -> item_dispatch[x] == t, 1:length(i_items))
+                ]
+            ) 
+        for (t, truck) in tmp_trucklist 
+    )
+    # println("Time to compute weights and volumes: $(time() - start)")
+    # DONE function too long to process
     # DONE Idea: keep in memory a list of truck indices for each "group of items" for which those trucks work
     # Then, only probe those trucks for the items instead of trying everything
-    # TODO Keep count of trucks which rejected item i. Do not try to fit item i in this truck again 
+    # DONE Keep count of trucks which rejected item i. Do not try to fit item i in this truck again 
     ## Assigning to trucks phase
     # then for each item remaining to place
     println()
@@ -146,8 +182,35 @@ function assign_to_trucks!(
     # remove asssigned items from i_items
     # flat_item_dispatch = [s for k in keys(item_dispatch) for s in item_dispatch[k]]
     # filter!(x -> !(x in flat_item_dispatch), i_items) # balance out assigned items
-    append!(used_trucks, candi_t_truck_list) # TODO keep used_trucks sorted
-    sort!(used_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks, TR))
+    
+    append!(used_trucks, candi_t_truck_list)
+    sort!(used_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks, item_dispatch, TR, compatible_items))
+    
+    # append!(used_trucks, candi_t_truck_list)
+    # partialsort!(
+    #     used_trucks, 
+    #     (length(used_trucks) - length(candi_t_truck_list)):length(used_trucks); 
+    #     by=t_truck -> truck_sort_fn(t_truck, ntrucks, TR)
+    # )
+
+    # start = time()
+    # # TODO too long?
+    # for t_truck in candi_t_truck_list
+    #     # push!(used_trucks, t_truck)
+    #     # partialsort!(
+    #     #     used_trucks, 
+    #     #     length(used_trucks); 
+    #     #     by=t_truck -> truck_sort_fn(t_truck, ntrucks, TR)
+    #     # )
+    #     insert_ind = findfirst(t_tr -> truck_sort_fn(t_truck, ntrucks, item_dispatch, TR, compatible_items) < truck_sort_fn(t_tr, ntrucks, item_dispatch, TR, compatible_items), used_trucks)
+    #     insert!(
+    #         used_trucks, 
+    #         isnothing(insert_ind) ? lastindex(used_trucks)+1 : insert_ind, 
+    #         t_truck
+    #     )
+    # end
+    # println("Inserting: done in $(time() - start)s")
+
     # if !issorted(used_trucks, by=x -> truck_sort_fn(x, ntrucks, TR))
     #     display(candi_t_truck_list)
     #     # could fire sometimes if not sorted
@@ -155,7 +218,23 @@ function assign_to_trucks!(
     # end
 end
 
-function solve_tsi_step!(i_items, item_dispatch, item_undispatch, used_trucks, solution, item_index)
+function shufflesorted(seq; by=identity)
+    res = []
+    start = 1
+    for (i, elem) in enumerate(seq)
+        if i == 1
+            continue
+        end
+        if by(elem) > by(seq[i-1])
+            append!(res, shuffle(seq[start:i-1]))
+            start = i
+        end
+    end
+    append!(res, shuffle(seq[start:end]))
+    return res
+end
+
+function solve_tsi_step!(i_items, item_dispatch, item_undispatch, used_trucks, solution, item_index; reshuffles=1)
     
     # notplaced_global = Pair{Int64, Item}[]
     # solve subproblems, retrieve items which couldn't be placed
@@ -163,7 +242,32 @@ function solve_tsi_step!(i_items, item_dispatch, item_undispatch, used_trucks, s
     for (c, (t, truck)) in enumerate(used_trucks)
         items_dispatched = [i_items[ind][2] for ind in 1:length(item_dispatch) if item_dispatch[ind] == t]
         count_before = length(items_dispatched)
-        solution[t], notplaced = BLtruck(items_dispatched, truck)
+        if t in keys(solution)
+            items_in_sol = [item for (i, stack) in solution[t] for item in get_items(stack)]
+            if length(items_dispatched) == length(items_in_sol) && length(filter(x -> !(x in items_in_sol), items_dispatched)) == 0
+                continue
+            end
+        end
+        best = nothing
+        for shuffle in 1:reshuffles
+            sol, notplaced = BLtruck(items_dispatched, truck)
+            if isnothing(best) || length(best[2]) > length(notplaced)
+                best = sol, notplaced
+            end
+            if shuffle < reshuffles
+                sort!(items_dispatched, by=item -> (
+                    get_supplier_order(truck, get_supplier(item)), 
+                    get_supplier_dock_order(truck, get_supplier(item), get_supplier_dock(item)), 
+                    get_plant_dock_order(truck, get_plant_dock(item))))
+
+                # shuffle!(items_dispatched)
+                items_dispatched::Vector{Item} = shufflesorted(items_dispatched; by=item -> (
+                    get_supplier_order(truck, get_supplier(item)), 
+                    get_supplier_dock_order(truck, get_supplier(item), get_supplier_dock(item)), 
+                    get_plant_dock_order(truck, get_plant_dock(item))))
+            end
+        end
+        solution[t], notplaced = best
         # remove items of stacks which poke out of truck
         append!(
             notplaced, 
@@ -206,7 +310,8 @@ function solve_tsi_step!(i_items, item_dispatch, item_undispatch, used_trucks, s
 
 end
 
-function select_multiple_trucks!(candi_list, item_dispatch, t_trucks, i_items, items_permutation, ntrucks, nbuniqitems, truck_batch_size, TR, qte_fn)
+function select_multiple_trucks!(candi_list, item_dispatch, t_trucks, i_items, 
+    items_permutation, ntrucks, nbuniqitems, truck_batch_size, TR, qte_fn, compatible_items)
     # add trucks as long as volume of candi_trucks < volume of i_items
     vol_trucks = 0.
     it_cursor = 1
@@ -222,7 +327,8 @@ function select_multiple_trucks!(candi_list, item_dispatch, t_trucks, i_items, i
         # (double loop item/truck)
 
         candi_t, candi_truck = select_new_truck!(
-            t_trucks, i_items[[ind for ind in items_permutation if item_dispatch[ind] == -1][it_cursor]], ntrucks, nbuniqitems, TR
+            t_trucks, i_items[[ind for ind in items_permutation if item_dispatch[ind] == -1][it_cursor]], 
+            ntrucks, nbuniqitems, TR, compatible_items, item_dispatch
         )
         push!(candi_list, Pair(candi_t, candi_truck))
         # item_dispatch[candi_t] = []
@@ -234,9 +340,15 @@ function select_multiple_trucks!(candi_list, item_dispatch, t_trucks, i_items, i
         vol_trucks += qte_fn(candi_truck)
         it_cursor += 1
     end
+    # sort!(t_trucks, by=x -> truck_sort_fn(x, ntrucks, TR)) # TODO is too long! (possibly)
+    if !issorted(t_trucks, by=x -> truck_sort_fn(x, ntrucks, item_dispatch, TR, compatible_items))
+        display([get_id(t_truck[2]) for t_truck in t_trucks])
+        display(map(x -> truck_sort_fn(x, ntrucks, item_dispatch, TR, compatible_items), t_trucks))
+        error("t_trucks is not sorted.")
+    end
 end
 
-function solve_tsi(t_trucks, i_items, TR, assignment_fn; truck_batch_size=nothing, skipfirstpass=false)
+function solve_tsi(t_trucks, i_items, TR, assignment_fn; truck_batch_size=nothing, skipfirstpass=false, reshuffles=1)
     # i in i_items is line index of TR
     # t in t_trucks is column index of TR
     # extra trucks are multiples of original planned trucks in t_trucks
@@ -264,7 +376,7 @@ function solve_tsi(t_trucks, i_items, TR, assignment_fn; truck_batch_size=nothin
     ###################
     # bind item index => list of planned truck indices
     compatible_trucks = Dict(i => [j for j in 1:ntrucks if TR[j, ((i-1) % nbuniqitems)+1]] for (i, item) in i_items)
-
+    compatible_items = Dict(t => [j for j in 1:nbitems if TR[t, ((j-1) % nbuniqitems)+1]] for (t, truck) in t_trucks)
     # used_trucks = []
     used_trucks::Vector{Pair{Int64, Truck}} = copy(t_trucks)
     t_trucks = [Pair(t + ntrucks, truck) for (t, truck) in t_trucks]
@@ -278,12 +390,13 @@ function solve_tsi(t_trucks, i_items, TR, assignment_fn; truck_batch_size=nothin
 
     solution = Dict()
     # sort trucks by increasing cost and by decreasing versatility
-    sort!(t_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks, TR))
-    sort!(used_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks, TR))
+    sort!(t_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks, item_dispatch, TR, compatible_items))
+    sort!(used_trucks, by=t_truck -> truck_sort_fn(t_truck, ntrucks, item_dispatch, TR, compatible_items))
 
     # sort items by decreasing constraints
     # ((x[1]-1) % nbuniqitems)+1
     # sort!(i_items, by=i_item -> item_sort_fn(i_item, nbuniqitems, TR))
+    # TODO sort items by similarity, so that similar objects are next to each other in the list
     sort!(items_permutation, by=ind -> item_sort_fn(Pair(i_items[ind][1], i_items[ind][2]), nbuniqitems, TR))
 
     candi_t, candi_truck = nothing, nothing
@@ -300,9 +413,9 @@ function solve_tsi(t_trucks, i_items, TR, assignment_fn; truck_batch_size=nothin
             select_multiple_trucks!(
                 candi_list, item_dispatch, t_trucks, i_items, items_permutation, ntrucks, 
                 # nbuniqitems, truck_batch_size, TR, get_volume
-                nbuniqitems, truck_batch_size, TR, get_area
+                nbuniqitems, truck_batch_size, TR, get_area, compatible_items
                 )
-            println("Truck selection added $(length(candi_list)) new trucks")
+            # println("Truck selection added $(length(candi_list)) new trucks")
             # sort!(candi_list, by=t_truck -> truck_sort_fn(t_truck, ntrucks))
         else
             skipfirstpass=false 
@@ -310,16 +423,16 @@ function solve_tsi(t_trucks, i_items, TR, assignment_fn; truck_batch_size=nothin
         # candi_list = isnothing(candi_t) ? [] : [Pair(candi_t, candi_truck)]
         assignment_fn((i_items, [ind for ind in 1:nbitems if item_dispatch[ind] == -1], 
             candi_list, used_trucks, TR, item_dispatch, ntrucks, 
-            nbuniqitems, compatible_trucks, item_undispatch)
+            nbuniqitems, compatible_trucks, compatible_items, item_undispatch)
         )
         # assign_to_trucks!(
         #     i_items, [ind for ind in 1:nbitems if item_dispatch[ind] == -1], candi_list, used_trucks, TR, item_dispatch, ntrucks, 
         #     nbuniqitems, compatible_trucks; limit=item_batch_size
         # )
-        solve_tsi_step!(i_items, item_dispatch, item_undispatch, used_trucks, solution, item_index)
+        solve_tsi_step!(i_items, item_dispatch, item_undispatch, used_trucks, solution, item_index; reshuffles=reshuffles)
         
         # Already done by design?
-        if !issorted(used_trucks, by=x -> truck_sort_fn(x, ntrucks, TR))
+        if !issorted(used_trucks, by=x -> truck_sort_fn(x, ntrucks, item_dispatch, TR, compatible_items))
 
             error("used_trucks is not sorted.")
         end
@@ -334,7 +447,7 @@ function solve_tsi(t_trucks, i_items, TR, assignment_fn; truck_batch_size=nothin
 
         # sort!(i_items, by= i_item -> item_sort_fn(i_item, nbuniqitems, TR)) # TODO insert in placed?
         
-        clearnlines(2 + !firstpass)
+        clearnlines(2 + !skipfirstpass)
         display_progress(nbitems - count(t -> t == -1, item_dispatch) +  1, nbitems; name="Item placed")
     end
     

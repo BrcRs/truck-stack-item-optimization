@@ -20,7 +20,7 @@ function get_docks(supplier, supplierdockdict)
 end
 
 @testset "solve_tsi" begin
-    instancepath = "./instances/AS/"
+    instancepath = "./instances/BY2/"
     start = time()
     result = loadinstance(instancepath; onlyplanned=true)
     println("Loaded instance in $(time() - start)s")
@@ -168,33 +168,37 @@ end
     i_items_origin = copy(i_items)
     start = time()
     # display(i_items)
+
+    ###
+    # # optimizer = GLPK.Optimizer # Cbc or GLPK
+    # optimizer = Clp.Optimizer # Cbc or GLPK
+    # skipfirstpass=false
+    # timeout = 60*2 #timelimit does nothing with Cbc, but works with Clp
+    # truck_batch_size=convert(Int64, ceil(length(i_items)/10)) # never finishes, not feasible?
+    # # truck_batch_size=convert(Int64, ceil(length(i_items)/2)) # too many trucks, takes too long
+    # assign_fn = x -> assign_benders!(
+    #     x..., 
+    #     optimizer, 
+    #     result["costtransportation"], 
+    #     result["coefcostextratruck"],
+    #     result["coefcostinventory"]; 
+    #     relax=true, silent=false, timeout=timeout #relax = true is necessary for reasonable solving times
+    # )
+    ###
+
+    ###
+    # item_batch_size = convert(Int64, ceil(length(i_items)/10))
     item_batch_size = nothing
-
+    skipfirstpass=true
+    assign_fn = x -> assign_to_trucks!(x...; limit=item_batch_size)
+    # truck_batch_size = convert(Int64, ceil(sqrt(length(i_items))))
+    # truck_batch_size = convert(Int64, ceil(length(i_items)/10))
+    truck_batch_size = nothing
     ###
-    # optimizer = GLPK.Optimizer # Cbc or GLPK
-    optimizer = Clp.Optimizer # Cbc or GLPK
-    skipfirstpass=false
-    timeout = 60*2 #timelimit does nothing with Cbc, but works with Clp
-    truck_batch_size=convert(Int64, ceil(length(i_items)/10)) # never finishes, not feasible?
-    # truck_batch_size=convert(Int64, ceil(length(i_items)/2)) # too many trucks, takes too long
-    assign_fn = x -> assign_benders!(
-        x..., 
-        optimizer, 
-        result["costtransportation"], 
-        result["coefcostextratruck"],
-        result["coefcostinventory"]; 
-        relax=true, silent=false, timeout=timeout #relax = true is necessary for reasonable solving times
-    )
-    ###
-
-    ###
-    # skipfirstpass=true
-    # assign_fn = x -> assign_to_trucks!(x...; limit=item_batch_size)
-    # truck_batch_size = nothing
-    ###
+    reshuffles = 2
 
     used_trucks, solution = solve_tsi(t_trucks, i_items, result["TR_P"], assign_fn; 
-        truck_batch_size=truck_batch_size, skipfirstpass=skipfirstpass)
+        truck_batch_size=truck_batch_size, skipfirstpass=skipfirstpass, reshuffles=reshuffles)
     
     
     println("Solved $(length(i_items_origin)) items in $(time() - start)s")
