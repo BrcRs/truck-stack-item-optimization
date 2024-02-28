@@ -345,8 +345,8 @@ function fillPlannedTruckMatrices!(truckmatrices_P, instancepath, nbitems, truck
                 truck_ind, plantdockdict[custom_plantdock_code]
             ] = parse(Float64, row[:Plant_dock_loading_order])
 
-            truckmatrices_P["TDA_P"][truck_ind] = convert(Float64, to_days(string(parse(Int64, row[:Arrival_time]))))
-            truckmatrices_P["TDE_P"][truck_ind] = convert(Float64, to_days(string(parse(Int64, row[:Arrival_time])))) # ? TODO
+            truckmatrices_P["TDA_P"][truck_ind] = parse(Int64, row[:Arrival_time])
+            truckmatrices_P["TDE_P"][truck_ind] = parse(Int64, row[:Arrival_time]) # ? TODO
 
             truckmatrices_P["TU_P"][truck_ind, supplierdict[row[:Supplier_code]]] = 1.0
             truckmatrices_P["TP_P"][truck_ind, plantdict[row[:Plant_code]]] = 1.0
@@ -614,9 +614,11 @@ function loadinstance(instancepath; onlyplanned=false)
                 # or the truck arrives after the latest arrival date allowed for i 
                 # or the truck's plant is not the item's
                 # or the item's supplier is not in the truck's
+
                 if !*((IK[i,:] .<= TK_P[t,:])...) || 
                     !*((IPD[i,:] .<= TG_P[t,:])...) || 
                     TDA_P[t] > IDL[i] ||
+                    TDA_P[t] < IDE[i] ||
                     TP_P[t] != IP[i] ||
                     !*((IU[i,:] .<= TU_P[t,:])...)
                     # Remove i from compatible items for t

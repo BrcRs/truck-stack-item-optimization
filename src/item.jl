@@ -14,12 +14,13 @@ include("product.jl")
     id::String
     package_code::String
     copy_number::Integer
-    time_window::@NamedTuple{earliest::Any, latest::Any}
+    time_window::@NamedTuple{earliest::Number, latest::Number} # number representing dates following format YYYYMMDDHHmm
     dim::Dim
     # pos::Pos
     height::Real
     weight::Real
     stackability_code::String
+    max_stackability::Integer
     forced_orientation::Symbol
     plant
     plant_dock
@@ -37,6 +38,7 @@ function Item(
     height,
     weight,
     stackability_code,
+    max_stackability,
     forced_orientation,
     plant,
     plant_dock,
@@ -57,6 +59,7 @@ function Item(
         height,
         weight,
         stackability_code,
+        max_stackability,
         forced_orientation,
         plant,
         plant_dock,
@@ -86,7 +89,7 @@ get_inventory_cost(i::Item) = i.inventory_cost
 get_nesting_height(i::Item) = i.nesting_height
 get_product(i::Item) = i.product
 get_max_weight(i::Item) = get_max_weight(i.product)
-get_max_stackability(i::Item) = get_max_stackability(i.product)
+get_max_stackability(i::Item) = i.max_stackability
 
 get_volume(i::Item) = get_area(i) * get_height(i)
 get_area(i::Item) = get_dim(i).le * get_dim(i).wi
@@ -100,6 +103,7 @@ set_dim(it::Item, dim::Dim) = Item(
     it.height,
     it.weight,
     it.stackability_code,
+    it.max_stackability,
     it.forced_orientation,
     it.plant,
     it.plant_dock,
@@ -119,7 +123,7 @@ Base.show(io::IO, it::Item) =
         ", Dim(", round(get_dim(it).le, digits=3), ", ", round(get_dim(it).wi, digits=3), 
         "), h=", round(get_height(it), digits=3), 
         ", w=", round(get_weight(it), digits=3), 
-        ", stackability=", get_stackability_code(it),
+        ", stackability=", get_stackability_code(it), " (", get_max_stackability(it), ")",
         ", forient.=", get_forced_orientation(it),
         ", plant&dock=", get_plant(it), " ", get_plant_dock(it),
         # ", plant dock=", get_plant_dock(it),
@@ -140,6 +144,7 @@ function Base.copy(it::Item)
         it.height,
         it.weight,
         it.stackability_code,
+        it.max_stackability,
         it.forced_orientation,
         it.plant,
         it.plant_dock,
@@ -158,6 +163,7 @@ function simpleItem(product;
     height=1,
     weight=1,
     stackability_code="",
+    stackability=Inf,
     forced_orientation=:none,
     plant="",
     plant_dock="",
@@ -171,6 +177,7 @@ function simpleItem(product;
     height,
     weight,
     stackability_code,
+    max_stackability,
     forced_orientation,
     plant,
     plant_dock,
@@ -378,6 +385,10 @@ function can_be_placed(solution, o::Pos, s::ItemizedStack, truck::Truck, orienta
     s_copy = copy(s)
     set_ordered_stack!(s_copy, os)
 
+    # TODO inspect this... axle pressures aren't properly calculated in this pipeline but can't say why yet
+    # Thing is, valid_axle_pressure is valid when checking possibility of adding an item to an existing stack.
+    # So, it means the problem appears when placing a newly created stack made of one item. 
+
     weight_constraint = valid_axle_pressure(collect(values(solution)), s_copy, truck; fastexit=true, precision=precision)
     # weight_constraint = true
 
@@ -400,7 +411,7 @@ function valid_stack(stacks, s, it, truck; fastexit=false, precision=3, verbose=
     if verbose
         println(1, " ", leqtol(get_height(s) + get_height(it) - (length(get_items(s)) == 0 ? 0 : get_nesting_height(it)), get_height(truck), precision))
         println(2, " ", leqtol(get_weight(s) + get_weight(it) - get_weight(get_items(s)[1]), get_max_weight(get_items(s)[1]), precision))
-        println(3, " ", length(get_items(s)) <= get_minmax_stackability(s))
+        println(3, " ", length(get_items(s)) < get_minmax_stackability(s))
         println(4, " ", get_forced_orientation(it) == :none || get_forced_orientation(s) == :none || get_forced_orientation(s) == get_forced_orientation(it))
         println(5, " ", leqtol(1e6 * (get_weight(s) + get_weight(it))/(get_dim(s).le * get_dim(s).wi), get_max_stack_density(truck), precision))
         println(6, " ", leqtol(get_weight(s) + get_weight(it), get_max_stack_weights(truck)[get_code(get_product(get_items(s)[1]))], precision))
@@ -409,6 +420,7 @@ function valid_stack(stacks, s, it, truck; fastexit=false, precision=3, verbose=
     return leqtol(get_height(s) + get_height(it) - (length(get_items(s)) == 0 ? 0 : get_nesting_height(it)), get_height(truck), precision) && 
     leqtol(get_weight(s) + get_weight(it) - get_weight(get_items(s)[1]), get_max_weight(get_items(s)[1]), precision) && # TODO might remove get_weight(it) since we want to limit the weight on bottom item
     length(get_items(s)) < get_minmax_stackability(s) && # we need to find the smallest max_stackability of the pile
+    length(get_items(s)) < get_max_stackability(it) && # we need to find the smallest max_stackability of the pile
     (get_forced_orientation(it) == :none || get_forced_orientation(s) == :none || get_forced_orientation(s) == get_forced_orientation(it)) &&
     leqtol(1e6 * (get_weight(s) + get_weight(it))/(get_dim(s).le * get_dim(s).wi), get_max_stack_density(truck), precision) && # check density
     leqtol(get_weight(s) + get_weight(it), get_max_stack_weights(truck)[get_code(get_product(get_items(s)[1]))], precision) && # check max stack weight 
@@ -429,6 +441,9 @@ end
 function valid_axle_pressure(stacks, s::ItemizedStack, truck::Truck; fastexit=false, precision=3, verbose=false)
     if verbose
         println("enter valid_axle_pressure")
+    end
+    if isnothing(get_supplier(s))
+        error("Supplier of stack can't be equal to nothing.")
     end
     # take stacks of all suppliers at first
     sortedsuppliers = sort(get_suppliers(truck), by= x -> get_supplier_orders(truck)[x])

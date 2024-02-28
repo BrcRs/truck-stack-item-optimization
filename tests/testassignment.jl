@@ -114,7 +114,7 @@ end
         if !(result["item_productcodes"][i] in keys(products))
             products[result["item_productcodes"][i]] = Product(
                 result["item_productcodes"][i],
-                result["max_stackability"][i],
+                # result["max_stackability"][i],
                 100000 # I am just realizing that this is the same parameter as max_stack_weight in trucks
             )
         end
@@ -151,6 +151,7 @@ end
                         result["IH"][i],
                         result["IM"][i],
                         result["stackability_code"][i],
+                        result["max_stackability"][i],
                         ismissing(result["_IO"][i]) ? :none : result["_IO"][i] == 1 ? :widthwise : :lengthwise,
                         split(plant_dock_name, "__")[1],
                         split(plant_dock_name, "__")[2],
@@ -184,77 +185,119 @@ end
     #     result["coefcostinventory"]; 
     #     relax=true, silent=false, timeout=timeout #relax = true is necessary for reasonable solving times
     # )
-    ###
+    # println("Max stackability of 0090014400_03072022000875 (before solving)")
+    # println(get_max_stackability(i_items[findfirst(x -> get_id(x[2]) == "0090014400_03072022000875", i_items)][2]))
+    # readline()
 
+    # println("Max stackability of 0090014400_03072022000875's product (before solving)")
+    # println(get_max_stackability(get_product(i_items[findfirst(x -> get_id(x[2]) == "0090014400_03072022000875", i_items)][2])))
+    # readline()
+
+    # println("Pbtic Product")
+    # println(get_product(i_items[findfirst(x -> get_id(x[2]) == "0090014400_03072022000875", i_items)][2]))
+    # readline()
+    ###
+    coeftransportationcost, coefcostextratruck = result["costtransportation"], result["coefcostextratruck"]
     ###
     # item_batch_size = convert(Int64, ceil(length(i_items)/10))
     item_batch_size = nothing
     skipfirstpass=true
     assign_fn = x -> assign_to_trucks!(x...; limit=item_batch_size)
     # truck_batch_size = convert(Int64, ceil(sqrt(length(i_items))))
-    # truck_batch_size = convert(Int64, ceil(length(i_items)/10))
-    truck_batch_size = nothing
+    truck_batch_size = convert(Int64, ceil(length(i_items)/10))
+    # truck_batch_size = nothing
     ###
     reshuffles = 2
-
-    used_trucks, solution = solve_tsi(t_trucks, i_items, result["TR_P"], assign_fn; 
+    fusion_used_trucks, fusion_solution, used_trucks, solution = solve_tsi(t_trucks, i_items, result["TR_P"], assign_fn, coeftransportationcost, coefcostextratruck; 
         truck_batch_size=truck_batch_size, skipfirstpass=skipfirstpass, reshuffles=reshuffles)
     
     
     println("Solved $(length(i_items_origin)) items in $(time() - start)s")
 
+    nb_items_after = sum([
+        length(get_items(s_stack[2])) 
+        for t in keys(solution) 
+        for s_stack in solution[t]
+    ])
+    println("Items after solving: $(nb_items_after)")
+
+
+
     len_used_trucks_before = length(used_trucks)
 
     # remove empty trucks from solution
     filter!(t_stacks -> !isempty(t_stacks[2]), solution)
+    print("Solution associated to non-existent truck: ")
+    println(findfirst(t -> isnothing(findfirst(t_truck -> t_truck[1] == t, used_trucks)), collect(keys(solution))))
 
     # remove empty trucks from used trucks 
     filter!(t_truck -> t_truck[1] in keys(solution), used_trucks)
 
     len_used_trucks_after = length(used_trucks)
 
-    println("Removed $(len_used_trucks_before - len_used_trucks_after) empty trucks")
+    println("Removed $(len_used_trucks_before - len_used_trucks_after) empty trucks from solution")
 
-    filling_rates = [
-        (isempty(solution[t]) ? 0. : get_loaded_volume([stack for (i, stack) in solution[t]])) / get_volume(Dict(used_trucks)[t]) 
-            for t in keys(solution)
-    ]
+    println("Number of trucks in solution: $(len_used_trucks_after)")
+    println("Number of trucks in fusion solution: $(length(fusion_used_trucks))")
+        
+    for (sol, ut) in [(solution, used_trucks), (fusion_solution, fusion_used_trucks)]
 
-    println("Filling rate stats over $(length(used_trucks)) trucks")
-    println("Mean filling rate")
-    display(mean(filling_rates))
-    println("Min filling rate")
-    display(min(filling_rates...))
-    println("25% quantile filling rate")
-    display(quantile(filling_rates, 0.25))
-    println("Median filling rate")
-    display(median(filling_rates))
-    println("75% quantile filling rate")
-    display(quantile(filling_rates, 0.75))
-    println("Max filling rate")
-    display(max(filling_rates...))
+        filling_rates = [
+            (isempty(sol[t]) ? 0. : get_loaded_volume([stack for (i, stack) in sol[t]])) / get_volume(Dict(ut)[t]) 
+                for t in keys(sol)
+        ]
+
+        # println("Max stackability of 0090014400_03072022000875")
+        # println(get_max_stackability(i_items[findfirst(x -> get_id(x[2]) == "0090014400_03072022000875", i_items)][2]))
+        # readline()
+        # for t in keys(solution)
+        #     for (si, s) in solution[t]
+        #         if si == 2 && get_id(used_trucks[findfirst(x -> x[1] == t, used_trucks)][2]) == "P202273201"
+        #             display(min([get_max_stackability(item) for item in get_items(s)]...))
+        #             display(get_minmax_stackability(s))
+        #             readline()
+        #         end
+        #         if min([get_max_stackability(item) for item in get_items(s)]...) != get_minmax_stackability(s)
+        #             readline()
+        #         end
+        #     end
+        # end
+
+        println("Filling rate stats over $(length(ut)) trucks")
+        println("Mean filling rate")
+        display(mean(filling_rates))
+        println("Min filling rate")
+        display(min(filling_rates...))
+        println("25% quantile filling rate")
+        display(quantile(filling_rates, 0.25))
+        println("Median filling rate")
+        display(median(filling_rates))
+        println("75% quantile filling rate")
+        display(quantile(filling_rates, 0.75))
+        println("Max filling rate")
+        display(max(filling_rates...))
 
 
-    nb_items_truck = [
-        isempty(solution[t]) ? 0 : length(solution[t]) 
-            for t in keys(solution)
-    ]
+        nb_stacks_truck = [
+            isempty(sol[t]) ? 0 : length(sol[t]) 
+                for t in keys(sol)
+        ]
 
-    println("Number of stacks stats over $(length(used_trucks)) trucks")
-    println("Mean number of stacks per truck")
-    display(mean(nb_items_truck))
-    println("Min number of stacks per truck")
-    display(min(nb_items_truck...))
-    println("25% quantile number of stacks per truck")
-    display(quantile(nb_items_truck, 0.25))
-    println("Median number of stacks per truck")
-    display(median(nb_items_truck))
-    println("75% quantile number of stacks per truck")
-    display(quantile(nb_items_truck, 0.75))
-    println("Max number of stacks per truck")
-    display(max(nb_items_truck...))
-    
-    used_truck_dict = Dict(used_trucks)
+        println("Number of stacks stats over $(length(ut)) trucks")
+        println("Mean number of stacks per truck")
+        display(mean(nb_stacks_truck))
+        println("Min number of stacks per truck")
+        display(min(nb_stacks_truck...))
+        println("25% quantile number of stacks per truck")
+        display(quantile(nb_stacks_truck, 0.25))
+        println("Median number of stacks per truck")
+        display(median(nb_stacks_truck))
+        println("75% quantile number of stacks per truck")
+        display(quantile(nb_stacks_truck, 0.75))
+        println("Max number of stacks per truck")
+        display(max(nb_stacks_truck...))
+    end
+    used_truck_dict = Dict(fusion_used_trucks)
 
     # display(solution)
     output_directory = instancepath
@@ -262,13 +305,13 @@ end
         mkdir(output_directory)
     end
     append=false
-    for t in keys(solution)
+    for t in keys(fusion_solution)
         truck = used_truck_dict[t]
         # reassign ids because BLtruck creates new stacks id-less
-        for (i, stack) in solution[t]
+        for (i, stack) in fusion_solution[t]
             set_id!(stack, string(get_id(truck), "_", i))
         end
-        solution_to_csv(truck, solution[t], output_directory, append=append)
+        solution_to_csv(truck, fusion_solution[t], output_directory, append=append)
         if !append
             append = true
         end
